@@ -20,6 +20,8 @@
 - 新增教程门户 `index.html`：课程入口、学习路线、项目说明、深浅色阅读环境。
 - 新增响应式导航、滚动高亮、进入动画与移动端折叠菜单。
 - 新增 GitHub Pages 静态部署工作流与 `.nojekyll`。
+- 教程门户已部署至 `https://wang-nainai.github.io/embedded-learning/`。
+- 新建个人主页 `https://wang-nainai.github.io/`，在项目区展示本教程并提供在线学习与源码入口。
 
 ### 文档与规范
 

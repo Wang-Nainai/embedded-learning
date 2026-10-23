@@ -27,12 +27,11 @@
 
 ## 在线阅读
 
-部署到 GitHub Pages 后，入口为：
-
-- 教程门户：`https://wang-nainai.github.io/embedded-learning/`
+- 教程门户：https://wang-nainai.github.io/embedded-learning/
+- 个人主页：https://wang-nainai.github.io/
 - 五册教程：门户首页的课程卡片，或 `courses/` 目录下的对应 HTML
 
-> 以上为部署后的预期地址；是否可访问以仓库 Pages 的实际配置与部署状态为准。
+以上地址已通过 GitHub Pages 部署并验证可访问。
 
 ## 本地打开
 

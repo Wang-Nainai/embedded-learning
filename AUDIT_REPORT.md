@@ -25,7 +25,7 @@
 - **FreeRTOS 示例**：依赖内核与目标板，未在主机编译；只核对了 API 签名、上下文限制与配置前提。
 - **寄存器、I²C/SPI/CAN 时序、Wi-Fi/MQTT 联调**：依赖真实硬件，未做硬件实测；教程中已标注“平台相关”。
 - **Safari / Firefox**：未实机测试；只用 Chromium 内核的 Edge 做了桌面与移动视口验证。
-- **GitHub 远端**：本环境没有已认证的 GitHub 会话，未创建仓库、未推送、未部署 Pages；详见第 5 节。
+- **GitHub 远端**：已通过浏览器 OAuth 完成认证，创建公开仓库、推送 `main`、部署 GitHub Pages，并新建个人主页；详见 3.6。
 
 ## 2. 主要发现
 
@@ -116,32 +116,33 @@
 
 ### 3.6 发布状态
 
-- GitHub 账号 `Wang-Nainai` 公开存在。
-- 本环境**没有已认证的 GitHub 会话**（无 `gh` 登录、无 SSH 密钥、无凭据），因此：
-  - `Wang-Nainai/embedded-learning` 未创建；
-  - 代码未推送；
-  - GitHub Pages 未部署；
-  - 在线地址尚不可用。
-- `Wang-Nainai.github.io` 仓库与 `https://wang-nainai.github.io/` 均返回 404，未发现现有个人网站，因此个人主页集成未执行。
+- GitHub 账号：`Wang-Nainai`（OAuth 授权范围 `repo`、`workflow`、`gist`）。
+- 公开仓库：https://github.com/Wang-Nainai/embedded-learning
+- 教程门户：https://wang-nainai.github.io/embedded-learning/
+- 五份教程：门户课程卡片，或 `courses/` 下的对应文件；中文文件名 URL 已实际访问验证。
+- 部署方式：GitHub Actions（`.github/workflows/pages.yml`），首次运行因 Pages 尚未启用而失败，启用 Pages 后重跑成功。
+- 个人主页：原账号下没有 `Wang-Nainai.github.io` 仓库，站点也不存在；本次新建了项目索引型主页
+  https://wang-nainai.github.io/ ，在项目区展示本教程，并提供“在线学习”和“GitHub 源码”两个入口。
+- 实际访问验证：门户、`assets/portal.css`、`assets/portal.js`、五份教程、个人主页均返回 HTTP 200；页面标题与内容正确。
 
 ## 4. 剩余风险
 
 1. **FreeRTOS 示例**未用真实内核编译；API 名称、参数与上下文已核对，但不同版本/端口的宏名与默认值可能不同。
 2. **硬件相关时序**（I²C 上拉、SPI 模式、CAN 位定时、RS-485 终端）未在真实板卡与示波器上测量；教程已标注平台前提。
 3. **浏览器覆盖**只有 Chromium 内核；Safari/Firefox 未实测，使用的 `clamp`、`color-mix`、`backdrop-filter` 在近三年主流浏览器均支持，且已为 `color-mix` 增加回退。
-4. **GitHub 发布与个人主页集成**依赖账号授权与现有站点，当前无法完成。
-5. **门户中的 GitHub 链接**按目标仓库地址配置；仓库创建并推送后才会生效。
+4. 个人主页是为本项目新建的“项目索引”页面，只包含公开仓库信息，没有虚构个人简介、联系方式或统计数字；如需要完整个人介绍，可在该仓库中继续补充。
+5. GitHub Actions 首次部署曾因 Pages 未启用而失败，重跑后成功；后续修改推送后仍需在 Actions 中确认部署结果。
 
 ## 5. 发布建议
 
-内容层面：可以作为公开教程发布。技术描述、示例代码、练习答案与交互行为已完成一轮实际修复与回归；五册的知识边界清晰，重复内容主要是必要的先修复习。
+内容层面：可以作为公开教程发布。技术描述、示例代码、练习答案与交互行为已完成实际修复与回归；五册的知识边界清晰，重复内容主要是必要的先修复习。
 
-发布层面：**尚未上线**。需要在具备 GitHub 认证的环境中完成：
+发布层面：**已上线并验证**。
 
-1. 创建公开仓库 `Wang-Nainai/embedded-learning`。
-2. 推送 `main` 分支。
-3. 在 Settings → Pages 选择 GitHub Actions，等待 `deploy` 成功。
-4. 验证门户与五份教程的真实 URL。
-5. 个人网站仓库当前不存在；如后续创建，再把项目卡片加入其项目区。
+1. 仓库：https://github.com/Wang-Nainai/embedded-learning
+2. 门户：https://wang-nainai.github.io/embedded-learning/
+3. 个人主页：https://wang-nainai.github.io/
+4. Pages 由 GitHub Actions 发布，最近一次 `deploy` 成功。
+5. 后续更新：修改 `_src` 后重新构建，提交并推送 `main`，等待 Actions 完成即可。
 
-在完成上述步骤前，不应把任何在线地址标记为“已上线”。
+建议在正式对外宣传前，再用手机实际打开一次门户与两册教程，确认运营商网络下的加载体验；本次验证使用本机网络与 Chromium 内核。
