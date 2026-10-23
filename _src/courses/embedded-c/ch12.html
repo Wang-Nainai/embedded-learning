@@ -1,0 +1,187 @@
+<h3><span class="n">12.1</span>优化器的世界观：未定义行为不会发生</h3>
+<p>编译器优化时遵循一条铁律：<strong>如果程序有未定义行为，编译器可以对结果做任何假设</strong>。它不是“尽量保持你的本意”，而是“按标准允许的范围重新排列、删除、合并”。</p>
+<codeblock lang="C11" file="ub_opt.c">
+#include <stdio.h>
+#include <limits.h>
+
+/* 有符号溢出是 UB：编译器可以假设 x + 1 不会溢出 */
+int always_true(int x)
+{
+    return (x + 1) > x;
+}
+
+int main(void)
+{
+    printf("%d\n", always_true(INT_MAX));
+    return 0;
+}
+</codeblock>
+<outblock label="GCC/Clang -O2 下可能输出">
+1
+</outblock>
+<p>在数学上，<code class="i">INT_MAX + 1</code> 应该变成 <code class="i">INT_MIN</code>，<code class="i">(x+1) &gt; x</code> 应该为假。但编译器知道你“保证”不会溢出，于是直接把整个函数优化成 <code class="i">return 1</code>。<code class="i">-O0</code> 下通常输出 0，<code class="i">-O2</code> 下输出 1——同一份代码，两种结果。如果开了 UBSan，它会在溢出发生的那一刻直接报错，这反而是最幸运的情况。</p>
+<div class="note law">
+<b>标准怎么说</b>
+<p>“未定义行为”不是“结果不确定”，而是“标准不约束程序的任何行为”。这意味着编译器可以假设它永远不会发生，并据此做优化。想让溢出可预测，就改用无符号类型，或在运算前检查边界。</p>
+</div>
+
+<h3><span class="n">12.2</span>嵌入式里最常见的五类 UB</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类型</th><th>例子</th><th>后果</th></tr></thead>
+<tbody>
+<tr><td>有符号溢出</td><td><code>int x = INT_MAX; x++;</code></td><td>优化后逻辑被删除或反转</td></tr>
+<tr><td>越界访问</td><td><code>a[5]</code> 对 <code>int a[5]</code></td><td>踩坏相邻变量、HardFault</td></tr>
+<tr><td>空指针解引用</td><td><code>p->x</code> 且 <code>p == NULL</code></td><td>读地址 0，触发异常</td></tr>
+<tr><td>严格别名违规</td><td>把 <code>int *</code> 转成 <code>float *</code> 读写</td><td>优化后读写顺序错乱</td></tr>
+<tr><td>未初始化读取</td><td><code>int x; if (x) ...</code></td><td>值不确定，优化器可假设任意值</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="alias.c">
+#include <stdint.h>
+
+/* 错误：通过 float* 读 int 对象，违反严格别名规则 */
+float bad(int *p)
+{
+    return *(float *)p;
+}
+
+/* 正确：用 memcpy 按字节复制，标准允许 */
+float good(int *p)
+{
+    float f;
+    __builtin_memcpy(&f, p, sizeof f);   /* 或 #include <string.h> 用 memcpy */
+    return f;
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p>GCC/Clang 默认开启严格别名优化（<code class="i">-fstrict-aliasing</code>，包含在 <code class="i">-O2</code> 里）。有些老代码靠 <code class="i">-fno-strict-aliasing</code> 续命，但正确做法是改代码：用 <code class="i">memcpy</code>、<code class="i">union</code>（受限）或 <code class="i">may_alias</code> 属性。</p>
+</div>
+
+<h3><span class="n">12.3</span>为什么“空循环”消失了</h3>
+<codeblock lang="C11" file="delay.c">
+/* 想用空循环延时：不可靠 */
+void delay_loop(void)
+{
+    for (volatile int i = 0; i < 100000; i++) {
+        /* 空 */
+    }
+}
+</codeblock>
+<p>如果 <code class="i">i</code> 不是 <code class="i">volatile</code>，编译器会认为这个循环没有可观察的副作用，直接删掉。加了 <code class="i">volatile</code> 后循环会保留，但延时长度仍取决于主频、编译选项和流水线，<strong>不能当作精确延时</strong>。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>需要精确延时，用硬件定时器；需要“至少等一会儿”，用定时器或 RTOS 的阻塞延时。空循环只适合“上电后等晶振稳定”这类对精度没有要求的场合，而且要看芯片手册要求。</p>
+</div>
+
+<h3><span class="n">12.4</span>把问题挡在运行时之前</h3>
+<div class="grid3">
+<div class="card"><span class="tag">编译期</span><h4>断言与警告</h4><p><code>_Static_assert</code> 检查布局与常量；<code>-Wall -Wextra -Werror</code> 把警告变成错误。</p></div>
+<div class="card"><span class="tag">运行期</span><h4>assert 与日志</h4><p><code>assert(p != NULL)</code> 在调试版本捕获非法状态；发布版本可关闭，但要保留错误码。</p></div>
+<div class="card"><span class="tag">工具</span><h4>sanitizer 与调试器</h4><p>主机上用 ASan/UBSan 跑逻辑；目标板上用 GDB + 断点 + 寄存器查看。</p></div>
+</div>
+<codeblock lang="C11" file="assert_use.c">
+#include <assert.h>
+#include <stddef.h>
+
+int parse(const uint8_t *buf, size_t len)
+{
+    assert(buf != NULL);          /* 调试版本：违反直接 abort */
+    assert(len <= 64);            /* 约定上限，防止越界 */
+
+    if (buf == NULL || len > 64) {
+        return -1;                /* 发布版本：返回错误码，不崩溃 */
+    }
+    /* ... */
+    return 0;
+}
+</codeblock>
+
+<h3><span class="n">12.5</span>HardFault 之后看什么</h3>
+<p>Cortex-M 进入 HardFault 时，硬件会把关键寄存器压栈。调试器里通常能看到：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>信息</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td>PC / LR</td><td>崩在哪条指令、从哪个函数返回</td></tr>
+<tr><td>CFSR / HFSR</td><td>区分总线错误、用法错误、内存管理错误</td></tr>
+<tr><td>BFAR / MMFAR</td><td>非法访问的地址</td></tr>
+<tr><td>栈内容</td><td>反推调用链与局部变量</td></tr>
+</tbody>
+</table>
+</div>
+<p>更实用的做法是：在 HardFault 处理函数里把栈帧打印出来，或者点亮一个错误码 LED。产品现场没有调试器，<strong>能自己报告故障位置</strong>的固件才有维护价值。</p>
+
+<h3><span class="n">12.6</span>让硬件相关代码也能在主机上测试</h3>
+<p>把“读寄存器”抽成接口，业务逻辑就变成纯 C，可以在 PC 上编译、跑单元测试：</p>
+<codeblock lang="C11" file="hal.h">
+#ifndef HAL_H
+#define HAL_H
+
+#include <stdint.h>
+
+/* 只声明，不实现：目标板提供真实实现，主机测试提供假实现 */
+uint32_t hal_gpio_read(uint8_t pin);
+void     hal_gpio_write(uint8_t pin, int level);
+uint32_t hal_tick_ms(void);
+
+#endif
+</codeblock>
+<codeblock lang="C11" file="fake_hal.c · 主机测试用">
+#include "hal.h"
+
+static uint32_t g_fake_tick;
+
+uint32_t hal_gpio_read(uint8_t pin) { (void)pin; return 0; }
+void hal_gpio_write(uint8_t pin, int level) { (void)pin; (void)level; }
+uint32_t hal_tick_ms(void) { return g_fake_tick; }
+
+void fake_tick_advance(uint32_t ms) { g_fake_tick += ms; }
+</codeblock>
+<p>这样，状态机、解析器、控制逻辑都能在主机上跑测试；只有 <code class="i">hal_*</code> 的实现需要在真实硬件上验证。这是嵌入式工程里<strong>投入产出比最高</strong>的一个习惯。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 12 讲</div>
+<div class="pb">
+<ol>
+<li>用 <code class="i">-O0</code> 和 <code class="i">-O2</code> 分别编译 12.1 节的程序，观察输出是否不同。</li>
+<li>找出你写过的一个“靠空循环延时”的地方，改成定时器实现。</li>
+<li>解释严格别名规则为什么存在，它给优化器带来了什么能力。</li>
+<li>为一个解析函数设计三层防护：编译期断言、运行期参数检查、sanitizer 测试。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">-O0</code> 可能输出 0，<code class="i">-O2</code> 输出 1；如果编译器更激进，甚至可能把整个调用折叠成常量。</p>
+<p><b>2.</b> 用 SysTick 或硬件定时器计数，或调用 RTOS 的 <code class="i">vTaskDelay</code>；空循环只能用于对时间无要求的场合。</p>
+<p><b>3.</b> 它允许编译器假设“不同类型的指针不会指向同一对象”，从而放心地把值缓存在寄存器里、调整读写顺序。没有这条规则，几乎无法做有效的别名分析。</p>
+<p><b>4.</b> 编译期用 <code class="i">_Static_assert</code> 检查缓冲区大小；运行期检查空指针、长度、状态；测试时用 ASan/UBSan 跑异常输入。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">for (int i = 0; i &lt; 100000; i++) { }</code> 在 <code class="i">-O2</code> 下最可能发生什么？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>精确延时 100000 次循环</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>整个循环被删除</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>编译报错</span></button>
+</div>
+<div class="fb" data-fb>循环没有可观察的副作用，编译器可以直接删除。要保留必须让循环体有 volatile 访问或调用外部函数，但即使保留，延时长度也不可靠。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>编译器可以假设 UB 不会发生，因此优化后的行为可能“反直觉”。</li>
+<li>五类高频 UB：有符号溢出、越界、空指针、严格别名、未初始化读取。</li>
+<li>空循环延时不精确，甚至会被删除。</li>
+<li>三层防护：编译期断言、运行期检查、sanitizer 测试。</li>
+<li>把硬件访问抽成 HAL，业务逻辑就能在主机上测试。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出至少三类 UB</li>
+<li>我知道 -O2 下哪些代码会被删除</li>
+<li>我能为模块设计可在主机运行的测试</li>
+</ul>
+</div>

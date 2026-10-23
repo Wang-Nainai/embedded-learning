@@ -1,0 +1,283 @@
+<h3><span class="n">10.1</span>为什么是“环形”</h3>
+<p>串口数据随时可能到达，CPU 不能停下来等。最直接的做法是开一个大数组，来一个字节存一个——但数组总会满，满了就要搬移数据，搬移又要时间。</p>
+<p>环形缓冲区（ring buffer / FIFO）用<strong>固定大小的数组 + 两个指针</strong>解决这个问题：写指针向前走，走到末尾就回到开头；读指针同理。不需要搬移，插入和取出都是 O(1)。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 250" role="img" aria-labelledby="fig10t fig10d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig10t">环形缓冲区的读写指针</title>
+<desc id="fig10d">容量为 8 的数组，head 指向下一个写入位置，tail 指向下一个读取位置；已存数据位于 tail 到 head 之间，指针到末尾后回绕到 0。</desc>
+<rect width="820" height="250" fill="#fbfdff"/>
+<g font-size="12" text-anchor="middle">
+<rect x="60" y="60" width="72" height="50" rx="7" fill="#e2e8f0" stroke="#94a3b8"/><text x="96" y="90" fill="#475569">空闲</text>
+<rect x="138" y="60" width="72" height="50" rx="7" fill="#dcfce7" stroke="#4ade80"/><text x="174" y="90" fill="#166534">A</text>
+<rect x="216" y="60" width="72" height="50" rx="7" fill="#dcfce7" stroke="#4ade80"/><text x="252" y="90" fill="#166534">B</text>
+<rect x="294" y="60" width="72" height="50" rx="7" fill="#dcfce7" stroke="#4ade80"/><text x="330" y="90" fill="#166534">C</text>
+<rect x="372" y="60" width="72" height="50" rx="7" fill="#e2e8f0" stroke="#94a3b8"/><text x="408" y="90" fill="#475569">空闲</text>
+<rect x="450" y="60" width="72" height="50" rx="7" fill="#e2e8f0" stroke="#94a3b8"/><text x="486" y="90" fill="#475569">空闲</text>
+<rect x="528" y="60" width="72" height="50" rx="7" fill="#e2e8f0" stroke="#94a3b8"/><text x="564" y="90" fill="#475569">空闲</text>
+<rect x="606" y="60" width="72" height="50" rx="7" fill="#e2e8f0" stroke="#94a3b8"/><text x="642" y="90" fill="#475569">空闲</text>
+</g>
+<g font-size="10.5" fill="#94a3b8" text-anchor="middle">
+<text x="96" y="128">0</text><text x="174" y="128">1</text><text x="252" y="128">2</text><text x="330" y="128">3</text>
+<text x="408" y="128">4</text><text x="486" y="128">5</text><text x="564" y="128">6</text><text x="642" y="128">7</text>
+</g>
+<path d="M96 152 L96 176" stroke="#0f766e" stroke-width="2" marker-end="url(#a10)"/>
+<text x="96" y="196" font-size="12" fill="#0f766e" text-anchor="middle" font-weight="700">tail（读）</text>
+<path d="M408 152 L408 176" stroke="#b45309" stroke-width="2" marker-end="url(#a10)"/>
+<text x="408" y="196" font-size="12" fill="#b45309" text-anchor="middle" font-weight="700">head（写）</text>
+<defs><marker id="a10" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+<text x="60" y="228" font-size="11.5" fill="#475569">已用 3 个（A B C），可写 5 个。head 追上 tail 表示满；tail 追上 head 表示空。</text>
+</svg>
+<figcaption>环形缓冲区：用取模让指针回绕，数据不需要搬移。</figcaption>
+</figure>
+
+<h3><span class="n">10.2</span>怎么区分“满”和“空”</h3>
+<p>如果只有 head 和 tail，那么 <code class="i">head == tail</code> 既可能是空，也可能是满。三种常见解法：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>方案</th><th>做法</th><th>容量</th><th>代价</th></tr></thead>
+<tbody>
+<tr><td>浪费一个槽位</td><td><code>(head + 1) % N == tail</code> 判满</td><td>N-1</td><td>少存一个元素，逻辑最简单</td></tr>
+<tr><td>额外计数</td><td>维护 <code>count</code>，0 为空、N 为满</td><td>N</td><td>多一个变量，读写都要更新</td></tr>
+<tr><td>镜像索引</td><td>用 2N 的数组，head/tail 不回绕，靠掩码取模</td><td>N</td><td>多占一倍地址空间（不一定要多占内存）</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="ring.h">
+#ifndef RING_H
+#define RING_H
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+
+#define RING_CAP 64
+
+typedef struct {
+    uint8_t           buf[RING_CAP];
+    volatile uint16_t head;      /* 写索引：只有生产者修改 */
+    volatile uint16_t tail;      /* 读索引：只有消费者修改 */
+} ring_t;
+
+void    ring_init(ring_t *r);
+bool    ring_push(ring_t *r, uint8_t byte);      /* 满则返回 false */
+bool    ring_pop(ring_t *r, uint8_t *out);       /* 空则返回 false */
+size_t  ring_count(const ring_t *r);
+bool    ring_is_empty(const ring_t *r);
+bool    ring_is_full(const ring_t *r);
+
+#endif
+</codeblock>
+<codeblock lang="C11" file="ring.c">
+#include "ring.h"
+
+void ring_init(ring_t *r)
+{
+    r->head = 0;
+    r->tail = 0;
+}
+
+bool ring_is_empty(const ring_t *r)
+{
+    return r->head == r->tail;
+}
+
+bool ring_is_full(const ring_t *r)
+{
+    return (uint16_t)((r->head + 1u) % RING_CAP) == r->tail;
+}
+
+size_t ring_count(const ring_t *r)
+{
+    return (size_t)((r->head + RING_CAP - r->tail) % RING_CAP);
+}
+
+bool ring_push(ring_t *r, uint8_t byte)
+{
+    uint16_t next = (uint16_t)((r->head + 1u) % RING_CAP);
+    if (next == r->tail) {
+        return false;                 /* 满：丢弃或由调用者处理 */
+    }
+    r->buf[r->head] = byte;
+    r->head = next;                   /* 先写数据，再移动指针 */
+    return true;
+}
+
+bool ring_pop(ring_t *r, uint8_t *out)
+{
+    if (r->head == r->tail) {
+        return false;                 /* 空 */
+    }
+    *out = r->buf[r->tail];
+    r->tail = (uint16_t)((r->tail + 1u) % RING_CAP);
+    return true;
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>“先写数据，再移动 head”是单生产者单消费者场景下的关键顺序：消费者看到 head 前进时，数据一定已经写好了。反过来（先动指针再写数据）会让消费者读到旧值。更严格的多核场景还需要内存屏障。</p>
+</div>
+
+<div class="lab" id="lab-ring">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>环形缓冲区读写</h4>
+    <p>容量 8（实际可用 7）。连续 push 到满，再 pop 到空，观察 head/tail 如何回绕。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" data-ring="push">push 一个</button>
+      <button class="lab-btn" type="button" data-ring="pop">pop 一个</button>
+      <button class="lab-btn" type="button" data-ring="fill">填满</button>
+      <button class="lab-btn" type="button" data-ring="reset">重置</button>
+    </div>
+    <div class="lab-canvas" id="ringCanvas"></div>
+    <div class="lab-read" id="ringOut" aria-live="polite"></div>
+    <p class="lab-note">满的时候 push 返回 false，不是覆盖旧数据——丢新数据还是丢旧数据，是业务策略，必须显式决定。</p>
+  </div>
+</div>
+
+<h3><span class="n">10.3</span>字节流不是消息流</h3>
+<p>串口给你的是连续的字节。一次中断可能收到半个帧，也可能收到一帧半。解析器必须自己解决三件事：</p>
+<div class="grid3">
+<div class="card"><h4>粘连</h4><p>两次数据粘在一起：<code>[帧1][帧2]</code>。必须按长度切开，不能假设“一次读 = 一帧”。</p></div>
+<div class="card"><h4>分片</h4><p>一帧分几次到达：<code>[帧头+长度]</code> 然后 <code>[载荷]</code>。必须缓存中间状态。</p></div>
+<div class="card"><h4>噪声</h4><p>总线上出现乱码。必须能重新同步到帧头，而不是一直错位。</p></div>
+</div>
+
+<h3><span class="n">10.4</span>解析状态机</h3>
+<codeblock lang="C11" file="parser.c">
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+
+#define SOF       0xA5u
+#define MAX_PAYLOAD 32u
+
+typedef enum {
+    PS_WAIT_SOF = 0,
+    PS_WAIT_LEN,
+    PS_WAIT_PAYLOAD,
+    PS_WAIT_CRC
+} parse_state_t;
+
+/* 简单的异或校验，仅用于演示；真实协议请用 CRC */
+static uint8_t checksum(const uint8_t *p, uint8_t n)
+{
+    uint8_t x = 0;
+    for (uint8_t i = 0; i < n; i++) {
+        x ^= p[i];
+    }
+    return x;
+}
+
+typedef struct {
+    parse_state_t state;
+    uint8_t  len;
+    uint8_t  index;
+    uint8_t  payload[MAX_PAYLOAD];
+} parser_t;
+
+/* 返回 true 表示收到一个完整帧 */
+bool parser_feed(parser_t *p, uint8_t byte, uint8_t *out, uint8_t *out_len)
+{
+    switch (p->state) {
+    case PS_WAIT_SOF:
+        if (byte == SOF) {
+            p->state = PS_WAIT_LEN;
+        }
+        break;
+
+    case PS_WAIT_LEN:
+        if (byte == 0u || byte > MAX_PAYLOAD) {
+            p->state = PS_WAIT_SOF;      /* 长度非法：重新找帧头 */
+        } else {
+            p->len = byte;
+            p->index = 0;
+            p->state = PS_WAIT_PAYLOAD;
+        }
+        break;
+
+    case PS_WAIT_PAYLOAD:
+        p->payload[p->index++] = byte;
+        if (p->index >= p->len) {
+            p->state = PS_WAIT_CRC;
+        }
+        break;
+
+    case PS_WAIT_CRC:
+        p->state = PS_WAIT_SOF;
+        if (byte == checksum(p->payload, p->len)) {
+            memcpy(out, p->payload, p->len);
+            *out_len = p->len;
+            return true;
+        }
+        break;
+
+    default:
+        p->state = PS_WAIT_SOF;
+        break;
+    }
+    return false;
+}
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>解析器里最危险的是<strong>长度字段</strong>。如果直接 <code class="i">memcpy(dst, src, len)</code> 而不检查 <code class="i">len &lt;= sizeof dst</code>，一个错误的长度字节就能造成缓冲区溢出。所有来自外部的长度都必须先校验，再使用。</p>
+</div>
+
+<h3><span class="n">10.5</span>溢出策略：丢新还是丢旧</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>策略</th><th>适用场景</th><th>后果</th></tr></thead>
+<tbody>
+<tr><td>拒绝新数据</td><td>数据必须完整，宁可丢新也不能乱序</td><td>旧数据保留，新数据丢失，需要计数告警</td></tr>
+<tr><td>覆盖最旧</td><td>只关心最新状态（如传感器最新值）</td><td>消费者可能看到跳变</td></tr>
+<tr><td>扩容</td><td>主机环境，内存充足</td><td>嵌入式里通常不可行（堆碎片、确定性差）</td></tr>
+</tbody>
+</table>
+</div>
+<p>无论选哪种，都要<strong>记录溢出次数</strong>。一个默默丢数据的系统，比一个明确报错的系统更难排查。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 10 讲</div>
+<div class="pb">
+<ol>
+<li>把 <code class="i">ring_count</code> 改成维护 <code>count</code> 的版本，说明它和“浪费一个槽位”版本的差异。</li>
+<li>如果生产者在中断里、消费者在主循环里，哪些变量必须是 <code class="i">volatile</code>？</li>
+<li>给解析器加上“超时复位”：超过 100 ms 没收到新字节就回到 <code>WAIT_SOF</code>。</li>
+<li>设计一个测试：故意发送半帧、错误长度、错误校验，验证解析器不会崩溃。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">count</code> 版本容量是 N，但 push/pop 都要读改写 count；在 SPSC 场景下，count 会被两边同时修改，需要原子操作或临界区。浪费槽位版本只有一个生产者写 head、一个消费者写 tail，天然无锁。</p>
+<p><b>2.</b> <code class="i">head</code>、<code class="i">tail</code> 和 <code class="i">buf</code>（通过指针间接访问）都需要保证编译器不缓存；通常把 head/tail 声明为 volatile，buf 的可见性靠写入顺序与编译器屏障保证。</p>
+<p><b>3.</b> 在 <code class="i">parser_t</code> 里加 <code class="i">last_ms</code>，每次 feed 更新时间；周期函数检查差值，超时则复位状态。</p>
+<p><b>4.</b> 用表驱动测试：输入字节序列、期望的返回值与输出帧；覆盖空、半帧、超长、校验错、连续多帧。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：容量为 8、采用“浪费一个槽位”判满的环形缓冲区，最多能存几个字节？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>8</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>7</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>取决于数据类型</span></button>
+</div>
+<div class="fb" data-fb>当 <code class="i">(head+1)%8 == tail</code> 时判满，所以 head 和 tail 之间总要空一格，实际可用 7 个。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>环形缓冲区用固定内存实现 O(1) 的入队/出队，不需要搬移。</li>
+<li>满/空判定有三种方案，各有容量与并发代价。</li>
+<li>字节流必须按“粘连、分片、噪声”三种情况设计解析器。</li>
+<li>外部长度字段必须先校验再使用。</li>
+<li>溢出策略要显式选择，并记录溢出次数。</li>
+</ul>
+<ul class="checklist">
+<li>我能手写一个 SPSC 环形缓冲区</li>
+<li>我能画出解析状态机的四个状态</li>
+<li>我知道先写数据再移动指针的原因</li>
+</ul>
+</div>

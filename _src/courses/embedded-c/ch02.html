@@ -1,0 +1,190 @@
+<h3><span class="n">2.1</span>寄存器就是一个固定地址</h3>
+<p>“配置 GPIO”听起来抽象，落到代码上只有一句话：<strong>往某个固定地址写一个特定宽度的值</strong>。芯片手册给出的寄存器表，本质上是一张“地址 + 位定义”的说明书。</p>
+<codeblock lang="C11" file="reg_raw.c · 平台相关（地址为 STM32 示例）">
+#include <stdint.h>
+
+#define GPIOA_BASE   0x40020000UL
+#define GPIOA_MODER  (*(volatile uint32_t *)(GPIOA_BASE + 0x00UL))
+#define GPIOA_ODR    (*(volatile uint32_t *)(GPIOA_BASE + 0x14UL))
+
+void led_init(void)
+{
+    /* 把 PA5 配置为通用输出：MODER[11:10] = 01 */
+    GPIOA_MODER &= ~(3UL << 10);      /* 先清两位 */
+    GPIOA_MODER |=  (1UL << 10);      /* 再写 01 */
+
+    GPIOA_ODR |= (1UL << 5);          /* 输出高电平 */
+}
+</codeblock>
+<p>拆开看这个宏：</p>
+<ul>
+<li><code class="i">0x40020000UL</code> 是整数常量，<code class="i">UL</code> 保证它是 <code class="i">unsigned long</code>，避免在 16 位 <code class="i">int</code> 的平台上溢出。</li>
+<li><code class="i">(volatile uint32_t *)</code> 把整数转换成“指向 32 位寄存器的指针”。</li>
+<li>外面的 <code class="i">*</code> 解引用，于是 <code class="i">GPIOA_MODER</code> 可以像普通变量一样赋值——但每次访问都会真的读写那个地址。</li>
+</ul>
+<div class="note law">
+<b>标准怎么说</b>
+<p>把整数转成指针、再解引用一个“不是 C 对象”的地址，严格来说超出了 C 标准描述的范围（标准只保证对象和数组内部的指针算术）。这是<strong>实现定义 + 平台约定</strong>：编译器明确支持内存映射 I/O，芯片手册保证该地址有效。写驱动时必须同时信任这两份文档。</p>
+</div>
+
+<h3><span class="n">2.2</span>volatile：让编译器“每次都真的去读”</h3>
+<p>没有 <code class="i">volatile</code> 时，编译器可以合理地假设“这个变量的值不会自己变”，于是把多次读取合并成一次，甚至把整个循环优化掉。</p>
+<codeblock lang="C11" file="volatile_demo.c">
+/* 错误：编译器可能只读一次 STATUS，然后死循环 */
+while (STATUS == 0) { }
+
+/* 正确：每次都从地址重新读取 */
+while (*(volatile uint32_t *)STATUS_ADDR == 0) { }
+</codeblock>
+<p><code class="i">volatile</code> 告诉编译器三件事：</p>
+<div class="grid3">
+<div class="card"><h4>不能省</h4><p>每次访问都必须真实发生，不能合并、不能缓存到寄存器。</p></div>
+<div class="card"><h4>不能重排</h4><p>同一线程内，volatile 访问之间的顺序不会被编译器调换。</p></div>
+<div class="card"><h4>仅此而已</h4><p>它<strong>不</strong>保证原子性，<strong>不</strong>保证多核之间的可见性，也<strong>不</strong>是锁。</p></div>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>“用 volatile 就能在多任务/中断里安全共享变量”是错误结论。<code class="i">volatile</code> 只解决“编译器优化掉访问”，不解决“读到一半被中断打断”。第 11 讲会专门处理这个问题。</p>
+</div>
+
+<h3><span class="n">2.3</span>厂商头文件为什么那样写</h3>
+<p>真实工程不会为每个寄存器写一个宏，而是用结构体把一组寄存器连续排列，再用基地址转成指针：</p>
+<codeblock lang="C11" file="reg_struct.c · 平台相关（布局为示例）">
+#include <stdint.h>
+
+typedef struct {
+    volatile uint32_t MODER;     /* 0x00 */
+    volatile uint32_t OTYPER;    /* 0x04 */
+    volatile uint32_t OSPEEDR;   /* 0x08 */
+    volatile uint32_t PUPDR;     /* 0x0C */
+    volatile uint32_t IDR;       /* 0x10 */
+    volatile uint32_t ODR;       /* 0x14 */
+    volatile uint32_t BSRR;      /* 0x18 */
+    volatile uint32_t LCKR;      /* 0x1C */
+    volatile uint32_t AFR[2];    /* 0x20, 0x24 */
+} GPIO_TypeDef;
+
+#define GPIOA ((GPIO_TypeDef *)0x40020000UL)
+
+void led_on(void)
+{
+    GPIOA->BSRR = (1UL << 5);    /* 写 1 置位，单次写，天然原子 */
+}
+</codeblock>
+<p>这种写法依赖两个前提：<strong>结构体成员之间没有填充</strong>，且<strong>每个成员都是 4 字节</strong>。只要成员全是 <code class="i">uint32_t</code>，在常见 ABI 下就成立；一旦混入 <code class="i">uint8_t</code>，就可能出现填充，寄存器偏移全错。厂商头文件通常会用编译期断言检查偏移。</p>
+<div class="note impl">
+<b>实现细节</b>
+<p>CMSIS 把这种结构体指针封装成 <code class="i">GPIOA</code> 这样的宏，并加上 <code class="i">__IO</code>（即 <code class="i">volatile</code>）修饰。不同厂商命名不同，但套路一致：<strong>基地址 + 结构体偏移 + volatile</strong>。</p>
+</div>
+
+<h3><span class="n">2.4</span>读改写：一行 C 其实是三步</h3>
+<p><code class="i">REG |= (1 &lt;&lt; 3);</code> 看起来是一个动作，编译后通常是：</p>
+<div class="steps">
+<div><b>读</b>　把 REG 的 32 位值从外设读进 CPU 寄存器。</div>
+<div><b>改</b>　在 CPU 里做按位或。</div>
+<div><b>写</b>　把结果写回 REG。</div>
+</div>
+<p>如果在这三步之间来了中断，而中断也修改了同一个寄存器，那么中断的修改会被主流程的“写回”覆盖——这叫<strong>读改写丢失更新</strong>。</p>
+<codeblock lang="C11" file="rmw_race.c · 片段">
+/* 主循环 */
+REG |= (1u << 3);
+
+/* 中断里 */
+REG |= (1u << 7);
+
+/* 可能的执行顺序：
+   主：读 REG（bit7=0）
+   中断：读 REG（bit7=0），写回 bit7=1
+   主：写回自己算出的值（bit7 仍是 0）→ 中断的修改丢了
+*/
+</codeblock>
+<div class="note good">
+<b>正确做法</b>
+<p>优先使用硬件提供的<strong>原子置位/清位寄存器</strong>（例如 STM32 的 BSRR：写 1 置位、写 0 无影响；写 1 到高 16 位清位）。没有这种寄存器时，用临界区保护整段读改写，或者用位带（如果芯片支持）。</p>
+</div>
+
+<h3><span class="n">2.5</span>写 1 清除：不能想当然</h3>
+<p>有些状态寄存器的语义是“写 1 清除”（write-1-to-clear）。这时 <code class="i">REG &amp;= ~(1 &lt;&lt; n)</code> 不但清不掉，还可能把其他位清掉，因为写 0 在该位上“无动作”，而其他位写 0 也可能触发清除。</p>
+<codeblock lang="C11" file="w1c.c · 片段">
+/* 假设 bit0..bit3 都是 write-1-to-clear 的标志位 */
+REG = (1u << 2);        /* 只清 bit2：直接赋值，不要读改写 */
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>读寄存器手册时，先确认每个字段的访问类型：<code class="i">RW</code>、<code class="i">RO</code>、<code class="i">W1C</code>、<code class="i">RC_W0</code>……访问类型比位定义更容易被忽略，也更容易导致“明明写了却没效果”。</p>
+</div>
+
+<div class="lab" id="lab-reg">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>32 位寄存器位图</h4>
+    <p>点击任意位翻转它，观察十六进制值，以及“置位 / 清位”对应的 C 表达式。这就是写驱动时每天在做的事。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn" type="button" id="regZero">全部清零</button>
+      <button class="lab-btn" type="button" id="regAll">全部置 1</button>
+      <span class="chip" id="regHint">点击位 0–31</span>
+    </div>
+    <div class="lab-canvas" id="regCanvas"></div>
+    <div class="lab-read" id="regOut" aria-live="polite"></div>
+    <p class="lab-note">位编号从 0（最低位）开始。写寄存器时务必用 <code class="i">1u &lt;&lt; n</code>，不要用有符号的 <code class="i">1 &lt;&lt; 31</code>。</p>
+  </div>
+</div>
+
+<h3><span class="n">2.6</span>四个常见错误</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误</th><th>后果</th><th>正确做法</th></tr></thead>
+<tbody>
+<tr><td>寄存器指针没加 <code>volatile</code></td><td>轮询循环被优化成死循环或直接跳过</td><td>所有 MMIO 指针都加 <code>volatile</code></td></tr>
+<tr><td>用 <code>int</code> 做 32 位移位</td><td><code>1 &lt;&lt; 31</code> 未定义行为</td><td>用 <code>1u</code> / <code>1UL</code></td></tr>
+<tr><td>读改写共享寄存器</td><td>丢失中断里的修改</td><td>用 BSRR 类寄存器或临界区</td></tr>
+<tr><td>把 W1C 当普通位清</td><td>清错标志、丢事件</td><td>按手册的访问类型操作</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 2 讲</div>
+<div class="pb">
+<ol>
+<li>写出把 <code class="i">REG</code> 的第 12–15 位设为 <code class="i">0b1010</code> 的代码（其余位不变）。</li>
+<li>解释为什么 <code class="i">while (REG &amp; 1)</code> 在 <code class="i">REG</code> 不是 volatile 时可能永远不结束，也可能立刻结束。</li>
+<li>结构体映射寄存器时，如果中间插入一个 <code class="i">uint8_t</code> 成员，会发生什么？</li>
+<li>什么情况下必须用临界区保护读改写？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">REG = (REG &amp; ~(0xFUL &lt;&lt; 12)) | (0xAUL &lt;&lt; 12);</code>。先清 4 位，再写入目标值。</p>
+<p><b>2.</b> 非 volatile 时编译器可以把 <code class="i">REG</code> 读一次存到寄存器，循环条件不再重新读内存；如果初值为 0，就永远不结束；如果编译器认为循环无副作用，还可能整个删掉。</p>
+<p><b>3.</b> 编译器会在 <code class="i">uint8_t</code> 后插入填充，使下一个 <code class="i">uint32_t</code> 对齐到 4 字节，后续所有寄存器偏移都错位。</p>
+<p><b>4.</b> 当同一寄存器会被主循环和中断（或两个任务）同时读改写，且硬件没有原子置位/清位寄存器时。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">volatile</code> 能保证下面哪一项？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>对变量的读写是原子的</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>每次访问都真实发生，不会被编译器优化掉</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>多个中断之间不会竞争</span></button>
+</div>
+<div class="fb" data-fb><code class="i">volatile</code> 只约束编译器，不提供原子性，也不提供内存屏障语义（跨核/跨设备的顺序需要额外手段）。原子性要靠硬件指令、临界区或 C11 原子类型。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>寄存器访问 = 固定地址 + 正确宽度 + <code class="i">volatile</code>。</li>
+<li>结构体映射依赖“无填充”这一前提，混入小类型会错位。</li>
+<li><code class="i">REG |= x</code> 是读改写三步，可能丢失并发修改。</li>
+<li>优先用硬件提供的原子置位/清位寄存器。</li>
+<li>先看访问类型（RW/RO/W1C），再写代码。</li>
+</ul>
+<ul class="checklist">
+<li>我能手写一个寄存器访问宏</li>
+<li>我能解释 volatile 的边界</li>
+<li>我知道读改写为什么会丢更新</li>
+</ul>
+</div>

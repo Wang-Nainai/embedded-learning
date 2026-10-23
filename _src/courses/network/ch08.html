@@ -1,0 +1,135 @@
+<h3><span class="n">8.1</span>HTTP 是“请求-响应”的文本协议</h3>
+<codeblock lang="text" file="HTTP 请求">
+GET /api/v1/device?id=42 HTTP/1.1
+Host: api.example.com
+User-Agent: esp32/1.0
+Accept: application/json
+Connection: keep-alive
+
+</codeblock>
+<codeblock lang="text" file="HTTP 响应">
+HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 27
+Date: Thu, 23 Oct 2026 08:00:00 GMT
+
+{"id":42,"temp":23.5,"ok":1}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>部分</th><th>内容</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>请求行</td><td>方法 + 路径 + 版本</td><td>路径含查询参数</td></tr>
+<tr><td>头部</td><td>键值对，每行一个</td><td><code>Host</code> 在 HTTP/1.1 必须存在</td></tr>
+<tr><td>空行</td><td>CRLF</td><td>头部结束的标志</td></tr>
+<tr><td>正文</td><td>可选</td><td>长度由 <code>Content-Length</code> 或 chunked 决定</td></tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>状态码</th><th>含义</th><th>设备端常见原因</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>成功</td><td>—</td></tr>
+<tr><td>301/302</td><td>重定向</td><td>URL 写错、强制 HTTPS</td></tr>
+<tr><td>304</td><td>未修改</td><td>缓存协商</td></tr>
+<tr><td>400</td><td>请求格式错</td><td>JSON 不合法、缺少字段</td></tr>
+<tr><td>401/403</td><td>未认证/无权限</td><td>Token 过期、签名错</td></tr>
+<tr><td>404</td><td>路径不存在</td><td>API 版本/路径拼错</td></tr>
+<tr><td>500</td><td>服务器内部错误</td><td>服务端 bug，不是设备问题</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">8.2</span>HTTP/1.1、HTTP/2 与 WebSocket</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>HTTP/1.1</th><th>HTTP/2</th><th>WebSocket</th></tr></thead>
+<tbody>
+<tr><td>模型</td><td>请求-响应</td><td>请求-响应，多路复用</td><td>全双工长连接</td></tr>
+<tr><td>连接</td><td>keep-alive 复用</td><td>单连接多流</td><td>HTTP Upgrade 后独立协议</td></tr>
+<tr><td>服务器推送</td><td>不支持</td><td>Server Push（已弱化）</td><td>天然支持</td></tr>
+<tr><td>典型用途</td><td>REST API、简单上报</td><td>现代 Web</td><td>实时控制、推送</td></tr>
+</tbody>
+</table>
+</div>
+<p>WebSocket 握手借用 HTTP：客户端发 <code class="i">Upgrade: websocket</code>，服务器回 <code class="i">101 Switching Protocols</code>，之后双方按帧收发，不再有 HTTP 头。</p>
+
+<h3><span class="n">8.3</span>HTTPS：HTTP over TLS</h3>
+<p>HTTPS 不是新协议，而是“HTTP 跑在 TLS 之上”。TLS 解决三件事：</p>
+<div class="grid3">
+<div class="card"><h4>机密性</h4><p>对称加密（AES-GCM/ChaCha20）保护内容，中间人看不到明文。</p></div>
+<div class="card"><h4>完整性</h4><p>AEAD 同时校验，篡改会被发现。</p></div>
+<div class="card"><h4>身份</h4><p>证书链证明“服务器确实是它声称的那个”。</p></div>
+</div>
+<div class="steps">
+<div><b>ClientHello</b>　客户端提供支持的版本、套件、随机数、SNI。</div>
+<div><b>ServerHello + 证书</b>　服务器选套件，发送证书链。</div>
+<div><b>验证证书</b>　客户端检查签名链、有效期、域名、吊销状态。</div>
+<div><b>密钥交换</b>　TLS 1.3 用 ECDHE，一次往返完成。</div>
+<div><b>Finished</b>　双方确认握手完整性，开始加密传输。</div>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>嵌入式设备最常见的 TLS 失败原因：<strong>设备时钟不对</strong>（证书“尚未生效”）、<strong>根证书缺失</strong>（无法验证链）、<strong>SNI 没发</strong>（服务器返回默认站点证书）、<strong>证书过期</strong>。先用 <code class="i">openssl s_client</code> 在电脑上验证，再查设备。</p>
+</div>
+<codeblock lang="bash" file="用 openssl 检查证书">
+openssl s_client -connect example.com:443 -servername example.com
+openssl s_client -connect example.com:443 -showcerts
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>不要在固件里关掉证书校验来“先跑通”。这等于把 HTTPS 降级成 HTTP，中间人可以随意篡改。正确做法是内置根证书、校验证书链与域名，并保证设备时间可用（NTP 或构建时间兜底）。</p>
+</div>
+
+<h3><span class="n">8.4</span>HTTP 客户端的常见坑</h3>
+<ul>
+<li><strong>没有读完响应就关闭</strong>：HTTP/1.1 复用连接时，残留数据会污染下一个请求。</li>
+<li><strong>不处理 chunked</strong>：有些响应没有 Content-Length，用分块传输。</li>
+<li><strong>不设超时</strong>：服务器不响应时，设备永远卡住。</li>
+<li><strong>不检查状态码</strong>：把 401/500 的响应体当成正常 JSON 解析。</li>
+<li><strong>URL 编码</strong>：查询参数里的空格、中文、特殊字符必须编码。</li>
+</ul>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 8 讲</div>
+<div class="pb">
+<ol>
+<li>写一个 GET 请求，带 Host 和 Accept 头。</li>
+<li>401 和 403 的区别是什么？</li>
+<li>TLS 1.3 比 1.2 少了几次往返？</li>
+<li>设备 HTTPS 报“证书验证失败”，列出三个排查方向。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 401 是“未认证”（没登录/Token 无效），403 是“已认证但无权限”。</p>
+<p><b>3.</b> TLS 1.3 首次握手 1-RTT（会话恢复可 0-RTT），TLS 1.2 通常 2-RTT。</p>
+<p><b>4.</b> 设备时间、根证书、SNI/域名、证书链完整性、中间证书缺失。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：HTTPS 相比 HTTP 多了什么？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>更快的传输速度</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>不同的请求方法</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>TLS 提供的加密、完整性与身份验证</span></button>
+</div>
+<div class="fb" data-fb>HTTPS = HTTP + TLS。它不改变 HTTP 的语义，只是在传输层加上加密、完整性校验和服务器身份验证。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>HTTP 是文本的请求-响应协议，头部以空行结束。</li>
+<li>状态码表达结果类别，设备端要检查再解析。</li>
+<li>HTTP/2 多路复用，WebSocket 提供全双工。</li>
+<li>HTTPS 用 TLS 提供加密、完整性与身份。</li>
+<li>证书校验不能关，时钟与根证书是常见坑。</li>
+</ul>
+<ul class="checklist">
+<li>我能拆解 HTTP 请求与响应</li>
+<li>我能解释 TLS 握手的关键步骤</li>
+<li>我知道 WebSocket 与 HTTP 的关系</li>
+</ul>
+</div>

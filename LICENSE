@@ -1,0 +1,33 @@
+# 许可证（教程内容）
+
+Copyright © 2026 Wang-Nainai
+
+本仓库中的教程正文、插图、图表、交互演示与练习（包括 `courses/` 下的五份 HTML 教程及其文字、图形内容）采用 **Creative Commons Attribution 4.0 International（CC BY 4.0）** 许可。
+
+你可以自由地：
+
+- **共享**：以任何媒介或格式复制、发行本作品。
+- **改编**：修改、转换、再创作，用于任何目的，包括商业用途。
+
+但必须遵守以下条件：
+
+- **署名**：注明作者为 Wang-Nainai，并附上本项目链接
+  `https://github.com/Wang-Nainai/embedded-learning`。
+- **注明修改**：如果你修改了内容，应说明修改之处。
+- **不得增加额外限制**：不得通过法律条款或技术措施限制他人做许可证允许的事情。
+
+许可证全文（官方文本）：
+
+- https://creativecommons.org/licenses/by/4.0/legalcode
+- 中文说明：https://creativecommons.org/licenses/by/4.0/deed.zh
+
+## 范围说明
+
+- 本文件覆盖教程内容。
+- `_src/` 下的构建脚本、`assets/` 下的门户样式与脚本、`index.html` 中的 JavaScript，采用 MIT 许可，见 `LICENSE-CODE`。
+- 教程中引用的第三方商标、芯片型号、协议名称归各自权利人所有；本项目仅用于技术说明，与相关厂商无隶属关系。
+
+## 建议的署名格式
+
+> 嵌入式与计算机技术教程，Wang-Nainai，CC BY 4.0，
+> https://github.com/Wang-Nainai/embedded-learning

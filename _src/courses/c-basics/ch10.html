@@ -1,0 +1,280 @@
+<h3><span class="n">10.1</span>预处理器：编译之前的“文本替换”</h3>
+<p>预处理器不认识 C 语法，它只做四件事：把 <code class="i">#include</code> 的文件内容搬进来、替换 <code class="i">#define</code> 的宏、按 <code class="i">#if</code> 裁剪代码、处理 <code class="i">#pragma</code> 等指令。它输出的仍然是一份（很长的）C 源文件。</p>
+<codeblock lang="bash" file="终端">
+gcc -std=c11 -E main.c -o main.i     # 只看预处理结果
+gcc -std=c11 -E -dM main.c            # 列出所有预定义宏
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>宏替换是<strong>记号级</strong>的文本替换，不检查类型、不遵守作用域。这也是宏容易出事的原因：它看起来像函数，行为却完全按文本展开。</p>
+</div>
+
+<h3><span class="n">10.2</span>宏的三个陷阱与正确写法</h3>
+<codeblock lang="C11" file="macro_traps.c · 片段">
+/* 陷阱 1：没有括号，优先级被破坏 */
+#define SQUARE_BAD(x) x * x
+SQUARE_BAD(1 + 2)          /* 展开成 1 + 2 * 1 + 2 = 5，不是 9 */
+
+/* 修正：给参数和整体都加括号 */
+#define SQUARE(x) ((x) * (x))
+
+/* 陷阱 2：参数被求值两次 */
+#define MAX_BAD(a, b) ((a) > (b) ? (a) : (b))
+int m = MAX_BAD(i++, j++);  /* i 或 j 可能被加两次 */
+
+/* 修正：用 inline 函数，参数只求值一次，还能类型检查 */
+static inline int max_int(int a, int b) { return a > b ? a : b; }
+
+/* 陷阱 3：宏展开后语法不完整 */
+#define LOG(msg) printf("%s\n", msg);
+if (ok)
+    LOG("done");            /* 展开成 if (ok) printf(...);; 后面多一个空语句 */
+else
+    LOG("fail");            /* 编译错误：else 没有对应的 if */
+
+/* 修正：用 do { } while (0) 包起来 */
+#define LOG2(msg) do { printf("%s\n", msg); } while (0)
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>能用 <code class="i">static inline</code> 函数就不要用函数宏：有类型检查、参数只求值一次、调试器能进去。宏只保留给“需要字符串化/拼接记号”或“编译期条件”的场合，例如 <code class="i">#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))</code>。</p>
+</div>
+
+<h3><span class="n">10.3</span>条件编译：一份代码，多种配置</h3>
+<codeblock lang="C11" file="config.h">
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define APP_VERSION "1.0.3"
+
+/* 调试开关：编译时用 -DDEBUG=1 打开 */
+#ifndef DEBUG
+#define DEBUG 0
+#endif
+
+#if DEBUG
+#  define LOG(fmt, ...) printf("[%s:%d] " fmt "\n", __FILE__, __LINE__, __VA_ARGS__)
+#else
+#  define LOG(fmt, ...) ((void)0)
+#endif
+
+#endif /* CONFIG_H */
+</codeblock>
+<ul>
+<li><code class="i">#ifdef X</code> 只判断“有没有定义”，<code class="i">#if X</code> 判断“值是不是非 0”。用 <code class="i">#if DEBUG</code> 更安全，因为 <code class="i">-DDEBUG=0</code> 时它仍然关闭。</li>
+<li><code class="i">__FILE__</code>、<code class="i">__LINE__</code> 是预定义宏，常用于日志和断言。</li>
+<li>可变参数宏 <code class="i">...</code> 与 <code class="i">__VA_ARGS__</code> 是 C99 特性；空参数时的逗号问题在 C23 之前需要技巧处理。</li>
+</ul>
+
+<h3><span class="n">10.4</span>头文件里该放什么</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>放在 .h</th><th>放在 .c</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td>函数声明（原型）</td><td>函数定义</td><td>头文件会被多个 .c 包含，定义放进去会重复定义</td></tr>
+<tr><td><code>struct</code> / <code>enum</code> / <code>typedef</code> 定义</td><td>该类型的操作函数实现</td><td>类型需要在调用处可见</td></tr>
+<tr><td><code>extern</code> 变量声明</td><td>变量定义</td><td>声明不分配存储，定义才分配</td></tr>
+<tr><td>宏、常量</td><td>—</td><td>宏没有链接属性，只能靠包含</td></tr>
+<tr><td><code>static inline</code> 小函数</td><td>—</td><td>每个翻译单元各自内联，不产生外部符号</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="include_guard.h">
+#ifndef MY_MODULE_H
+#define MY_MODULE_H
+
+/* 头文件里只放“声明”和“类型” */
+
+#include <stddef.h>
+
+#define MY_NAME_MAX 32
+
+typedef struct {
+    int id;
+    char name[MY_NAME_MAX];
+} Item;
+
+/* 声明：告诉编译器有这些函数 */
+void item_init(Item *it, int id, const char *name);
+const char *item_name(const Item *it);
+
+#endif /* MY_MODULE_H */
+</codeblock>
+<p><code class="i">#ifndef / #define / #endif</code> 叫<strong>包含守卫</strong>，防止同一个头文件被重复展开。现代编译器也支持 <code class="i">#pragma once</code>，更简洁，但它是扩展而非标准；包含守卫的可移植性最好。</p>
+
+<h3><span class="n">10.5</span>一个真正的多文件项目</h3>
+<p>三个文件：<code class="i">student.h</code> 放接口，<code class="i">student.c</code> 放实现，<code class="i">main.c</code> 负责调用。</p>
+<codeblock lang="C11" file="student.h">
+#ifndef STUDENT_H
+#define STUDENT_H
+
+#include <stddef.h>
+
+#define STUDENT_NAME_MAX 20
+
+typedef struct {
+    int id;
+    char name[STUDENT_NAME_MAX];
+    double score;
+} Student;
+
+void student_print(const Student *s);
+int student_set_name(Student *s, const char *name);
+double student_average(const Student *arr, size_t n);
+
+#endif /* STUDENT_H */
+</codeblock>
+<codeblock lang="C11" file="student.c">
+#include "student.h"
+
+#include <stdio.h>
+#include <string.h>
+
+void student_print(const Student *s)
+{
+    printf("%d\t%s\t%.1f\n", s->id, s->name, s->score);
+}
+
+int student_set_name(Student *s, const char *name)
+{
+    size_t len = strlen(name);
+    if (len >= STUDENT_NAME_MAX) {
+        return -1;                       /* 名字太长，拒绝并保持原值 */
+    }
+    memcpy(s->name, name, len + 1);      /* 连 '\0' 一起复制 */
+    return 0;
+}
+
+double student_average(const Student *arr, size_t n)
+{
+    if (arr == NULL || n == 0) {
+        return 0.0;
+    }
+    double sum = 0.0;
+    for (size_t i = 0; i < n; i++) {
+        sum += arr[i].score;
+    }
+    return sum / (double)n;
+}
+</codeblock>
+<codeblock lang="C11" file="main.c">
+#include "student.h"
+
+#include <stdio.h>
+
+int main(void)
+{
+    Student list[3] = {
+        {1, "Ada", 92.5},
+        {2, "Bob", 78.0},
+        {3, "Cara", 88.5}
+    };
+
+    if (student_set_name(&list[1], "Bobby") != 0) {
+        printf("名字过长\n");
+    }
+
+    for (size_t i = 0; i < 3; i++) {
+        student_print(&list[i]);
+    }
+    printf("平均分 %.2f\n", student_average(list, 3));
+    return 0;
+}
+</codeblock>
+<codeblock lang="bash" file="终端（在同一目录）">
+gcc -std=c11 -Wall -Wextra -Wpedantic main.c student.c -o app
+./app
+</codeblock>
+<outblock>
+1	Ada	92.5
+2	Bobby	78.0
+3	Cara	88.5
+平均分 86.33
+</outblock>
+<p>也可以分开编译再链接，这一步能让你看清“目标文件”和“链接”的关系：</p>
+<codeblock lang="bash" file="终端">
+gcc -std=c11 -Wall -Wextra -c main.c    -o main.o
+gcc -std=c11 -Wall -Wextra -c student.c -o student.o
+gcc main.o student.o -o app
+</codeblock>
+<p>文件多了以后，手写命令不现实，用 Makefile：</p>
+<codeblock lang="make" file="Makefile">
+CC      := gcc
+CFLAGS  := -std=c11 -Wall -Wextra -Wpedantic -O2 -g
+TARGET  := app
+OBJS    := main.o student.o
+
+$(TARGET): $(OBJS)
+	$(CC) $(OBJS) -o $@
+
+%.o: %.c student.h
+	$(CC) $(CFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(TARGET)
+
+.PHONY: clean
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>Makefile 里命令行前面必须是<strong>Tab</strong>，不是空格。这是初学者最常遇到的“missing separator”错误。</p>
+</div>
+
+<h3><span class="n">10.6</span>链接错误的三种常见原因</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误信息</th><th>含义</th><th>排查</th></tr></thead>
+<tbody>
+<tr><td><code>undefined reference to 'foo'</code></td><td>声明了，但没有定义参与链接</td><td>是不是忘了把 <code>foo.c</code> 加进编译命令？函数名拼写是否一致？</td></tr>
+<tr><td><code>multiple definition of 'x'</code></td><td>同一个符号被定义了两次</td><td>变量是不是写在头文件里了？头文件有没有包含守卫？</td></tr>
+<tr><td><code>undefined reference to 'sqrt'</code></td><td>数学库没链接</td><td>命令末尾加 <code>-lm</code>（库要放在源文件之后）</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note law">
+<b>标准怎么说</b>
+<p>C 采用“分别编译”模型：每个 <code class="i">.c</code> 独立编译成一个翻译单元，编译器看不到别的 <code class="i">.c</code> 里有什么。跨文件调用只能靠<strong>声明</strong>建立约定，靠<strong>链接器</strong>把符号接上。这也是为什么头文件里的声明必须和定义严格一致——编译器无法替你检查。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 10 讲</div>
+<div class="pb">
+<ol>
+<li>把上面的三文件项目亲手编译运行一遍，然后故意删掉 <code class="i">student.c</code> 的编译参数，观察链接错误。</li>
+<li>写一个 <code class="i">ARRAY_LEN(a)</code> 宏，并说明为什么它不能用于函数参数里的数组。</li>
+<li>用条件编译实现：<code class="i">DEBUG</code> 为 1 时打印日志，为 0 时日志代码完全不参与编译。</li>
+<li>解释头文件里写 <code class="i">int counter = 0;</code> 会发生什么，正确写法是什么。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> <code class="i">#define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))</code>。它依赖 <code class="i">sizeof</code> 能看到数组类型；数组传参后退化为指针，<code class="i">sizeof</code> 得到指针大小，结果错误。</p>
+<p><b>3.</b> 用 <code class="i">#if DEBUG</code> 包住 <code class="i">printf</code>，或者定义空宏 <code class="i">#define LOG(...) ((void)0)</code>。后者在语法上仍是完整语句，不会留下空 if。</p>
+<p><b>4.</b> 每个包含该头文件的 <code class="i">.c</code> 都会定义一个 <code class="i">counter</code>，链接时报告 multiple definition。正确做法：头文件写 <code class="i">extern int counter;</code>，在某个 <code class="i">.c</code> 里写 <code class="i">int counter = 0;</code>。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：<code class="i">#define SQR(x) x*x</code>，<code class="i">SQR(2+3)</code> 展开后等于？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>2 + 3*2 + 3 = 11</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>25</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>编译错误</span></button>
+</div>
+<div class="fb" data-fb>宏是纯文本替换：<code class="i">SQR(2+3)</code> 变成 <code class="i">2+3*2+3</code>，按优先级算出 11。写成 <code class="i">((x)*(x))</code> 才能得到 25。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>预处理只做文本级操作，不检查类型和作用域。</li>
+<li>函数宏必须给参数和整体加括号，并避免参数被多次求值。</li>
+<li>头文件放声明和类型，定义放 <code class="i">.c</code>，并用包含守卫。</li>
+<li>多文件项目要分别编译、统一链接；库的链接顺序可能影响结果。</li>
+<li>“未定义引用”先查文件清单和拼写，“重复定义”先查头文件。</li>
+</ul>
+<ul class="checklist">
+<li>我能手写包含守卫</li>
+<li>我能解释声明与定义的区别</li>
+<li>我能用命令行和 Makefile 各构建一次多文件项目</li>
+</ul>
+</div>

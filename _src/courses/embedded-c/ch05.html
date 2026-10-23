@@ -1,0 +1,215 @@
+<h3><span class="n">5.1</span>“int 是 4 字节”只是一个巧合</h3>
+<p>C 标准只规定<strong>最小范围</strong>，不规定字节数：<code class="i">int</code> 至少 16 位，<code class="i">long</code> 至少 32 位，<code class="i">long long</code> 至少 64 位。在 8 位 MCU 上，<code class="i">int</code> 常常就是 16 位；某些 DSP 上 <code class="i">char</code> 甚至不是 8 位。</p>
+<codeblock lang="C11" file="width_check.c">
+#include <limits.h>
+#include <stdio.h>
+
+int main(void)
+{
+    printf("CHAR_BIT = %d\n", CHAR_BIT);
+    printf("int      = %d 位\n", (int)(sizeof(int) * CHAR_BIT));
+    printf("INT_MAX  = %d\n", INT_MAX);
+    printf("long     = %d 位\n", (int)(sizeof(long) * CHAR_BIT));
+    return 0;
+}
+</codeblock>
+<outblock>
+CHAR_BIT = 8
+int      = 32 位
+INT_MAX  = 2147483647
+long     = 32 位
+</outblock>
+<p>这段输出来自 64 位 Windows（LLP64）：<code class="i">long</code> 仍是 32 位。在 64 位 Linux 上会是 64 位。所以“用 long 存指针”这类写法从一开始就不可移植。</p>
+
+<h3><span class="n">5.2</span>stdint.h：把位宽写进类型名</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类型族</th><th>例子</th><th>保证</th><th>什么时候用</th></tr></thead>
+<tbody>
+<tr><td>精确宽度</td><td><code>int8_t</code> <code>uint16_t</code> <code>int32_t</code></td><td>恰好这么多位，无填充</td><td>寄存器、协议字段、二进制文件</td></tr>
+<tr><td>最小宽度</td><td><code>int_least16_t</code></td><td>至少 16 位</td><td>只想保证范围，不关心具体宽度</td></tr>
+<tr><td>最快宽度</td><td><code>int_fast16_t</code></td><td>至少 16 位，且是该平台最快的</td><td>循环计数等性能敏感场景</td></tr>
+<tr><td>指针宽度</td><td><code>intptr_t</code> <code>uintptr_t</code></td><td>能装下指针</td><td>指针与整数互转</td></tr>
+<tr><td>最大宽度</td><td><code>intmax_t</code></td><td>平台最大整数</td><td>通用数值处理</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note law">
+<b>标准怎么说</b>
+<p><code class="i">int8_t</code> 这类精确宽度类型是<strong>可选</strong>的：只有平台确实存在 8 位、无填充、二进制补码的整数类型时才定义。绝大多数平台都有，但写可移植代码时不要假设 <code class="i">int64_t</code> 一定存在（可以用 <code class="i">INT64_MAX</code> 是否存在来判断）。</p>
+</div>
+
+<h3><span class="n">5.3</span>整数提升与符号扩展</h3>
+<p>比 <code class="i">int</code> 窄的类型参与运算时，会先被提升为 <code class="i">int</code>。如果原类型是有符号的，提升时做<strong>符号扩展</strong>：高位补符号位。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 240" role="img" aria-labelledby="fig5t fig5d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig5t">符号扩展与零扩展</title>
+<desc id="fig5d">int8_t 的 -1 是 11111111，扩展为 32 位时符号扩展得到全 1，值仍是 -1；零扩展得到 00000000000000000000000011111111，值变成 255。</desc>
+<rect width="820" height="240" fill="#fbfdff"/>
+<text x="30" y="28" font-size="12.5" fill="#334155" font-weight="700">int8_t x = -1;　（二进制 1111 1111）</text>
+
+<text x="30" y="66" font-size="12" fill="#475569">符号扩展 → int32_t</text>
+<rect x="30" y="76" width="330" height="34" rx="6" fill="#e0e7ff" stroke="#818cf8"/>
+<text x="195" y="99" font-size="13" font-family="Consolas,monospace" fill="#26348f" text-anchor="middle">11111111 11111111 11111111 11111111</text>
+<text x="30" y="130" font-size="11.5" fill="#0f766e">值仍是 -1，因为高位补的是符号位 1。</text>
+
+<text x="30" y="164" font-size="12" fill="#475569">零扩展 → uint32_t（错误示范）</text>
+<rect x="30" y="174" width="330" height="34" rx="6" fill="#fef3c7" stroke="#fbbf24"/>
+<text x="195" y="197" font-size="13" font-family="Consolas,monospace" fill="#92400e" text-anchor="middle">00000000 00000000 00000000 11111111</text>
+<text x="30" y="228" font-size="11.5" fill="#b45309">值变成 255。把负数当无符号处理时，就会得到这种结果。</text>
+
+<rect x="400" y="60" width="390" height="150" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="416" y="84" font-size="12.5" font-weight="700" fill="#334155">实际代码里什么时候发生</text>
+<text x="416" y="110" font-size="12" fill="#1e293b">• uint8_t 参与运算 → 提升为 int</text>
+<text x="416" y="134" font-size="12" fill="#1e293b">• 把 int 赋给更窄类型 → 截断（不是扩展）</text>
+<text x="416" y="158" font-size="12" fill="#1e293b">• 有符号与无符号混算 → 转成无符号</text>
+<text x="416" y="182" font-size="12" fill="#1e293b">• 显式转换 (uint32_t)(int32_t)x → 先扩展再重解释</text>
+</svg>
+<figcaption>同样是“补高位”，补 0 还是补符号位，结果可能相差一个符号。</figcaption>
+</figure>
+
+<div class="lab" id="lab-signext">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>8 位值扩展成 32 位</h4>
+    <p>输入一个 8 位十六进制值，对比“按有符号扩展”和“按无符号零扩展”的结果。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>8 位值 <input id="seVal" type="text" value="0xFF" style="width:88px"></label>
+      <button class="lab-btn pri" type="button" id="seGo">扩展</button>
+    </div>
+    <div class="lab-read" id="seOut" aria-live="polite"></div>
+    <p class="lab-note">这正是 <code class="i">int8_t</code> 与 <code class="i">uint8_t</code> 在表达式里表现不同的根源。</p>
+  </div>
+</div>
+
+<h3><span class="n">5.4</span>移位的四条规则</h3>
+<codeblock lang="C11" file="shift_rules.c · 片段">
+uint32_t u = 1u;
+
+u << 31;        /* 合法：无符号左移，按 2^32 取模 */
+u << 32;        /* 未定义行为：移位位数 >= 类型宽度 */
+
+int32_t s = -1;
+s << 1;         /* 未定义行为：左移负数 */
+s >> 1;         /* 实现定义：可能是算术右移（-1），也可能是逻辑右移 */
+
+uint32_t x = 0x80000000u;
+x >> 1;         /* 合法：逻辑右移，得到 0x40000000 */
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>需要“算术右移”时，不要依赖 <code class="i">&gt;&gt;</code> 对有符号数的行为。可以显式写：<code class="i">(x &gt;&gt; n) | (~((x &gt;&gt; n) | ~(x &gt;&gt; n)) ...)</code>——太绕了。更实际的做法是：确认目标编译器的行为并写进移植说明，或者先把有符号数转成无符号处理位模式。</p>
+</div>
+
+<h3><span class="n">5.5</span>字节序：内存里的顺序</h3>
+<p>一个 32 位整数 <code class="i">0x12345678</code> 在内存里可以有两种排法：</p>
+<div class="grid2">
+<div class="card"><span class="tag">小端</span><h4>低字节在前</h4><p><code>78 56 34 12</code>。x86、大多数 ARM（可配置）、RISC-V 默认小端。</p></div>
+<div class="card"><span class="tag">大端</span><h4>高字节在前</h4><p><code>12 34 56 78</code>。部分网络协议、某些 DSP 和 PowerPC 使用大端。</p></div>
+</div>
+<codeblock lang="C11" file="endian.c">
+#include <stdint.h>
+#include <stdio.h>
+
+uint32_t swap32(uint32_t v)
+{
+    return ((v & 0x000000FFu) << 24) |
+           ((v & 0x0000FF00u) << 8)  |
+           ((v & 0x00FF0000u) >> 8)  |
+           ((v & 0xFF000000u) >> 24);
+}
+
+int main(void)
+{
+    uint32_t v = 0x12345678u;
+    printf("%08X -> %08X\n", v, swap32(v));
+    return 0;
+}
+</codeblock>
+<outblock>
+12345678 -> 78563412
+</outblock>
+<div class="note bad">
+<b>易错</b>
+<p>把 <code class="i">uint8_t buf[4]</code> 直接用 <code class="i">memcpy</code> 到 <code class="i">uint32_t</code>，得到的值取决于本机字节序。协议里规定“大端传输”时，必须显式按字节组装，不能依赖 <code class="i">memcpy</code>。</p>
+</div>
+<codeblock lang="C11" file="be_read.c">
+#include <stdint.h>
+
+/* 从大端字节流读取 32 位，与主机字节序无关 */
+uint32_t read_be32(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) |
+           ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8)  |
+           ((uint32_t)p[3]);
+}
+</codeblock>
+
+<h3><span class="n">5.6</span>三个真实踩过的坑</h3>
+<codeblock lang="C11" file="int_traps.c">
+#include <stdint.h>
+
+/* 坑 1：两个 uint8_t 相加，结果是 int，不是 uint8_t */
+uint8_t a = 200, b = 100;
+uint8_t c = a + b;            /* 300 截断成 44 */
+
+/* 坑 2：char 是否有符号由实现决定 */
+char ch = 0xFF;
+int v = ch;                   /* 可能是 255，也可能是 -1 */
+
+/* 坑 3：有符号与无符号比较 */
+int32_t  i = -1;
+uint32_t u = 1;
+if (i < u) { }                /* 假：i 被转成 4294967295 */
+</codeblock>
+<div class="note good">
+<b>正确做法</b>
+<p>处理字节数据一律用 <code class="i">uint8_t</code>；需要字符语义时用 <code class="i">char</code>，但不要假设它的符号性；比较前统一类型，或显式转换并确认范围。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 5 讲</div>
+<div class="pb">
+<ol>
+<li>写函数 <code class="i">int32_t read_le32(const uint8_t *p)</code>，从字节流读小端 32 位。</li>
+<li><code class="i">uint8_t x = 0x80; int y = x;</code> 的 <code class="i">y</code> 是多少？如果 <code class="i">x</code> 是 <code class="i">int8_t</code> 呢？</li>
+<li>为什么 <code class="i">1u &lt;&lt; 31</code> 合法，而 <code class="i">1 &lt;&lt; 31</code> 是未定义行为？</li>
+<li>写一个编译期判断主机字节序的方法（提示：联合体或字符串比较）。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">return (uint32_t)p[0] | ((uint32_t)p[1] &lt;&lt; 8) | ((uint32_t)p[2] &lt;&lt; 16) | ((uint32_t)p[3] &lt;&lt; 24);</code>。</p>
+<p><b>2.</b> <code class="i">uint8_t</code> 时是 128；<code class="i">int8_t</code> 时是 -128（符号扩展）。</p>
+<p><b>3.</b> <code class="i">1</code> 是 <code class="i">int</code>，左移 31 位会进入符号位，标准规定有符号左移溢出是未定义行为；<code class="i">1u</code> 是无符号，按模运算，合法。</p>
+<p><b>4.</b> <code class="i">uint16_t v = 1; uint8_t *p = (uint8_t *)&amp;v; if (p[0] == 1) 小端;</code>。注意这依赖对象的字节表示，属于实现定义但所有主流平台都成立。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">uint8_t a = 0xFF; int b = a;</code>，<code class="i">b</code> 的值是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>-1</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>255</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>未定义</span></button>
+</div>
+<div class="fb" data-fb><code class="i">uint8_t</code> 是无符号，提升为 int 时做零扩展，得到 255。如果类型是 <code class="i">int8_t</code>，则做符号扩展，得到 -1。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>基础类型的宽度由实现决定，跨平台用 <code class="i">stdint.h</code>。</li>
+<li>窄类型运算前会提升为 int，有符号做符号扩展、无符号做零扩展。</li>
+<li>移位只用无符号类型，移位数必须小于类型宽度。</li>
+<li>字节序必须显式处理，不能靠 <code class="i">memcpy</code> 猜。</li>
+<li><code class="i">char</code> 的符号性由实现决定，不要依赖。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出与字节序无关的读写函数</li>
+<li>我能解释 200+100 存进 uint8_t 得到 44</li>
+<li>我知道有符号左移的边界</li>
+</ul>
+</div>

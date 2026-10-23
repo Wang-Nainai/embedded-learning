@@ -1,0 +1,140 @@
+<h3><span class="n">5.1</span>四根线，全双工</h3>
+<p>SPI 用四根线：<code class="i">SCLK</code>（时钟）、<code class="i">MOSI</code>（主机→从机）、<code class="i">MISO</code>（从机→主机）、<code class="i">CS</code>（片选，低有效）。主机每发一个时钟，同时移出一位、移入一位，所以是<strong>全双工</strong>。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>特性</th><th>SPI</th><th>对比 I²C</th></tr></thead>
+<tbody>
+<tr><td>线数</td><td>4（每多一个从机多一根 CS）</td><td>2</td></tr>
+<tr><td>寻址</td><td>片选，没有地址</td><td>7 位地址</td></tr>
+<tr><td>应答</td><td>没有 ACK</td><td>每字节 ACK</td></tr>
+<tr><td>速率</td><td>几 MHz 到几十 MHz</td><td>100 kHz – 几 MHz</td></tr>
+<tr><td>多主机</td><td>通常单主机</td><td>支持多主机仲裁</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">5.2</span>CPOL 与 CPHA：四个模式</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>模式</th><th>CPOL</th><th>CPHA</th><th>空闲时钟</th><th>采样边沿</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>0</td><td>0</td><td>低</td><td>第一个边沿（上升）</td></tr>
+<tr><td>1</td><td>0</td><td>1</td><td>低</td><td>第二个边沿（下降）</td></tr>
+<tr><td>2</td><td>1</td><td>0</td><td>高</td><td>第一个边沿（下降）</td></tr>
+<tr><td>3</td><td>1</td><td>1</td><td>高</td><td>第二个边沿（上升）</td></tr>
+</tbody>
+</table>
+</div>
+<p>记忆方法：<strong>CPOL 决定空闲电平，CPHA 决定“第几个边沿采样”</strong>。CPHA=0 在第一个边沿采样（数据必须在第一个边沿之前就准备好）；CPHA=1 在第二个边沿采样（第一个边沿移出数据）。</p>
+
+<div class="lab" id="lab-spi">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>模式选择与波形</h4>
+    <p>切换 CPOL/CPHA，观察空闲电平、数据变化边沿和采样边沿如何变化。数据固定为 0xA5（1010 0101），MSB 先发。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn" type="button" data-spi="0">Mode 0</button>
+      <button class="lab-btn" type="button" data-spi="1">Mode 1</button>
+      <button class="lab-btn" type="button" data-spi="2">Mode 2</button>
+      <button class="lab-btn" type="button" data-spi="3">Mode 3</button>
+    </div>
+    <div class="lab-canvas" id="spiCanvas"></div>
+    <div class="lab-read" id="spiOut" aria-live="polite"></div>
+    <p class="lab-note">“数据移一位”通常就是模式选错：采样边沿落在了数据变化的同一个边沿上。</p>
+  </div>
+</div>
+
+<h3><span class="n">5.3</span>片选与时序</h3>
+<codeblock lang="C11" file="spi_transfer.c · 平台相关（伪 API）">
+#include <stdint.h>
+
+/* 全双工：发一个字节的同时收一个字节 */
+uint8_t spi_xfer(uint8_t out)
+{
+    uint8_t in = 0;
+    for (int i = 7; i >= 0; i--) {          /* MSB 先发 */
+        gpio_mosi((out >> i) & 1u);
+        gpio_sclk(1);                        /* 模式 0：上升沿采样 */
+        in = (uint8_t)((in << 1) | gpio_miso());
+        gpio_sclk(0);
+    }
+    return in;
+}
+
+/* 一次完整事务：拉低 CS → 传输 → 拉高 CS */
+void flash_read_id(uint8_t id[3])
+{
+    gpio_cs(0);
+    (void)spi_xfer(0x9F);                    /* 读 ID 命令 */
+    id[0] = spi_xfer(0xFF);
+    id[1] = spi_xfer(0xFF);
+    id[2] = spi_xfer(0xFF);
+    gpio_cs(1);
+}
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>读回全是 <code class="i">0xFF</code>，通常不是“时钟没起来”，而是 <strong>MISO 没人驱动</strong>：CS 没拉低、从机没供电、引脚复用没配置成 AF。上拉电阻会把悬空的 MISO 拉成高电平，于是读回全 1。</p>
+</div>
+
+<h3><span class="n">5.4</span>多从机怎么接</h3>
+<div class="grid2">
+<div class="card"><span class="tag">独立片选</span><h4>最常见</h4><p>所有从机共用 SCLK/MOSI/MISO，每个从机一根独立 CS。主机同一时刻只拉低一个 CS。</p></div>
+<div class="card"><span class="tag">菊花链</span><h4>省引脚</h4><p>从机的 MISO 接下一个的 MOSI，共用一根 CS。数据要移过整条链，适合移位寄存器/部分 LED 驱动。</p></div>
+</div>
+<p>独立片选要注意：<strong>不要同时拉低两个 CS</strong>，否则两个从机同时驱动 MISO，会打架。上电默认要把所有 CS 拉高。</p>
+
+<h3><span class="n">5.5</span>SPI 没有 ACK，怎么保证可靠</h3>
+<p>SPI 只保证“时钟和数据按模式移位”，不保证从机收到了、也不保证数据对。可靠性要靠：</p>
+<ul>
+<li>从机的状态寄存器（读回配置、检查 busy 位）。</li>
+<li>命令回读（写完后读回比较）。</li>
+<li>应用层 CRC / 重试。</li>
+<li>关键操作加超时，避免死等 busy。</li>
+</ul>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 5 讲</div>
+<div class="pb">
+<ol>
+<li>Mode 3 的空闲电平和采样边沿分别是什么？</li>
+<li>为什么 CPHA=1 时数据在第一个边沿变化？</li>
+<li>读回全 0xFF，列出三个排查方向。</li>
+<li>两个从机共用 SPI，如何避免 MISO 冲突？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 空闲高（CPOL=1），第二个边沿（上升沿）采样。</p>
+<p><b>2.</b> CPHA=1 规定“第一个边沿移出数据、第二个边沿采样”，所以数据在第一个边沿变化，给采样留出半个周期。</p>
+<p><b>3.</b> CS 没拉低/接错；从机没供电或复位；MISO 引脚复用/方向配置错误。</p>
+<p><b>4.</b> 每个从机独立 CS，软件保证同一时刻只拉低一个；未选中的从机 MISO 应高阻。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：SPI Mode 0 的采样边沿是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>下降沿</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>第二个边沿</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>第一个边沿（上升沿）</span></button>
+</div>
+<div class="fb" data-fb>Mode 0：CPOL=0（空闲低）、CPHA=0（第一个边沿采样），所以是上升沿采样。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>SPI 四线全双工，靠片选选中从机，没有地址和 ACK。</li>
+<li>CPOL 决定空闲电平，CPHA 决定第几个边沿采样。</li>
+<li>模式选错的典型现象是“数据整体移一位”。</li>
+<li>读回全 0xFF 先查 CS、供电和 MISO 配置。</li>
+<li>可靠性靠状态回读、CRC 和重试，不靠 SPI 本身。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出四种模式的差异</li>
+<li>我能写出一次完整 SPI 事务</li>
+<li>我知道多从机怎么接</li>
+</ul>
+</div>

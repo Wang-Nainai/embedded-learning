@@ -1,0 +1,136 @@
+<h3><span class="n">6.1</span>CAN 用“消息”而不是“地址”</h3>
+<p>CAN 总线上没有从机地址。每个报文带一个<strong>标识符</strong>，既表示“这是什么消息”，也表示“优先级”。所有节点都收到，靠验收滤波器决定要不要处理。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>特性</th><th>CAN</th></tr></thead>
+<tbody>
+<tr><td>物理层</td><td>差分 CAN_H / CAN_L，显性 0、隐性 1</td></tr>
+<tr><td>拓扑</td><td>线性总线，两端各 120 Ω 终端</td></tr>
+<tr><td>速率</td><td>经典 CAN 最高 1 Mbps；CAN FD 更高</td></tr>
+<tr><td>标识符</td><td>标准 11 位 / 扩展 29 位</td></tr>
+<tr><td>数据长度</td><td>经典 0–8 字节；CAN FD 最多 64 字节</td></tr>
+<tr><td>寻址</td><td>无地址，消息广播 + 验收滤波</td></tr>
+<tr><td>错误检测</td><td>CRC、位填充、应答、格式检查、位监视</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">6.2</span>仲裁：为什么冲突不会丢数据</h3>
+<p>CAN 的 0 是<strong>显性</strong>（dominant），1 是<strong>隐性</strong>（recessive）。多个节点同时发送时，总线呈现“显性与”——只要有一个节点发 0，总线就是 0。</p>
+<p>节点每发一位都会回读总线：如果自己发 1 却读到 0，说明有更高优先级的节点在发，于是立刻退出仲裁，转为接收。<strong>输家不会破坏赢家的数据</strong>，这叫非破坏性仲裁。</p>
+
+<div class="lab" id="lab-can">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>三位选手，逐位仲裁</h4>
+    <p>三个节点同时发送不同标识符。逐位比较，先出现“发 1 读到 0”的节点退出。标识符数值越小，优先级越高。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="canStep">下一位</button>
+      <button class="lab-btn" type="button" id="canReset">重新仲裁</button>
+    </div>
+    <div class="lab-canvas" id="canCanvas"></div>
+    <div class="lab-read" id="canOut" aria-live="polite"></div>
+    <p class="lab-note">仲裁只在总线空闲时发生；一旦开始发送，其他节点必须等总线空闲才能尝试。错误帧会打断当前传输。</p>
+  </div>
+</div>
+
+<h3><span class="n">6.3</span>一帧的结构</h3>
+<div class="table-wrap">
+<table>
+<caption>标准数据帧（11 位标识符）</caption>
+<thead><tr><th>字段</th><th>长度</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td>SOF</td><td>1 位（显性）</td><td>帧起始，用于同步</td></tr>
+<tr><td>标识符</td><td>11 位</td><td>消息类型 + 优先级</td></tr>
+<tr><td>RTR</td><td>1 位</td><td>0 数据帧，1 远程帧</td></tr>
+<tr><td>IDE / r0</td><td>2 位</td><td>标准/扩展帧标志、保留位</td></tr>
+<tr><td>DLC</td><td>4 位</td><td>数据长度（0–8）</td></tr>
+<tr><td>数据</td><td>0–8 字节</td><td>载荷</td></tr>
+<tr><td>CRC</td><td>15 位 + 1 位界定符</td><td>检错</td></tr>
+<tr><td>ACK</td><td>2 位</td><td>任一正确接收的节点拉低应答</td></tr>
+<tr><td>EOF</td><td>7 位（隐性）</td><td>帧结束</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>CAN 用<strong>位填充</strong>保证同步：连续 5 个相同电平后自动插入 1 个相反电平，接收方再删掉。所以“线上位数”不等于“协议字段位数”，算总线负载时要考虑填充开销。</p>
+</div>
+
+<h3><span class="n">6.4</span>错误处理与总线关闭</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误类型</th><th>触发条件</th></tr></thead>
+<tbody>
+<tr><td>位错误</td><td>自己发的位与回读的不一致（仲裁阶段除外）</td></tr>
+<tr><td>填充错误</td><td>连续 6 个相同电平</td></tr>
+<tr><td>CRC 错误</td><td>计算的 CRC 与收到的不符</td></tr>
+<tr><td>格式错误</td><td>固定格式位出现非法电平</td></tr>
+<tr><td>应答错误</td><td>没有节点在 ACK 槽拉低</td></tr>
+</tbody>
+</table>
+</div>
+<p>每个节点维护发送错误计数 TEC 和接收错误计数 REC：</p>
+<ul>
+<li>TEC/REC &gt; 127：进入<strong>错误被动</strong>，发送错误帧的能力受限。</li>
+<li>TEC &gt; 255：进入<strong>总线关闭</strong>（bus-off），节点主动脱离总线，必须复位或按协议恢复。</li>
+</ul>
+<div class="note eng">
+<b>工程习惯</b>
+<p>bus-off 不是“偶发故障”，通常意味着接线、终端电阻、波特率或共地有问题。恢复策略要谨慎：立即自动恢复可能让故障节点反复冲击总线；建议记录次数并做退避。</p>
+</div>
+
+<h3><span class="n">6.5</span>位定时与终端电阻</h3>
+<p>一个位时间被分成同步段、传播段、相位段 1/2。采样点通常在 75%–87.5% 处。所有节点的波特率和采样点必须一致，否则会出现间歇性错误。</p>
+<codeblock lang="text" file="位定时示例（500 kbps，8 MHz 时钟）">
+位时间 = 16 个时间份额（tq）
+同步段 1 tq + 传播段 2 tq + 相位段1 9 tq + 相位段2 4 tq
+采样点 = (1 + 2 + 9) / 16 = 75%
+</codeblock>
+<p>终端电阻：总线两端各接 120 Ω，中间节点不接。少了终端，信号反射会导致边沿振铃、采样错误；多了终端，总线负载过重、幅值下降。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 6 讲</div>
+<div class="pb">
+<ol>
+<li>标识符 0x120 和 0x121 同时发送，谁赢？为什么？</li>
+<li>为什么 CAN 不需要地址？</li>
+<li>bus-off 的常见原因有哪些？</li>
+<li>终端电阻为什么必须放在总线两端，而不是每个节点都放？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 0x120 赢。数值小意味着高位更早出现显性 0，在仲裁中胜出。</p>
+<p><b>2.</b> 消息广播，标识符表达内容与优先级；节点用验收滤波器选择自己关心的消息。</p>
+<p><b>3.</b> 接线错误/断路、终端缺失、波特率不一致、共地不良、收发器损坏。</p>
+<p><b>4.</b> 终端的作用是吸收总线两端的反射；每个节点都放会并联出过低的阻抗，导致幅值和上升沿恶化。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：CAN 仲裁中，节点什么时候退出？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>发送显性位时</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>自己发隐性位，却回读到显性位</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>收到 ACK 时</span></button>
+</div>
+<div class="fb" data-fb>显性（0）会覆盖隐性（1）。发 1 读到 0，说明有更高优先级节点在发送，本节点立即退出仲裁并转为接收。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>CAN 用标识符表达内容与优先级，没有地址。</li>
+<li>显性 0 覆盖隐性 1，实现非破坏性仲裁。</li>
+<li>帧包含 SOF、ID、DLC、数据、CRC、ACK、EOF。</li>
+<li>错误计数超过阈值会进入错误被动/总线关闭。</li>
+<li>位定时与 120 Ω 终端是稳定通信的前提。</li>
+</ul>
+<ul class="checklist">
+<li>我能解释仲裁过程</li>
+<li>我能列出至少三种错误类型</li>
+<li>我知道终端电阻的作用</li>
+</ul>
+</div>

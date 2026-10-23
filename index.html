@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>嵌入式与计算机技术教程 · 从 C 语言基础到嵌入式系统与网络通信</title>
+<meta name="description" content="一套面向学习者的开源教程：C 语言基础、嵌入式 C 进阶、FreeRTOS、嵌入式通信协议、计算机网络。五册独立 HTML，支持在线阅读与离线使用。">
+<meta property="og:title" content="嵌入式与计算机技术教程">
+<meta property="og:description" content="从 C 语言基础到嵌入式系统与网络通信。五册独立、可离线阅读的交互式教程。">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231d4ed8'/%3E%3Ctext x='32' y='42' font-family='monospace' font-size='26' font-weight='700' fill='white' text-anchor='middle'%3EEL%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/portal.css">
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="nav" id="nav">
+  <div class="nav-in">
+    <a class="brand" href="#top" aria-label="回到首页">
+      <span class="brand-mark" aria-hidden="true">EL</span>
+      <span class="brand-text"><b>嵌入式与计算机技术教程</b><small>Embedded Learning</small></span>
+    </a>
+    <span class="nav-sp"></span>
+    <nav class="nav-links" id="navLinks" aria-label="主导航">
+      <a href="#courses">教程</a>
+      <a href="#path">学习路线</a>
+      <a href="#about">关于</a>
+      <a class="nav-gh" href="https://github.com/Wang-Nainai/embedded-learning" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </nav>
+    <button class="nav-toggle" id="navToggle" type="button" aria-expanded="false" aria-controls="navLinks" aria-label="打开导航">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="hero-in">
+      <div class="hero-copy">
+        <p class="eyebrow">Open Courseware · 5 Volumes</p>
+        <h1>嵌入式与<br><em>计算机技术教程</em></h1>
+        <p class="lead">从 C 语言基础到嵌入式系统与网络通信。五册相互独立、可单独阅读的<b>交互式 HTML 教程</b>，覆盖语言、硬件、实时系统、设备通信与网络协议，下载后也能离线使用。</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#courses">开始学习
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/Wang-Nainai/embedded-learning" target="_blank" rel="noopener">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            查看 GitHub 源码
+          </a>
+        </div>
+        <dl class="hero-stats">
+          <div><dt>61</dt><dd>讲 + 5 附录</dd></div>
+          <div><dt>31</dt><dd>交互实验</dd></div>
+          <div><dt>217</dt><dd>代码示例</dd></div>
+          <div><dt>100%</dt><dd>离线可用</dd></div>
+        </dl>
+      </div>
+
+      <div class="stack" aria-label="五册教程">
+        <a class="stack-card" href="courses/C语言基础教程.html" style="--i:0;--sc:#93c5fd">
+          <span class="no">01</span><span><b>C 语言基础</b><small>FOUNDATION · 13 讲</small></span><span class="go">→</span>
+        </a>
+        <a class="stack-card" href="courses/嵌入式C语言进阶教程.html" style="--i:1;--sc:#5eead4">
+          <span class="no">02</span><span><b>嵌入式 C 进阶</b><small>BARE-METAL C · 13 讲</small></span><span class="go">→</span>
+        </a>
+        <a class="stack-card" href="courses/FreeRTOS实时操作系统教程.html" style="--i:2;--sc:#c4b5fd">
+          <span class="no">03</span><span><b>FreeRTOS</b><small>REAL-TIME OS · 14 讲</small></span><span class="go">→</span>
+        </a>
+        <a class="stack-card" href="courses/嵌入式通信协议教程.html" style="--i:3;--sc:#fdba74">
+          <span class="no">04</span><span><b>嵌入式通信协议</b><small>DEVICE BUSES · 10 讲</small></span><span class="go">→</span>
+        </a>
+        <a class="stack-card" href="courses/计算机网络教程.html" style="--i:4;--sc:#7dd3fc">
+          <span class="no">05</span><span><b>计算机网络</b><small>NETWORKING · 11 讲</small></span><span class="go">→</span>
+        </a>
+        <p class="stack-note">五册独立成书 · 可单读，也可按路线学习</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="courses">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">Courses</p>
+          <h2>五册教程</h2>
+          <p>每册都有独立的学习目标、章节地图、交互实验与自测题；所有示例都标注了运行环境与验证边界。</p>
+        </div>
+        <a class="section-link" href="https://github.com/Wang-Nainai/embedded-learning" target="_blank" rel="noopener">在 GitHub 查看全部 →</a>
+      </div>
+
+      <div class="courses-grid">
+        <a class="course" href="courses/C语言基础教程.html" style="--c:#3b5bdb">
+          <div class="course-top"><span class="course-no">VOL. 01</span><span class="course-level">零基础 · 本科低年级</span></div>
+          <h3>C 语言基础教程</h3>
+          <p>从“源文件怎样变成程序”讲起，覆盖类型与数值、控制流程、函数与栈帧、数组与字符串、指针、结构体、多文件工程、动态内存、递归与链表，最后完成一个通讯录项目。</p>
+          <div class="course-tags"><span>标准 C11</span><span>指针与内存</span><span>多文件工程</span><span>通讯录项目</span></div>
+          <div class="course-foot"><span class="meta">13 讲 + 附录 · 18–24 h</span><span class="open">开始阅读 <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </a>
+
+        <a class="course" href="courses/嵌入式C语言进阶教程.html" style="--c:#0f766e">
+          <div class="course-top"><span class="course-no">VOL. 02</span><span class="course-level">有 C 基础 · 单片机入门</span></div>
+          <h3>嵌入式 C 语言进阶教程</h3>
+          <p>解释同样的 C 语法到了单片机上为什么处处是坑：内存映射与寄存器、位运算与位域、const/volatile/static、整数宽度、对齐与字节序、函数指针、状态机、环形缓冲区、中断共享数据与优化陷阱。</p>
+          <div class="course-tags"><span>寄存器与 MMIO</span><span>内存布局</span><span>驱动接口</span><span>命令解析器</span></div>
+          <div class="course-foot"><span class="meta">13 讲 + 附录 · 20–26 h</span><span class="open">开始阅读 <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </a>
+
+        <a class="course" href="courses/FreeRTOS实时操作系统教程.html" style="--c:#7c3aed">
+          <div class="course-top"><span class="course-no">VOL. 03</span><span class="course-level">写过裸机程序</span></div>
+          <h3>FreeRTOS 实时操作系统教程</h3>
+          <p>从裸机大循环过渡到多任务：任务与调度、tick 与周期任务、队列、信号量、互斥量与优先级继承、事件组与任务通知、中断通信、临界区、软件定时器、内存与栈，以及死锁和优先级反转的排查。</p>
+          <div class="course-tags"><span>任务调度</span><span>队列与同步</span><span>实时性</span><span>故障排查</span></div>
+          <div class="course-foot"><span class="meta">14 讲 + 附录 · 22–28 h</span><span class="open">开始阅读 <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </a>
+
+        <a class="course" href="courses/嵌入式通信协议教程.html" style="--c:#c2410c">
+          <div class="course-top"><span class="course-no">VOL. 04</span><span class="course-level">有 C 与寄存器基础</span></div>
+          <h3>嵌入式通信协议教程</h3>
+          <p>先分清接口、物理层、链路与应用协议，再逐个拆解 UART、I²C、SPI、CAN、RS-485 与 Modbus RTU：电平、时序、帧格式、仲裁、CRC、故障排查，最后实现一套可测试的自定义二进制协议栈。</p>
+          <div class="course-tags"><span>UART / I²C / SPI</span><span>CAN 仲裁</span><span>Modbus RTU</span><span>帧解析</span></div>
+          <div class="course-foot"><span class="meta">10 讲 + 附录 · 16–20 h</span><span class="open">开始阅读 <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </a>
+
+        <a class="course" href="courses/计算机网络教程.html" style="--c:#0369a1">
+          <div class="course-top"><span class="course-no">VOL. 05</span><span class="course-level">零基础可读 · 设备联网</span></div>
+          <h3>计算机网络教程</h3>
+          <p>从本机、局域网到互联网：分层与封装、以太网与交换机、IPv4 与子网、ARP 与路由、UDP/TCP、DNS/DHCP/NAT、HTTP/HTTPS/TLS、MQTT、Wi-Fi 与 IPv6，以及用 ping、curl、抓包定位问题。</p>
+          <div class="course-tags"><span>TCP/IP</span><span>子网与路由</span><span>HTTP / TLS</span><span>MQTT</span></div>
+          <div class="course-foot"><span class="meta">11 讲 + 附录 · 18–22 h</span><span class="open">开始阅读 <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span></div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section path" id="path">
+    <div class="wrap">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">Learning Path</p>
+          <h2>一条主线，三个方向</h2>
+          <p>先把 C 语言和嵌入式 C 打牢，再根据目标选择实时系统、设备通信或网络。后三册没有严格的先后顺序，可以按项目需要交叉阅读。</p>
+        </div>
+      </div>
+      <div class="path-grid">
+        <div class="path-step">
+          <span class="idx">STEP 01</span>
+          <h3>打基础</h3>
+          <p>从编译链接、类型与内存开始，把指针、数组、结构体和多文件工程讲透。零基础也能跟。</p>
+          <div class="links"><a href="courses/C语言基础教程.html">C 语言基础 →</a></div>
+        </div>
+        <div class="path-step">
+          <span class="idx">STEP 02</span>
+          <h3>进入嵌入式</h3>
+          <p>把同一门语言放到资源受限、与硬件交互的环境里：寄存器、位操作、对齐、状态机、环形缓冲区。</p>
+          <div class="links"><a href="courses/嵌入式C语言进阶教程.html">嵌入式 C 进阶 →</a></div>
+        </div>
+        <div class="path-step">
+          <span class="idx">STEP 03</span>
+          <h3>按目标选方向</h3>
+          <p>做多任务产品读 FreeRTOS；接传感器/总线读通信协议；要让设备上网读计算机网络。</p>
+          <div class="links">
+            <a href="courses/FreeRTOS实时操作系统教程.html">FreeRTOS</a>
+            <a href="courses/嵌入式通信协议教程.html">通信协议</a>
+            <a href="courses/计算机网络教程.html">计算机网络</a>
+          </div>
+        </div>
+      </div>
+      <p class="path-note">提示：FreeRTOS 与通信协议可以交换顺序；计算机网络可以和第 2 册并行阅读，两者在“字节流、分帧、可靠性”上会互相印证。</p>
+    </div>
+  </section>
+
+  <section class="section about" id="about">
+    <div class="wrap">
+      <div class="about-grid">
+        <div>
+          <p class="section-kicker">About</p>
+          <h2>为什么做这套教程</h2>
+          <p>市面上的资料常常停在两端：要么只讲语法，要么直接跳到芯片手册。中间那段“为什么这样写、什么时候会出错、怎么验证”很少有人讲清楚。这套教程试图补上这一段。</p>
+          <p>五册按 <b>语言 → 硬件 → 系统 → 通信 → 网络</b> 组织。每讲都有学习目标、直观解释、图解或交互演示、可运行示例、易错点与练习；跨册案例沿着同一条主线逐步扩展：先在 C 里处理字符串，再在嵌入式 C 里处理串口字节流，最后在协议册里解析完整数据帧。</p>
+          <p>教程中的 C 示例在主机上以 C11 编译验证；FreeRTOS、寄存器与总线时序等依赖硬件的部分明确标注了平台前提，没有把未验证的内容说成硬件实测。</p>
+          <ul class="about-list">
+            <li><b>零基础读者</b>：从第一行 C 开始，不假设你学过单片机。</li>
+            <li><b>本科学生</b>：可配合 C 语言、单片机、操作系统与网络课程使用。</li>
+            <li><b>自学者</b>：用课程地图和自测题补齐零散知识。</li>
+            <li><b>嵌入式实践者</b>：查寄存器、位操作、队列、协议帧与排错思路。</li>
+          </ul>
+        </div>
+        <div>
+          <div class="read-modes">
+            <div class="read-mode"><b>在线阅读</b><span>直接打开任意一册，目录、搜索、深浅色与交互实验都可用。</span></div>
+            <div class="read-mode"><b>离线阅读</b><span>每册都是单文件 HTML，CSS、JavaScript、SVG 全部内嵌，不依赖 CDN 或在线字体。</span></div>
+            <div class="read-mode"><b>打印 / PDF</b><span>内置打印样式，会隐藏导航与按钮，保留正文、代码与表格。</span></div>
+            <div class="read-mode"><b>反馈与贡献</b><span>发现错误或有改进建议，欢迎在 GitHub 提 Issue 或 Pull Request。</span></div>
+          </div>
+          <p class="license-note">教程正文与插图采用 CC BY 4.0 许可；构建脚本采用 MIT。转载或改编请保留作者署名与项目链接。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="footer-in">
+    <div>
+      <b>嵌入式与计算机技术教程</b>
+      <p>面向 C 语言、嵌入式开发、实时操作系统、通信协议与计算机网络学习者的开源教程集合。</p>
+    </div>
+    <div class="footer-links">
+      <a href="#courses">教程</a>
+      <a href="#path">学习路线</a>
+      <a href="https://github.com/Wang-Nainai" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/Wang-Nainai/embedded-learning/issues" target="_blank" rel="noopener">反馈</a>
+    </div>
+  </div>
+  <div class="footer-base">
+    <span>© <span id="year">2026</span> Wang-Nainai · 教程内容 CC BY 4.0 · 构建脚本 MIT</span>
+    <span>静态站点 · 无外部依赖</span>
+  </div>
+</footer>
+
+<script src="assets/portal.js"></script>
+</body>
+</html>

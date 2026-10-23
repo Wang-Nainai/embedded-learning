@@ -1,0 +1,248 @@
+<h3><span class="n">11.1</span>作用域、存储期与链接：三个不同的概念</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>回答的问题</th><th>取值</th></tr></thead>
+<tbody>
+<tr><td>作用域</td><td>名字在源码的哪里可见</td><td>块作用域、函数作用域、文件作用域</td></tr>
+<tr><td>存储期</td><td>对象在运行时活多久</td><td>自动（栈）、静态（全程）、动态（malloc 到 free）</td></tr>
+<tr><td>链接</td><td>跨 .c 文件能否引用</td><td>外部、内部（static）、无</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="storage.c">
+#include <stdio.h>
+
+int g = 1;                 /* 静态存储期，外部链接 */
+static int s = 2;          /* 静态存储期，内部链接：别的 .c 看不到 */
+
+void f(void)
+{
+    int a = 3;             /* 自动存储期：每次调用重新创建 */
+    static int b = 4;      /* 静态存储期：只初始化一次，函数返回后仍在 */
+    a++;
+    b++;
+    printf("a=%d b=%d\n", a, b);
+}
+
+int main(void)
+{
+    (void)s;               /* 本示例只演示存储期，不读取 s */
+    f();                   /* a=4 b=5 */
+    f();                   /* a=4 b=6 */
+    f();                   /* a=4 b=7 */
+    return 0;
+}
+</codeblock>
+<outblock>
+a=4 b=5
+a=4 b=6
+a=4 b=7
+</outblock>
+
+<h3><span class="n">11.2</span>一个进程的内存长什么样</h3>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 360" role="img" aria-labelledby="fig11t fig11d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig11t">进程内存分区</title>
+<desc id="fig11d">从低地址到高地址依次是代码段、只读数据、已初始化数据、未初始化数据 BSS、堆（向上增长）和栈（向下增长），中间是未映射的空隙。</desc>
+<rect width="820" height="360" fill="#fbfdff"/>
+<text x="26" y="26" font-size="12.5" fill="#64748b">低地址</text>
+<g font-size="12.5">
+<rect x="70" y="40" width="300" height="42" rx="7" fill="#e0e7ff" stroke="#a5b4fc"/>
+<text x="86" y="66" fill="#26348f" font-weight="700">代码段 .text</text>
+<text x="230" y="66" fill="#475569">机器指令，只读</text>
+
+<rect x="70" y="88" width="300" height="42" rx="7" fill="#ede9fe" stroke="#c4b5fd"/>
+<text x="86" y="114" fill="#5b21b6" font-weight="700">只读数据 .rodata</text>
+<text x="230" y="114" fill="#475569">字符串字面量、const 全局</text>
+
+<rect x="70" y="136" width="300" height="42" rx="7" fill="#dbeafe" stroke="#93c5fd"/>
+<text x="86" y="162" fill="#1e40af" font-weight="700">已初始化数据 .data</text>
+<text x="230" y="162" fill="#475569">int g = 1;</text>
+
+<rect x="70" y="184" width="300" height="42" rx="7" fill="#e2e8f0" stroke="#94a3b8"/>
+<text x="86" y="210" fill="#334155" font-weight="700">未初始化数据 .bss</text>
+<text x="230" y="210" fill="#475569">int arr[1000];（启动时清零）</text>
+
+<rect x="70" y="232" width="300" height="58" rx="7" fill="#fef3c7" stroke="#fbbf24"/>
+<text x="86" y="256" fill="#92400e" font-weight="700">堆 heap</text>
+<text x="86" y="278" fill="#78350f" font-size="11.5">malloc / free 管理，向高地址增长</text>
+
+<rect x="70" y="300" width="300" height="42" rx="7" fill="#dcfce7" stroke="#86efac"/>
+<text x="86" y="326" fill="#166534" font-weight="700">栈 stack</text>
+<text x="230" y="326" fill="#475569">局部变量、栈帧，向低地址增长</text>
+</g>
+<text x="26" y="352" font-size="12.5" fill="#64748b">高地址</text>
+<path d="M392 250 L392 292" stroke="#b45309" stroke-width="2" marker-end="url(#a11)"/>
+<path d="M392 318 L392 276" stroke="#15803d" stroke-width="2" marker-end="url(#a11)"/>
+<defs><marker id="a11" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+
+<rect x="470" y="60" width="320" height="250" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="486" y="84" font-size="12.5" font-weight="700" fill="#334155">几条实用结论</text>
+<text x="486" y="112" font-size="12" fill="#1e293b">• 局部变量在栈上，函数返回即失效</text>
+<text x="486" y="138" font-size="12" fill="#1e293b">• 全局/static 变量在 .data 或 .bss</text>
+<text x="486" y="164" font-size="12" fill="#1e293b">• 字符串字面量通常在只读区</text>
+<text x="486" y="190" font-size="12" fill="#1e293b">• 栈和堆相向增长，碰撞即溢出</text>
+<text x="486" y="216" font-size="12" fill="#1e293b">• 栈大小固定，递归太深会栈溢出</text>
+<text x="486" y="242" font-size="12" fill="#1e293b">• 堆由你管理，忘记 free 就泄漏</text>
+<text x="486" y="274" font-size="11.5" fill="#64748b">具体布局由链接脚本和操作系统决定，</text>
+<text x="486" y="294" font-size="11.5" fill="#64748b">上图是常见示意，不是标准规定。</text>
+</svg>
+<figcaption>进程的典型内存分区；嵌入式系统的布局由链接脚本决定（第 2 册详解）。</figcaption>
+</figure>
+
+<h3><span class="n">11.3</span>malloc、calloc、realloc、free</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>函数</th><th>作用</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>malloc(n)</code></td><td>分配 n 字节，内容未初始化</td><td>返回 <code>void *</code>，失败返回 <code>NULL</code></td></tr>
+<tr><td><code>calloc(n, size)</code></td><td>分配 n×size 字节并全部清零</td><td>适合数组；乘法可能溢出，需检查</td></tr>
+<tr><td><code>realloc(p, n)</code></td><td>把已分配块调整到 n 字节</td><td>可能搬移，必须用临时指针接收</td></tr>
+<tr><td><code>free(p)</code></td><td>释放 malloc/calloc/realloc 得到的块</td><td><code>free(NULL)</code> 安全；释放别的地址是未定义行为</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="dynamic.c">
+#include <stdio.h>
+#include <stdlib.h>
+
+int main(void)
+{
+    size_t n = 5;
+    int *a = malloc(n * sizeof *a);       /* 用 sizeof *a，改类型时不用改代码 */
+    if (a == NULL) {
+        fprintf(stderr, "out of memory\n");
+        return 1;
+    }
+
+    for (size_t i = 0; i < n; i++) {
+        a[i] = (int)(i * i);
+    }
+
+    /* 扩容到 10 个元素：一定要用临时指针 */
+    int *tmp = realloc(a, 10 * sizeof *a);
+    if (tmp == NULL) {
+        free(a);                          /* 原块还在，别忘了释放 */
+        return 1;
+    }
+    a = tmp;
+
+    for (size_t i = n; i < 10; i++) {
+        a[i] = 0;
+    }
+
+    printf("%d %d\n", a[3], a[9]);
+    free(a);
+    a = NULL;
+    return 0;
+}
+</codeblock>
+<outblock>
+9 0
+</outblock>
+<div class="note bad">
+<b>易错</b>
+<p><code class="i">p = realloc(p, n);</code> 是经典错误：如果 <code class="i">realloc</code> 失败返回 <code class="i">NULL</code>，原来的 <code class="i">p</code> 就被覆盖了，那块内存再也找不到，直接泄漏。必须用临时变量接。</p>
+</div>
+
+<h3><span class="n">11.4</span>所有权：谁分配，谁释放</h3>
+<p>动态内存本身不难，难的是<strong>约定</strong>：这块内存归谁？什么时候释放？函数返回的指针，调用者要不要 <code class="i">free</code>？如果接口文档不写清楚，泄漏和双重释放迟早出现。</p>
+<div class="grid2">
+<div class="card"><span class="tag">模式 A</span><h4>调用者提供缓冲区</h4><p>函数只往里写，不分配。<code>int format(char *out, size_t n, ...)</code>。最安全，所有权清晰。</p></div>
+<div class="card"><span class="tag">模式 B</span><h4>函数分配，调用者释放</h4><p>函数内部 <code>malloc</code>，返回指针；文档必须写明“用完请 free”。命名上可以用 <code>create_</code> / <code>destroy_</code> 成对出现。</p></div>
+</div>
+
+<h3><span class="n">11.5</span>六类内存错误</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误</th><th>典型代码</th><th>后果</th></tr></thead>
+<tbody>
+<tr><td>内存泄漏</td><td>malloc 后忘记 free，或提前 return</td><td>长时间运行后内存耗尽</td></tr>
+<tr><td>悬空指针</td><td>free 后继续用 <code>p</code></td><td>读到脏数据或崩溃</td></tr>
+<tr><td>双重释放</td><td>同一指针 free 两次</td><td>堆管理器崩溃</td></tr>
+<tr><td>越界写</td><td><code>a[n] = 0</code></td><td>破坏堆块头或相邻对象</td></tr>
+<tr><td>释放非堆地址</td><td><code>free(&amp;local)</code></td><td>未定义行为</td></tr>
+<tr><td>未初始化读取</td><td>malloc 后直接读</td><td>得到随机值</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lab" id="lab-heap">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>分配、释放与悬空</h4>
+    <p>按顺序操作：分配 A → 分配 B → 释放 A → 再通过 pa 写入。观察“指针还在，但内存已经不属于你”。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn" type="button" data-heap="allocA">malloc A</button>
+      <button class="lab-btn" type="button" data-heap="allocB">malloc B</button>
+      <button class="lab-btn" type="button" data-heap="freeA">free A</button>
+      <button class="lab-btn" type="button" data-heap="freeB">free B</button>
+      <button class="lab-btn" type="button" data-heap="writeA">*pa = 42</button>
+      <button class="lab-btn" type="button" data-heap="reset">重置</button>
+    </div>
+    <div class="lab-canvas" id="heapCanvas"></div>
+    <div class="lab-read" id="heapOut" aria-live="polite"></div>
+    <p class="lab-note">释放后把指针置 <code class="i">NULL</code> 能防止误用；但如果有两份指针指向同一块，置空一份救不了另一份。</p>
+  </div>
+</div>
+
+<h3><span class="n">11.6</span>让工具替你找内存错误</h3>
+<p>人眼很难发现越界一个字节或漏掉一次 <code class="i">free</code>。把下面两个工具用起来，比打印一百次调试信息有效：</p>
+<codeblock lang="bash" file="终端">
+# GCC / Clang：地址检查 + 未定义行为检查（推荐日常开启）
+gcc -std=c11 -g -fsanitize=address,undefined dynamic.c -o dynamic
+./dynamic
+
+# Valgrind（Linux / macOS，需单独安装）
+valgrind --leak-check=full --show-leak-kinds=all ./dynamic
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>AddressSanitizer 会在越界或释放后使用时立刻报错并打印调用栈，定位速度远超“加 printf”。发布版本不要带 sanitizer（有性能开销），但测试和 CI 应该带。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 11 讲</div>
+<div class="pb">
+<ol>
+<li>写一个动态数组：支持 <code class="i">push</code> 扩容（容量翻倍）、<code class="i">free</code> 释放。</li>
+<li>下面的代码有几处问题？<br><code class="i">int *p = malloc(10 * sizeof(int)); p[10] = 1; free(p); free(p);</code></li>
+<li>解释 <code class="i">calloc</code> 和 <code class="i">malloc + memset</code> 的区别。</li>
+<li>用 <code class="i">-fsanitize=address</code> 编译并运行一个故意越界的程序，读一遍报错信息。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 结构体保存 <code class="i">data</code>、<code class="i">len</code>、<code class="i">cap</code>；<code class="i">len == cap</code> 时 <code class="i">realloc</code> 到 <code class="i">cap * 2</code>，用临时指针接返回值；销毁时 <code class="i">free</code> 并把字段清零。</p>
+<p><b>2.</b> 三处：<code class="i">p[10]</code> 越界（合法下标 0–9）；没有检查 <code class="i">malloc</code> 是否失败；<code class="i">free(p)</code> 两次是双重释放。另外 <code class="i">free</code> 后没有置空。</p>
+<p><b>3.</b> <code class="i">calloc</code> 语义上把内存初始化为全 0 位，且会检查乘法溢出；<code class="i">malloc + memset</code> 效果类似，但多一次函数调用，且 <code class="i">memset</code> 按字节写 0，对某些特殊表示不保证是“空值”（对整数和指针通常是）。</p>
+<p><b>4.</b> ASan 会输出 “heap-buffer-overflow”，给出读写地址、分配位置和越界位置两条调用栈。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">realloc</code> 返回 <code class="i">NULL</code> 时，原来的内存块会怎样？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>自动被释放</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>内容被清空</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>保持原样，仍然有效，需要你自己 free</span></button>
+</div>
+<div class="fb" data-fb>失败时 <code class="i">realloc</code> 不改动原块，返回 <code class="i">NULL</code>。所以要用临时指针接返回值，失败时继续持有并最终释放原指针。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>作用域、存储期、链接是三件不同的事。</li>
+<li>栈自动管理、堆手动管理、静态区活到程序结束。</li>
+<li><code class="i">malloc</code> 必须检查 <code class="i">NULL</code>；<code class="i">realloc</code> 必须用临时指针。</li>
+<li>所有权要在接口层面约定清楚，否则泄漏与双重释放不可避免。</li>
+<li>用 ASan / Valgrind 代替肉眼找内存错误。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出进程的六个内存区域</li>
+<li>我能说出六类内存错误各一个例子</li>
+<li>我会写带扩容的动态数组</li>
+</ul>
+</div>

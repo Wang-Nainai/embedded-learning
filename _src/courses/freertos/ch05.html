@@ -1,0 +1,181 @@
+<h3><span class="n">5.1</span>队列不是共享变量</h3>
+<p>队列是一段<strong>固定长度</strong>的缓冲区，每个元素大小固定。发送时按值复制进去，接收时按值复制出来。它解决的是“有界传递 + 阻塞等待”，不是“共享内存”。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>特性</th><th>含义</th><th>后果</th></tr></thead>
+<tbody>
+<tr><td>按值复制</td><td>发送的是数据的副本</td><td>发送方可以立刻复用原缓冲区；但大结构体复制开销大</td></tr>
+<tr><td>固定长度</td><td>创建时确定，不能动态扩容</td><td>满了必须等待或丢弃，策略要显式设计</td></tr>
+<tr><td>FIFO</td><td>默认先进先出</td><td>也有 <code>xQueueSendToFront</code> 用于插队</td></tr>
+<tr><td>线程安全</td><td>内部已处理临界区</td><td>不需要额外加锁</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">5.2</span>创建、发送、接收</h3>
+<codeblock lang="C11" file="queue_basic.c">
+#include "FreeRTOS.h"
+#include "queue.h"
+
+typedef struct {
+    uint16_t id;
+    int32_t  value;
+} sample_t;
+
+static QueueHandle_t g_samples;
+
+void app_init(void)
+{
+    /* 长度 8，每个元素 sizeof(sample_t) */
+    g_samples = xQueueCreate(8, sizeof(sample_t));
+    configASSERT(g_samples != NULL);
+}
+
+/* 生产者任务 */
+static void producer(void *arg)
+{
+    (void)arg;
+    uint16_t id = 0;
+    for (;;) {
+        sample_t s = { .id = id++, .value = read_adc() };
+
+        /* 最多等 10 ms；队列满则返回 errQUEUE_FULL */
+        if (xQueueSend(g_samples, &s, pdMS_TO_TICKS(10)) != pdPASS) {
+            g_drop_count++;              /* 丢弃并计数，不要静默 */
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+/* 消费者任务 */
+static void consumer(void *arg)
+{
+    (void)arg;
+    sample_t s;
+    for (;;) {
+        /* 最多等 100 ms；超时返回 pdFALSE */
+        if (xQueueReceive(g_samples, &s, pdMS_TO_TICKS(100)) == pdPASS) {
+            process(&s);
+        } else {
+            /* 超时：可以做健康检查、心跳、低功耗 */
+        }
+    }
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p>队列满时，<code class="i">xQueueSend</code> 会把当前任务放入“等待发送”的阻塞列表；一旦有空间，最高优先级的等待者被唤醒。等待时间以 tick 为单位，<code class="i">0</code> 表示不等待，<code class="i">portMAX_DELAY</code> 表示无限等待（需要 <code class="i">INCLUDE_vTaskSuspend = 1</code>）。</p>
+</div>
+
+<div class="lab" id="lab-queue">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>队列满/空时，返回值是什么</h4>
+    <p>容量 4。连续放入看它变满，连续取出看它变空。注意“满时不是覆盖，空时不是崩溃”。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" data-q="send">xQueueSend</button>
+      <button class="lab-btn" type="button" data-q="recv">xQueueReceive</button>
+      <button class="lab-btn" type="button" data-q="reset">重置</button>
+    </div>
+    <div class="lab-canvas" id="queueCanvas"></div>
+    <div class="lab-read" id="queueOut" aria-live="polite"></div>
+    <p class="lab-note">真实调用还会带超时参数：等待期间任务处于 Blocked，超时后返回 <code class="i">errQUEUE_FULL</code> 或 <code class="i">pdFALSE</code>。</p>
+  </div>
+</div>
+
+<h3><span class="n">5.3</span>队列长度怎么定</h3>
+<p>队列长度的本质是<strong>“允许积压多少”</strong>。它由三个量决定：</p>
+<div class="steps">
+<div><b>生产速率</b>　每秒产生多少元素（突发时可能是平均值的数倍）。</div>
+<div><b>消费速率</b>　每秒处理多少元素，最坏情况下的处理时间。</div>
+<div><b>可容忍延迟</b>　从产生到处理，最多能等多久。</div>
+</div>
+<p>一个粗略公式：<code class="i">长度 ≥ (生产速率 - 消费速率) × 最大阻塞时间</code>。如果生产长期快于消费，队列再大也会满——那不是队列长度问题，是系统过载。</p>
+<div class="note bad">
+<b>易错</b>
+<p>把指针放进队列来“避免复制大结构体”，但指针指向的是发送方的栈或会被复用的缓冲区。接收方拿到指针时，内容可能已经变了。要么复制数据，要么用内存池 + 明确的所有权转移。</p>
+</div>
+
+<h3><span class="n">5.4</span>中断里怎么发送</h3>
+<codeblock lang="C11" file="queue_isr.c">
+static void UART_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;
+    uint8_t byte = uart_read();
+
+    /* 中断里必须用 FromISR 版本，且不能阻塞（超时为 0） */
+    xQueueSendFromISR(g_rx_queue, &byte, &woken);
+
+    /* 如果唤醒了更高优先级任务，退出中断时立刻切换 */
+    portYIELD_FROM_ISR(woken);
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>场景</th><th>用哪个</th><th>超时</th></tr></thead>
+<tbody>
+<tr><td>任务上下文</td><td><code>xQueueSend</code> / <code>xQueueReceive</code></td><td>可用 tick 超时</td></tr>
+<tr><td>中断上下文</td><td><code>xQueueSendFromISR</code> / <code>xQueueReceiveFromISR</code></td><td>不能阻塞，只能 0</td></tr>
+<tr><td>需要唤醒高优先级任务</td><td>FromISR + <code>portYIELD_FROM_ISR</code></td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">5.5</span>队列、邮箱与流缓冲区</h3>
+<p>FreeRTOS 还有两种“像队列”的东西，容易混：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>机制</th><th>传什么</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td>队列</td><td>固定大小的元素，按值复制</td><td>结构体、命令、样本</td></tr>
+<tr><td>流缓冲区 / 消息缓冲区</td><td>字节流，可变长度</td><td>串口数据、连续字节流</td></tr>
+<tr><td>任务通知</td><td>一个 32 位值（或计数）</td><td>轻量事件、一对一唤醒</td></tr>
+</tbody>
+</table>
+</div>
+<p>流缓冲区适合“字节流”，但它不保留消息边界；需要边界时用消息缓冲区，或者自己在字节流上做帧解析。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 5 讲</div>
+<div class="pb">
+<ol>
+<li>创建一个传递 <code class="i">sample_t</code> 的队列，长度 8，写出生产者和消费者。</li>
+<li>如果生产者每 10 ms 产生一个，消费者每 30 ms 处理一个，队列至少多长才能撑过 1 秒的突发？</li>
+<li>为什么中断里不能调用 <code class="i">xQueueSend</code>（不带 FromISR）？</li>
+<li>解释“按值复制”对发送方和接收方各自意味着什么。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 每秒生产 100 个、消费约 33 个，积压约 67 个/秒；要撑 1 秒至少 67，实际还要留余量，取 80–100 更稳。</p>
+<p><b>3.</b> 普通版本可能阻塞、会调用非中断安全的内部函数，且不处理“唤醒更高优先级任务”的上下文切换请求，行为未定义。</p>
+<p><b>4.</b> 发送方：数据被复制后可以立刻修改原变量；接收方：拿到的是独立副本，生命周期与队列元素相同（出队后由接收方负责）。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：队列长度 4、已满，任务调用 <code class="i">xQueueSend(q, &amp;x, 0)</code>，结果是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>覆盖最旧的元素</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>立即返回 <code>errQUEUE_FULL</code>，不放入</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>永久阻塞直到有空间</span></button>
+</div>
+<div class="fb" data-fb>超时为 0 表示不等待，队列满时立刻返回失败。要等待就传一个非 0 的 tick 超时；要覆盖旧数据，需要自己先接收再发送，或者改用流缓冲区/环形缓冲。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>队列按值复制、长度固定、线程安全。</li>
+<li>满/空/超时都必须显式处理，不能假设成功。</li>
+<li>队列长度由生产/消费速率与可容忍延迟决定。</li>
+<li>中断里只能用 FromISR 版本，并处理 yield。</li>
+<li>大对象考虑内存池与所有权，而不是裸指针。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出生产/消费两个任务</li>
+<li>我能解释超时参数的含义</li>
+<li>我知道队列满时该丢弃还是等待</li>
+</ul>
+</div>

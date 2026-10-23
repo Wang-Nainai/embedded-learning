@@ -1,0 +1,214 @@
+<h3><span class="n">11.1</span>中断是“随时插进来的一段代码”</h3>
+<p>主循环正在执行 <code class="i">counter++</code>，中断来了，中断服务程序（ISR）也执行 <code class="i">counter++</code>，然后返回。直觉上结果应该是加 2，但实际可能只加了 1。</p>
+<p>原因是：<code class="i">counter++</code> 在机器层面是<strong>读 → 改 → 写</strong>三步，中断可以插在任意两步之间。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 260" role="img" aria-labelledby="fig11t fig11d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig11t">中断打断读改写导致丢失更新</title>
+<desc id="fig11d">主循环读到 counter 为 5，中断插入也读到 5，两者各自加 1 后写回 6，最终结果是 6 而不是 7。</desc>
+<rect width="820" height="260" fill="#fbfdff"/>
+<text x="30" y="28" font-size="12.5" font-weight="700" fill="#334155">两次 counter++，为什么只加了 1</text>
+<g font-size="11.5">
+<rect x="30" y="48" width="150" height="34" rx="6" fill="#eef2ff" stroke="#a5b4fc"/><text x="42" y="70" fill="#26348f">主：读 counter → 5</text>
+<rect x="190" y="48" width="150" height="34" rx="6" fill="#fef3c7" stroke="#fbbf24"/><text x="202" y="70" fill="#92400e">中断：读 counter → 5</text>
+<rect x="350" y="48" width="150" height="34" rx="6" fill="#eef2ff" stroke="#a5b4fc"/><text x="362" y="70" fill="#26348f">主：5 + 1 = 6</text>
+<rect x="510" y="48" width="150" height="34" rx="6" fill="#fef3c7" stroke="#fbbf24"/><text x="522" y="70" fill="#92400e">中断：5 + 1 = 6</text>
+<rect x="30" y="96" width="150" height="34" rx="6" fill="#eef2ff" stroke="#a5b4fc"/><text x="42" y="118" fill="#26348f">主：写回 6</text>
+<rect x="190" y="96" width="150" height="34" rx="6" fill="#fef3c7" stroke="#fbbf24"/><text x="202" y="118" fill="#92400e">中断：写回 6</text>
+<text x="360" y="118" font-size="12" fill="#b91c1c" font-weight="700">→ 最终 6，丢了一次加法</text>
+</g>
+<rect x="30" y="158" width="760" height="76" rx="9" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="46" y="180" font-size="12" font-weight="700" fill="#334155">根本原因</text>
+<text x="46" y="202" font-size="11.5" fill="#1e293b">读和写不是原子操作；中断插在中间，两个上下文基于同一个旧值计算，后写的覆盖先写的。</text>
+<text x="46" y="222" font-size="11.5" fill="#1e293b">volatile 只能保证“真的去读”，不能保证“读和写之间不被打断”。</text>
+</svg>
+<figcaption>丢失更新（lost update）：两个上下文各自完成读改写，结果少算一次。</figcaption>
+</figure>
+
+<div class="lab" id="lab-race">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>单步看一次丢失更新</h4>
+    <p>先看“无保护”版本如何丢一次加法，再看“临界区”版本如何让中断等待。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" data-race="unsafe">无保护版本</button>
+      <button class="lab-btn" type="button" data-race="safe">临界区版本</button>
+      <button class="lab-btn" type="button" id="raceStep">单步</button>
+      <button class="lab-btn" type="button" id="raceReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="raceCanvas"></div>
+    <div class="lab-read" id="raceOut" aria-live="polite"></div>
+    <p class="lab-note">临界区不是“更快的锁”，它只是短暂关闭中断；关得太久会影响系统响应。</p>
+  </div>
+</div>
+
+<h3><span class="n">11.2</span>中断服务程序的三条纪律</h3>
+<div class="steps">
+<div><b>短</b>　只做必须立刻做的事：清标志、读数据、放进缓冲区、置事件。复杂处理交给主循环。</div>
+<div><b>不阻塞</b>　不能等待、不能延时、不能调用可能阻塞的函数（如带超时的队列发送）。</div>
+<div><b>不重入</b>　默认同一中断不会嵌套自己；如果开了嵌套，共享数据要额外保护。</div>
+</div>
+<codeblock lang="C11" file="isr_pattern.c">
+#include <stdint.h>
+#include <stdbool.h>
+
+static volatile bool     g_frame_ready;
+static volatile uint8_t  g_frame[16];
+static volatile uint8_t  g_frame_len;
+
+/* 中断：只搬运和置标志 */
+void UART_IRQHandler(void)
+{
+    uint8_t byte = UART_DATA;          /* 读数据寄存器（同时清标志） */
+    if (g_frame_len < sizeof g_frame) {
+        g_frame[g_frame_len++] = byte;
+        if (byte == '\n') {
+            g_frame_ready = true;
+        }
+    } else {
+        g_frame_len = 0;               /* 溢出：丢弃这一帧 */
+    }
+}
+
+/* 主循环：做解析、打印、业务 */
+void app_poll(void)
+{
+    if (!g_frame_ready) {
+        return;
+    }
+    g_frame_ready = false;
+    /* 处理 g_frame[0..g_frame_len-1] */
+    g_frame_len = 0;
+}
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>上面这段仍然有竞态：主循环处理到一半，中断又写入新数据，<code class="i">g_frame_len</code> 被改，缓冲区内容被覆盖。正确做法是“双缓冲”或“把数据推进队列，主循环从队列取”，而不是共享同一个缓冲区。</p>
+</div>
+
+<h3><span class="n">11.3</span>临界区：关中断的正确姿势</h3>
+<codeblock lang="C11" file="critical.c · 平台相关">
+#include <stdint.h>
+
+/* Cortex-M：保存并恢复 PRIMASK，支持嵌套 */
+static inline uint32_t enter_critical(void)
+{
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    return primask;
+}
+
+static inline void exit_critical(uint32_t primask)
+{
+    __set_PRIMASK(primask);
+}
+
+void update_shared(void)
+{
+    uint32_t pm = enter_critical();
+    g_counter++;                 /* 读改写被保护 */
+    exit_critical(pm);
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>做法</th><th>问题</th></tr></thead>
+<tbody>
+<tr><td><code>__disable_irq(); ...; __enable_irq();</code></td><td>嵌套调用时，内层退出会提前开中断</td></tr>
+<tr><td>关中断里调用 <code>printf</code> / 延时</td><td>中断被关闭太久，系统失去响应</td></tr>
+<tr><td>关中断里调用可能阻塞的 RTOS API</td><td>未定义行为或死锁</td></tr>
+<tr><td>只保护写、不保护读</td><td>读到一半仍可能被改</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>临界区应只包住“必须原子”的那几行。能在临界区外做的计算、拷贝、判断，全部挪出去。临界区长度直接决定最坏中断延迟，这是实时系统里要测量的指标。</p>
+</div>
+
+<h3><span class="n">11.4</span>更好的办法：单生产者单消费者队列</h3>
+<p>与其共享一大块数据，不如让中断只负责“把字节放进环形缓冲区”，主循环负责“取出来解析”。这样共享的只有两个索引，且各自只有一个写者。</p>
+<codeblock lang="C11" file="spsc.c">
+/* 中断：生产者 */
+void UART_IRQHandler(void)
+{
+    uint8_t byte = UART_DATA;
+    if (!ring_push(&g_rx, byte)) {
+        g_rx_overflow++;             /* 记录溢出，不要静默丢弃 */
+    }
+}
+
+/* 主循环：消费者 */
+void app_poll(void)
+{
+    uint8_t byte;
+    while (ring_pop(&g_rx, &byte)) {
+        parser_feed(&g_parser, byte);
+    }
+}
+</codeblock>
+<p>这就是第 10 讲的环形缓冲区在真实系统里的用法：<strong>中断生产、主循环消费</strong>。它把“共享大块数据”变成了“共享两个索引”，竞态面小得多。</p>
+
+<h3><span class="n">11.5</span>内存序：什么时候 volatile 也不够</h3>
+<p>在多核 MCU（如 Cortex-M7 + M4 双核、ESP32 双核）上，即使编译器不重排，CPU 也可能重排读写。这时需要<strong>内存屏障</strong>或 C11 原子类型：</p>
+<codeblock lang="C11" file="barrier.c · 平台相关">
+/* 编译器屏障：阻止编译器重排，不阻止 CPU */
+__asm volatile ("" ::: "memory");
+
+/* ARM 数据内存屏障：保证屏障前的访问先完成 */
+__DMB();
+
+/* C11 原子：语义最清晰，但需要工具链支持 */
+#include <stdatomic.h>
+atomic_int flag;
+atomic_store_explicit(&flag, 1, memory_order_release);
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>C11 之前，C 语言没有多线程内存模型，<code class="i">volatile</code> 也不提供原子性或顺序保证。C11 引入 <code class="i">&lt;stdatomic.h&gt;</code> 后，跨线程共享才第一次有了标准语义。嵌入式工具链对 C11 原子的支持程度不一，使用前要确认。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 11 讲</div>
+<div class="pb">
+<ol>
+<li>列出中断与主循环共享数据的三种破坏方式，各给一个例子。</li>
+<li>为什么“关中断”必须保存并恢复 PRIMASK，而不是直接开中断？</li>
+<li>把 11.2 节的共享缓冲区改成环形缓冲区，画出数据流。</li>
+<li>解释 <code class="i">volatile</code> 与 <code class="i">atomic</code> 的区别，各举一个适用场景。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 编译器优化（轮询被缓存）、非原子访问（32 位变量分两次写）、竞态（读改写被插入）。</p>
+<p><b>2.</b> 临界区可能嵌套：内层退出时如果直接开中断，外层还没执行完就被打断了。保存/恢复能保证“退出时回到进入前的状态”。</p>
+<p><b>3.</b> 中断 push，主循环 pop，解析器消费字节；共享 head/tail，各自单写。</p>
+<p><b>4.</b> <code class="i">volatile</code> 解决“访问被优化”，用于寄存器和简单标志；<code class="i">atomic</code> 解决“读改写不可分割 + 内存序”，用于计数器、跨核标志。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：主循环和中断都执行 <code class="i">g_count++</code>，最终少加了一次。最直接的原因是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>变量没有加 const</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>编译器把变量放进了 Flash</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>读改写不是原子操作，两次更新基于同一个旧值</span></button>
+</div>
+<div class="fb" data-fb><code class="i">g_count++</code> 是读、加、写三步；中断插在中间时，两个上下文都基于旧值计算，后写的覆盖先写的。volatile 无法解决这个问题。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>中断可以插在任意指令之间，读改写因此可能丢失更新。</li>
+<li>ISR 三条纪律：短、不阻塞、不重入。</li>
+<li>临界区要保存/恢复中断状态，且尽量短。</li>
+<li>SPSC 环形缓冲区把共享面缩到两个索引。</li>
+<li>多核场景需要屏障或 C11 原子，volatile 不够。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出丢失更新的时序</li>
+<li>我能写出可嵌套的临界区宏</li>
+<li>我知道 volatile 与 atomic 的分工</li>
+</ul>
+</div>

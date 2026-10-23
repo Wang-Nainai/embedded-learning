@@ -1,0 +1,119 @@
+<h3><span class="n">7.1</span>DNS：把名字翻译成地址</h3>
+<p>你记不住 <code class="i">142.250.72.14</code>，但记得住 <code class="i">www.example.com</code>。DNS 就是互联网的“电话簿”，把域名解析成 IP。</p>
+<div class="steps">
+<div><b>本机缓存</b>　浏览器、操作系统先查缓存（含 hosts 文件）。</div>
+<div><b>递归解析器</b>　通常是运营商或公共 DNS（如 223.5.5.5）。</div>
+<div><b>根服务器</b>　告诉你“.com 的权威服务器在哪”。</div>
+<div><b>顶级域服务器</b>　告诉你“example.com 的权威服务器在哪”。</div>
+<div><b>权威服务器</b>　返回最终的 A / AAAA 记录。</div>
+<div><b>缓存</b>　按 TTL 缓存，减少后续查询。</div>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>记录</th><th>含义</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>A</td><td>域名 → IPv4</td><td>example.com → 93.184.216.34</td></tr>
+<tr><td>AAAA</td><td>域名 → IPv6</td><td>example.com → 2606:2800:…</td></tr>
+<tr><td>CNAME</td><td>别名</td><td>www → example.com</td></tr>
+<tr><td>MX</td><td>邮件服务器</td><td>example.com → mail.example.com</td></tr>
+<tr><td>TXT</td><td>文本记录</td><td>SPF、域名验证</td></tr>
+<tr><td>NS</td><td>权威服务器</td><td>example.com → ns1.example.com</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="bash" file="查询 DNS">
+nslookup example.com            # Windows / Linux
+dig example.com A               # Linux / macOS
+dig @223.5.5.5 example.com      # 指定 DNS 服务器
+ipconfig /flushdns              # Windows 清缓存
+</codeblock>
+
+<h3><span class="n">7.2</span>DHCP：自动拿到地址</h3>
+<p>设备刚接入网络时没有 IP，只能用广播找 DHCP 服务器。四个步骤简称 DORA：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>步骤</th><th>方向</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>Discover</td><td>客户端广播</td><td>有没有 DHCP 服务器？</td></tr>
+<tr><td>Offer</td><td>服务器 → 客户端</td><td>给你这个地址，要不要？</td></tr>
+<tr><td>Request</td><td>客户端广播</td><td>我要这个地址</td></tr>
+<tr><td>Ack</td><td>服务器 → 客户端</td><td>确认，租期 N 小时</td></tr>
+</tbody>
+</table>
+</div>
+<p>地址是“租”的，到期要续租（T1 50%、T2 87.5% 时尝试）。嵌入式设备如果 DHCP 失败，通常会落到 169.254.x.x（链路本地），表现为“连上了 Wi-Fi 但上不了网”。</p>
+
+<h3><span class="n">7.3</span>NAT：一个公网 IP 怎么够全家用</h3>
+<p>NAT 在路由器上改写 IP 和端口，让多台内网设备共享一个公网地址。最常见的 PAT（端口地址转换）用一个映射表：</p>
+<codeblock lang="text" file="NAT 映射表示例">
+内网 192.168.1.10:50000  →  公网 203.0.113.5:40001
+内网 192.168.1.11:50000  →  公网 203.0.113.5:40002
+</codeblock>
+<p>出站时改源地址/端口，回包时按表反向改写。它解决了 IPv4 地址不足，但也带来三个限制：</p>
+<ul>
+<li><strong>外网不能主动连内网</strong>，除非做端口映射/打洞。</li>
+<li>映射表有超时，长时间无流量会被回收。</li>
+<li>某些协议（FTP 主动模式、SIP）在载荷里带 IP，需要 ALG 特殊处理。</li>
+</ul>
+<div class="note eng">
+<b>工程习惯</b>
+<p>设备作为 TCP 客户端连服务器，NAT 不是问题；设备要做“被访问的服务器”，就必须有公网映射、内网穿透或反向连接。设计物联网架构时，优先让设备主动连出（MQTT 就是这种模式）。</p>
+</div>
+
+<h3><span class="n">7.4</span>“能上局域网不能上网”怎么查</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>检查</th><th>命令</th><th>结果说明</th></tr></thead>
+<tbody>
+<tr><td>本机地址</td><td><code>ipconfig</code> / <code>ip addr</code></td><td>是否有 169.254 地址</td></tr>
+<tr><td>网关连通</td><td><code>ping 网关</code></td><td>不通 → 链路/交换/VLAN 问题</td></tr>
+<tr><td>公网 IP 连通</td><td><code>ping 8.8.8.8</code></td><td>通 → 路由与 NAT 正常</td></tr>
+<tr><td>DNS</td><td><code>nslookup example.com</code></td><td>失败 → DNS 配错或被拦</td></tr>
+<tr><td>端口</td><td><code>curl -v http://example.com</code></td><td>看卡在建连还是响应</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 7 讲</div>
+<div class="pb">
+<ol>
+<li>DNS 查询为什么要分层？为什么不集中在一台服务器？</li>
+<li>DHCP 的四个步骤分别是什么？</li>
+<li>NAT 为什么能省公网 IP？代价是什么？</li>
+<li>能 ping 通 8.8.8.8 但打不开网页，最可能是什么问题？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 域名数量巨大且分散管理，分层可以把查询分散到各级权威服务器，并用缓存减少根服务器压力。</p>
+<p><b>2.</b> Discover、Offer、Request、Ack。</p>
+<p><b>3.</b> 用端口区分内网连接，多个内网地址共享一个公网地址；代价是外网无法主动访问内网、映射表有状态与超时。</p>
+<p><b>4.</b> DNS 解析失败（或代理配置错误）。IP 层通，应用层域名解析不了。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：DHCP 的作用是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>把域名解析成 IP</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>自动分配 IP、掩码、网关与 DNS</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>在公网与内网之间转换地址</span></button>
+</div>
+<div class="fb" data-fb>DHCP 负责“自动配置网络参数”；DNS 负责域名解析；NAT 负责地址转换。三者经常一起出现，但职责完全不同。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>DNS 分层解析域名，按 TTL 缓存。</li>
+<li>DHCP 用 DORA 四步自动分配地址与参数。</li>
+<li>NAT/PAT 用端口映射让多设备共享公网 IP。</li>
+<li>NAT 限制外网主动访问，设备应优先主动连出。</li>
+<li>排障顺序：地址 → 网关 → 公网 IP → DNS → 端口。</li>
+</ul>
+<ul class="checklist">
+<li>我能描述一次 DNS 查询</li>
+<li>我能说出 DHCP 四步</li>
+<li>我知道 NAT 的限制</li>
+</ul>
+</div>

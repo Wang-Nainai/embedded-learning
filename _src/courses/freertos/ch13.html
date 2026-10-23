@@ -1,0 +1,139 @@
+<h3><span class="n">13.1</span>四种“卡住”，四种根因</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>故障</th><th>典型现象</th><th>根因</th><th>先查什么</th></tr></thead>
+<tbody>
+<tr><td>死锁</td><td>相关任务全部停住，CPU 可能空闲</td><td>互相等对方持有的锁</td><td>加锁顺序、是否有超时</td></tr>
+<tr><td>优先级反转</td><td>高优先级任务偶尔延迟很久</td><td>中优先级任务抢占持锁的低优先级任务</td><td>持锁时间、是否用互斥量</td></tr>
+<tr><td>饥饿</td><td>低优先级任务长期不运行</td><td>高优先级任务一直就绪</td><td>CPU 利用率、优先级设计</td></tr>
+<tr><td>栈溢出</td><td>随机崩溃、变量被改、HardFault</td><td>任务栈太小或调用太深</td><td>高水位、溢出钩子</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">13.2</span>死锁的排查</h3>
+<p>死锁时系统往往“安静地停住”：没有崩溃，没有日志，只是什么都不发生。排查步骤：</p>
+<div class="steps">
+<div><b>确认是否死锁</b>　用调试器暂停，看各任务卡在哪个函数；如果都卡在 <code>xSemaphoreTake</code>，高度怀疑。</div>
+<div><b>找锁的持有者</b>　FreeRTOS 的互斥量有所有者；检查是谁拿了锁却没释放。</div>
+<div><b>看加锁顺序</b>　两个任务是否以相反顺序获取两把锁。</div>
+<div><b>加超时与日志</b>　把 <code>portMAX_DELAY</code> 改成有限超时，记录失败点。</div>
+</div>
+<codeblock lang="C11" file="deadlock_fix.c">
+/* 统一顺序：永远先 m1 后 m2 */
+if (xSemaphoreTake(m1, pdMS_TO_TICKS(50)) != pdTRUE) {
+    return ERR_BUSY;
+}
+if (xSemaphoreTake(m2, pdMS_TO_TICKS(50)) != pdTRUE) {
+    xSemaphoreGive(m1);                 /* 拿不到第二把，释放第一把 */
+    return ERR_BUSY;
+}
+/* ... */
+xSemaphoreGive(m2);
+xSemaphoreGive(m1);
+</codeblock>
+
+<h3><span class="n">13.3</span>饥饿与 CPU 利用率</h3>
+<p>如果高优先级任务永远就绪（例如一个没有阻塞的 <code class="i">for(;;)</code> 循环），低优先级任务永远得不到 CPU。这不是 bug，是设计问题。</p>
+<ul>
+<li>每个任务都必须有阻塞点（延时、等队列、等信号量）。</li>
+<li>计算密集型任务要主动让出，或放到最低优先级。</li>
+<li>用运行时统计看每个任务占了多少 CPU。</li>
+</ul>
+<codeblock lang="C11" file="stats.c">
+/* 需要 configGENERATE_RUN_TIME_STATS = 1，并提供高精度计时 */
+char buf[512];
+vTaskGetRunTimeStats(buf);      /* 每个任务的运行时间与占比 */
+printf("%s\n", buf);
+
+vTaskList(buf);                 /* 任务状态、优先级、剩余栈、序号 */
+printf("%s\n", buf);
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">vTaskGetRunTimeStats</code> 需要一个比 tick 更细的计时源（通常是另一个定时器），通过 <code class="i">portCONFIGURE_TIMER_FOR_RUN_TIME_STATS</code> 和 <code class="i">portGET_RUN_TIME_COUNTER_VALUE</code> 接入。只有 tick 计时的话，分辨率太粗。</p>
+</div>
+
+<h3><span class="n">13.4</span>栈溢出的现象与定位</h3>
+<p>栈溢出最迷惑人的地方是<strong>它不一定立刻崩溃</strong>：溢出的数据可能踩到相邻任务的栈或 TCB，表现为“某个无关变量变了”“任务突然不跑了”。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>配置</th><th>行为</th><th>优缺点</th></tr></thead>
+<tbody>
+<tr><td><code>configCHECK_FOR_STACK_OVERFLOW = 1</code></td><td>切换时检查栈指针是否越界</td><td>开销小，但只能发现“已经越界”</td></tr>
+<tr><td><code>= 2</code></td><td> additionally 检查栈末尾的魔术字</td><td>更可靠，需要预填模式</td></tr>
+<tr><td>高水位</td><td>运行后查看剩余量</td><td>不能发现瞬时峰值</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>发布版本也保留栈溢出钩子，但钩子里不要 <code class="i">printf</code>（栈可能已经坏了）。最稳的做法是：点亮故障灯、把任务名写入保留 RAM（不掉电区域）、触发看门狗复位。</p>
+</div>
+
+<h3><span class="n">13.5</span>configASSERT 与看门狗</h3>
+<codeblock lang="C11" file="assert.c">
+/* 在 FreeRTOSConfig.h 中定义，参数非法时立刻停机 */
+#define configASSERT(x)  do { if (!(x)) { taskDISABLE_INTERRUPTS(); \
+                                           fault_handler(__FILE__, __LINE__); } } while (0)
+</codeblock>
+<p><code class="i">configASSERT</code> 能抓住大量“参数非法、优先级越界、队列句柄为空”的问题。开发阶段一定打开；发布版本可以保留（停机 + 记录），也可以改成复位。</p>
+<p>看门狗是最后一道防线：监控任务定期“喂狗”，如果某个关键任务卡死，系统自动复位。注意喂狗应该在<strong>所有关键任务都健康</strong>时进行，而不是随便找个最低优先级任务喂。</p>
+
+<h3><span class="n">13.6</span>五个常见误区</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>误区</th><th>事实</th></tr></thead>
+<tbody>
+<tr><td>“优先级越高，系统越实时”</td><td>优先级只决定谁先运行；实时性取决于最坏执行时间与阻塞时间</td></tr>
+<tr><td>“加了互斥量就不会有并发问题”</td><td>还要考虑死锁、持锁时间、ISR 访问</td></tr>
+<tr><td>“volatile 能替代锁”</td><td>它不保证原子性，也不保证顺序</td></tr>
+<tr><td>“队列越长越安全”</td><td>长队列增加延迟和 RAM；过载时照样满</td></tr>
+<tr><td>“RTOS 会自动保证实时”</td><td>它只提供机制，分析和设计仍要自己做</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 13 讲</div>
+<div class="pb">
+<ol>
+<li>系统运行几分钟后“整体卡住”，如何判断是死锁还是饥饿？</li>
+<li>高优先级任务偶发延迟 200 ms，可能是什么原因？</li>
+<li>如何用运行时统计证明某个任务占用了 95% CPU？</li>
+<li>设计一个“关键任务都健康才喂狗”的方案。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 暂停看各任务栈：都卡在等锁 → 死锁；高优先级任务一直 Running、低优先级从未运行 → 饥饿。</p>
+<p><b>2.</b> 优先级反转（持锁任务被中优先级抢占）、临界区过长、中断关闭过久、队列/内存分配阻塞。</p>
+<p><b>3.</b> 开 <code class="i">configGENERATE_RUN_TIME_STATS</code>，调用 <code class="i">vTaskGetRunTimeStats</code>，看该任务的百分比与绝对时间。</p>
+<p><b>4.</b> 每个关键任务定期置一个事件位；监控任务等齐所有位后喂狗并清位；任何一个任务超时未置位，就不喂狗，让系统复位。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：低优先级任务长期得不到运行，最可能的原因是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>它的栈太小</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>高优先级任务一直就绪，CPU 没有空隙</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>它没有调用 vTaskDelay</span></button>
+</div>
+<div class="fb" data-fb>这是典型的饥饿：高优先级任务没有阻塞点，调度器永远选它。解决办法是给高优先级任务加阻塞点，或重新评估优先级与任务划分。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>死锁、反转、饥饿、栈溢出都会表现成“卡住”，但根因不同。</li>
+<li>死锁靠加锁顺序、超时与日志定位。</li>
+<li>饥饿靠运行时统计与“每个任务都要阻塞”来避免。</li>
+<li>栈溢出要用高水位 + 溢出钩子 + 最坏路径测试。</li>
+<li>configASSERT 与看门狗是最后两道防线。</li>
+</ul>
+<ul class="checklist">
+<li>我能区分四类故障</li>
+<li>我会用运行时统计看 CPU 占用</li>
+<li>我知道栈溢出为什么不立刻崩溃</li>
+</ul>
+</div>

@@ -1,0 +1,135 @@
+<h3><span class="n">12.1</span>五种堆方案</h3>
+<p>FreeRTOS 把 <code class="i">pvPortMalloc</code> / <code class="i">vPortFree</code> 的实现放在 <code class="i">heap_x.c</code> 里，由你选择其中一个加入工程。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>方案</th><th>能释放吗</th><th>碎片</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td>heap_1</td><td>不能</td><td>无</td><td>只在启动时创建任务/队列，之后不释放</td></tr>
+<tr><td>heap_2</td><td>能</td><td>不会合并相邻块</td><td>旧项目；新项目不建议</td></tr>
+<tr><td>heap_3</td><td>能</td><td>取决于 libc malloc</td><td>使用编译器自带 malloc，需实现线程安全</td></tr>
+<tr><td>heap_4</td><td>能</td><td>会合并相邻空闲块</td><td>通用首选</td></tr>
+<tr><td>heap_5</td><td>能</td><td>同 heap_4，多区域</td><td>RAM 不连续（如内部 + 外部 SRAM）</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>长期运行的设备优先 heap_4（合并碎片）或静态分配（完全不依赖堆）。heap_2 不合并相邻空闲块，反复分配/释放后很容易“总量够但最大块不够”。</p>
+</div>
+
+<h3><span class="n">12.2</span>堆有多大，谁在用</h3>
+<codeblock lang="C11" file="heap_use.c">
+#include "FreeRTOS.h"
+#include "task.h"
+
+void report_heap(void)
+{
+    size_t free_now = xPortGetFreeHeapSize();
+    size_t min_ever = xPortGetMinimumEverFreeHeapSize();   /* 需要 heap_4/5 */
+    printf("heap free=%u, min ever=%u\n", (unsigned)free_now, (unsigned)min_ever);
+}
+</codeblock>
+<p><code class="i">configTOTAL_HEAP_SIZE</code> 是堆的总大小。任务栈、TCB、队列、信号量、事件组、定时器都从这里分配（动态创建时）。</p>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">xPortGetMinimumEverFreeHeapSize</code> 只有 heap_4 和 heap_5 提供。它记录历史最低空闲量，是判断“堆是否够用”的关键指标——当前空闲很多，不代表高峰时没接近耗尽。</p>
+</div>
+
+<h3><span class="n">12.3</span>任务栈：每个任务都在花 RAM</h3>
+<p>任务栈要容纳：局部变量、函数调用返回地址、保存的寄存器、中断嵌套时的上下文。栈太小会踩坏相邻内存，表现为“变量莫名其妙变了”或 HardFault。</p>
+<codeblock lang="C11" file="stack_check.c">
+/* 需要 configUSE_TRACE_FACILITY = 1 或 INCLUDE_uxTaskGetStackHighWaterMark = 1 */
+UBaseType_t hw = uxTaskGetStackHighWaterMark(g_worker);
+/* hw 是“历史最小剩余量”，单位是字。越小越危险。 */
+if (hw < 32) {
+    /* 余量不足 32 字（Cortex-M 上 128 字节），应该增大栈 */
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>检查手段</th><th>配置</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td>高水位</td><td><code>INCLUDE_uxTaskGetStackHighWaterMark</code></td><td>运行时看剩余栈量</td></tr>
+<tr><td>栈溢出检测</td><td><code>configCHECK_FOR_STACK_OVERFLOW</code> = 1/2</td><td>切换时检查栈指针/魔术字</td></tr>
+<tr><td>溢出钩子</td><td><code>vApplicationStackOverflowHook</code></td><td>记录任务名并停机/复位</td></tr>
+<tr><td>填充模式</td><td>调试器查看栈底</td><td>看未被使用的栈区域</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="overflow_hook.c">
+void vApplicationStackOverflowHook(TaskHandle_t task, char *name)
+{
+    (void)task;
+    /* 不要在这里 printf（可能栈已经坏了），点灯/记录到保留 RAM */
+    fault_led_on();
+    for (;;) { }
+}
+</codeblock>
+
+<h3><span class="n">12.4</span>栈大小怎么估</h3>
+<div class="steps">
+<div><b>先给足</b>　按经验给一个偏大的值（例如 256–512 字），先让功能跑起来。</div>
+<div><b>测高水位</b>　跑遍所有分支、最坏输入、中断嵌套场景，读 <code>uxTaskGetStackHighWaterMark</code>。</div>
+<div><b>留余量</b>　保留至少 25%–30% 余量，再把栈调小；不要压到“刚好不溢出”。</div>
+<div><b>回归</b>　每次加功能后重新测，尤其是增加了深层调用或大局部数组。</div>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>只在“正常路径”测高水位是不够的。错误处理、异常输入、通信断开重连这些路径往往调用更深、局部变量更多，才是栈的真正峰值。</p>
+</div>
+
+<h3><span class="n">12.5</span>碎片：为什么“总量够却分配失败”</h3>
+<p>假设堆里有 3 个 100 字节的空闲块，但你要分配 250 字节——总量 300 够，却没有连续的 250 字节。这就是<strong>外部碎片</strong>。</p>
+<ul>
+<li>heap_4 会合并相邻空闲块，能缓解但不能消除碎片。</li>
+<li>反复创建/删除不同大小的任务和队列，最容易产生碎片。</li>
+<li>长期运行的系统，优先“启动时一次性分配，运行期不再分配”。</li>
+</ul>
+<div class="note good">
+<b>正确做法</b>
+<p>把 <code class="i">xPortGetMinimumEverFreeHeapSize</code> 和分配失败计数一起上报。如果最小值持续下降，说明有泄漏；如果最小值稳定但分配仍失败，说明碎片严重。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 12 讲</div>
+<div class="pb">
+<ol>
+<li>一个任务栈设为 256 字，Cortex-M 上占多少字节？</li>
+<li>高水位显示 8 字，说明什么？该怎么办？</li>
+<li>heap_1 和 heap_4 的核心区别是什么？各自适合什么项目？</li>
+<li>为什么“启动时分配、运行期不分配”能显著降低碎片风险？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 256 × 4 = 1024 字节，另加 TCB。</p>
+<p><b>2.</b> 历史最小剩余只有 8 字（32 字节），几乎贴底，随时可能溢出；应立即增大栈并检查是否有大局部数组/深调用。</p>
+<p><b>3.</b> heap_1 只能分配不能释放，完全没有碎片，适合“启动后固定”的系统；heap_4 可分配可释放并合并相邻块，适合需要动态创建/删除的场景。</p>
+<p><b>4.</b> 碎片来自“不同大小块的反复分配释放”；如果所有块在启动时一次性分配、大小固定，运行期不再切割堆，就不会产生外部碎片。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">uxTaskGetStackHighWaterMark</code> 返回 20，含义是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>栈总共 20 字节</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>已经溢出了 20 字节</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>历史最小剩余 20 字（约 80 字节，Cortex-M）</span></button>
+</div>
+<div class="fb" data-fb>它返回的是“从任务启动到现在，栈最多被用到离栈底还剩多少”，单位是字。数值越小越危险，不是越大越危险。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>heap_1 不可释放，heap_4 通用，heap_5 支持多区域。</li>
+<li>堆的总量、历史最低空闲量都要监控。</li>
+<li>栈深度单位是字，栈溢出往往表现为“莫名其妙的数据损坏”。</li>
+<li>高水位要在最坏路径上测，并留 25% 以上余量。</li>
+<li>长期运行系统尽量在启动时完成分配。</li>
+</ul>
+<ul class="checklist">
+<li>我能选择合适的堆方案</li>
+<li>我会读高水位并判断余量</li>
+<li>我能解释碎片产生的原因</li>
+</ul>
+</div>

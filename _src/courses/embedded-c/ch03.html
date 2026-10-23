@@ -1,0 +1,189 @@
+<h3><span class="n">3.1</span>从位表到掩码</h3>
+<p>芯片手册的寄存器表通常长这样：</p>
+<div class="table-wrap">
+<table>
+<caption>某控制寄存器的位定义（示例）</caption>
+<thead><tr><th>位</th><th>名称</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td>31:16</td><td>Reserved</td><td>保留，写 0</td></tr>
+<tr><td>15:8</td><td>PRESCALER</td><td>分频系数，0–255</td></tr>
+<tr><td>7</td><td>ENABLE</td><td>1 = 使能</td></tr>
+<tr><td>6:4</td><td>MODE</td><td>0 = 关闭，1 = 单次，2 = 连续</td></tr>
+<tr><td>3</td><td>IRQ_EN</td><td>1 = 允许中断</td></tr>
+<tr><td>2:0</td><td>Reserved</td><td>保留</td></tr>
+</tbody>
+</table>
+</div>
+<p>把它翻译成 C，只需要三个量：<strong>偏移</strong>（最低位在哪）、<strong>宽度</strong>（几位）、<strong>掩码</strong>（<code class="i">((1u &lt;&lt; width) - 1) &lt;&lt; offset</code>）。</p>
+<codeblock lang="C11" file="fields.h">
+#include <stdint.h>
+
+#define CTRL_PRESCALER_POS   8u
+#define CTRL_PRESCALER_MSK   (0xFFu << CTRL_PRESCALER_POS)
+
+#define CTRL_ENABLE_POS      7u
+#define CTRL_ENABLE_MSK      (1u << CTRL_ENABLE_POS)
+
+#define CTRL_MODE_POS        4u
+#define CTRL_MODE_MSK        (0x7u << CTRL_MODE_POS)
+
+#define CTRL_IRQ_POS         3u
+#define CTRL_IRQ_MSK         (1u << CTRL_IRQ_POS)
+</codeblock>
+
+<h3><span class="n">3.2</span>字段的三个动作：读、写、改</h3>
+<codeblock lang="C11" file="field_ops.c · 片段">
+/* 读：先右移对齐，再与掩码 */
+static inline uint32_t field_get(uint32_t reg, uint32_t pos, uint32_t msk)
+{
+    return (reg & msk) >> pos;
+}
+
+/* 写：先清掉字段，再放入新值（调用者保证 value 不超宽） */
+static inline uint32_t field_set(uint32_t reg, uint32_t pos, uint32_t msk, uint32_t value)
+{
+    return (reg & ~msk) | ((value << pos) & msk);
+}
+
+/* 用宏也可以，但内联函数有类型检查，调试也友好 */
+#define FIELD_GET(reg, msk, pos)   (((reg) & (msk)) >> (pos))
+#define FIELD_SET(reg, msk, pos, v) (((reg) & ~(msk)) | (((v) << (pos)) & (msk)))
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p><code class="i">(value &lt;&lt; pos) &amp; msk</code> 里的 <code class="i">&amp; msk</code> 不是可有可无的：如果 <code class="i">value</code> 超出字段宽度，不移除高位就会污染相邻字段。反过来，如果调用者已经保证不超宽，这个与运算也能防止手误。</p>
+</div>
+
+<div class="lab" id="lab-field">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>字段掩码计算器</h4>
+    <p>给定偏移和宽度，看掩码、移位后的值，以及读/写这个字段的完整表达式。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>偏移 <input id="fldPos" type="number" value="8" min="0" max="31" style="width:64px"></label>
+      <label>宽度 <input id="fldW" type="number" value="8" min="1" max="32" style="width:64px"></label>
+      <label>数值 <input id="fldVal" type="text" value="0x5A" style="width:80px"></label>
+      <button class="lab-btn pri" type="button" id="fldGo">计算</button>
+    </div>
+    <div class="lab-read" id="fldOut" aria-live="polite"></div>
+    <p class="lab-note">宽度 32 时 <code class="i">(1u &lt;&lt; 32)</code> 是未定义行为，需要特判；这里用 64 位中间值演示，实际代码要单独处理。</p>
+  </div>
+</div>
+
+<h3><span class="n">3.3</span>位域：语法很甜，布局很险</h3>
+<codeblock lang="C11" file="bitfield.c">
+struct Flags {
+    unsigned ready : 1;
+    unsigned mode  : 3;
+    unsigned error : 1;
+    unsigned       : 3;   /* 无名位域：占位，不可访问 */
+};
+</codeblock>
+<p>位域能把“几位表示一个字段”写得很直观，但它有几个必须知道的限制：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>问题</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>布局由实现定义</td><td>谁在高位、是否跨存储单元、如何填充，标准都没规定；换编译器/换字节序可能完全不同。</td></tr>
+<tr><td>不能取地址</td><td><code class="i">&amp;s.ready</code> 非法，因此无法用指针传递单个位域。</td></tr>
+<tr><td>类型有限</td><td>只能用于 <code class="i">int</code>、<code class="i">unsigned</code>、<code class="i">_Bool</code> 或实现允许的类型。</td></tr>
+<tr><td>访问仍是读改写</td><td>写一个位域，编译器通常要读整个存储单元、改位、再写回，仍然不是原子操作。</td></tr>
+<tr><td>volatile 位域</td><td>不同编译器对 volatile 位域的读写次数处理不同，访问硬件寄存器时风险很高。</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>描述<strong>硬件寄存器</strong>时，优先用“掩码 + 移位”，不要用位域。位域可以用在纯 RAM 的内部标志上，但也要接受“布局不可移植”这个事实。跨平台协议更是绝对不能用位域直接映射字节流。</p>
+</div>
+
+<h3><span class="n">3.4</span>四个高频位技巧</h3>
+<codeblock lang="C11" file="bit_tricks.c">
+#include <stdint.h>
+#include <stdbool.h>
+
+/* 1. 判断是不是 2 的幂（0 不是） */
+bool is_pow2(uint32_t x) { return x != 0u && (x & (x - 1u)) == 0u; }
+
+/* 2. 统计 1 的个数（Brian Kernighan 法） */
+int popcount(uint32_t x)
+{
+    int n = 0;
+    while (x) { x &= (x - 1u); n++; }
+    return n;
+}
+
+/* 3. 取出最低的 1 及其位置 */
+uint32_t lowest_bit(uint32_t x) { return x & (~x + 1u); }   /* x & -x */
+
+/* 4. 循环右移（避免负数右移的实现定义行为） */
+uint32_t ror(uint32_t x, unsigned n)
+{
+    n &= 31u;
+    return n ? (x >> n) | (x << (32u - n)) : x;
+}
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>对<strong>无符号</strong>类型，左移和右移都是良定义的（左移按 2<sup>N</sup> 取模，右移是逻辑右移）。对<strong>有符号负数</strong>右移，结果是实现定义；对有符号数左移到符号位，是未定义行为。写底层代码时，位运算一律用无符号类型。</p>
+</div>
+
+<h3><span class="n">3.5</span>让编译器替你检查位宽</h3>
+<codeblock lang="C11" file="static_assert.c">
+#include <stdint.h>
+
+#define MODE_MSK (0x7u << 4)
+
+/* C11：编译期断言，条件为假直接编译失败 */
+_Static_assert((MODE_MSK >> 4) == 0x7u, "MODE 字段宽度必须是 3 位");
+_Static_assert(sizeof(uint32_t) == 4, "本文件假设 uint32_t 是 4 字节");
+
+/* C11 之前可用经典技巧 */
+typedef char check_mode_width[(MODE_MSK >> 4) == 0x7u ? 1 : -1];
+</codeblock>
+<p>这类断言在寄存器定义、协议常量、缓冲区大小上非常有用：错误在编译期暴露，而不是等到板子跑起来才发现。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 3 讲</div>
+<div class="pb">
+<ol>
+<li>为 3.1 节的 <code class="i">MODE</code> 字段写出“设为连续模式（2）”的完整语句，要求不影响其他位。</li>
+<li>写一个函数，把任意 32 位整数的第 <code class="i">i</code> 位到第 <code class="i">j</code> 位反转（i ≤ j）。</li>
+<li>解释 <code class="i">x &amp; (x - 1)</code> 为什么能清除最低位的 1。</li>
+<li>为什么不能用位域直接映射通信协议的字节流？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">CTRL = (CTRL &amp; ~CTRL_MODE_MSK) | (2u &lt;&lt; CTRL_MODE_POS);</code>。如果该寄存器支持原子写，优先用硬件机制。</p>
+<p><b>2.</b> 取出字段、逐位反转、再写回；或者用循环把两端位交换。注意 <code class="i">j - i + 1</code> 位宽和移位边界。</p>
+<p><b>3.</b> 减 1 会把最低位的 1 变成 0，并把它右边的所有 0 变成 1；再与原值相与，最低位的 1 及其右侧全部清零，其余位不变。</p>
+<p><b>4.</b> 位域的位序、填充、存储单元大小都由实现决定，不同编译器可能把同一个结构体映射成完全不同的字节序列；协议要求的是精确到 bit 的固定布局。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：要把 <code class="i">REG</code> 的 bit5 清零且不影响其他位，正确写法是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span><code>REG &amp;= ~(1u &lt;&lt; 5);</code></span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span><code>REG &amp;= (1u &lt;&lt; 5);</code></span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span><code>REG |= ~(1u &lt;&lt; 5);</code></span></button>
+</div>
+<div class="fb" data-fb>清位要用“与上掩码的取反”：<code class="i">~(1u&lt;&lt;5)</code> 只有 bit5 是 0，其余全是 1，与运算后只清 bit5。B 会把除 bit5 外的所有位清掉；C 会把除 bit5 外的所有位置 1。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>字段三要素：偏移、宽度、掩码；写字段要先清后置。</li>
+<li>位域布局由实现定义，不适合映射硬件寄存器和协议。</li>
+<li>位运算统一用无符号类型，避免未定义/实现定义行为。</li>
+<li><code>_Static_assert</code> 能把位宽错误挡在编译期。</li>
+</ul>
+<ul class="checklist">
+<li>我能从位表写出掩码宏</li>
+<li>我能写出字段读写的内联函数</li>
+<li>我能说出位域的三个风险</li>
+</ul>
+</div>

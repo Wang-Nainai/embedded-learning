@@ -1,0 +1,114 @@
+<h3><span class="n">5.1</span>端口与套接字</h3>
+<p>IP 地址把数据送到主机，<strong>端口</strong>把数据送到主机上的某个程序。端口是 16 位整数（0–65535）：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>范围</th><th>名称</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>0–1023</td><td>知名端口</td><td>HTTP 80、HTTPS 443、DNS 53、MQTT 1883</td></tr>
+<tr><td>1024–49151</td><td>注册端口</td><td>厂商/应用注册使用</td></tr>
+<tr><td>49152–65535</td><td>临时端口</td><td>客户端发起连接时由系统分配</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>套接字（socket）</strong>通常指“IP + 端口 + 协议”的组合，例如 <code class="i">192.168.1.10:50000 TCP</code>。一条 TCP 连接由四元组唯一确定：源 IP、源端口、目的 IP、目的端口。</p>
+
+<h3><span class="n">5.2</span>UDP 只做四件事</h3>
+<p>UDP 的头部只有 8 字节：源端口、目的端口、长度、校验和。它提供的能力非常有限：</p>
+<div class="grid2">
+<div class="card"><span class="tag">提供</span><h4>它做的</h4><ul><li>端口复用（区分应用）</li><li>可选的校验和</li><li>保留消息边界（一次发 = 一个数据报）</li><li>支持广播/组播</li></ul></div>
+<div class="card"><span class="tag">不提供</span><h4>它不做的</h4><ul><li>不建连、不握手</li><li>不确认、不重传</li><li>不保证顺序</li><li>不控制拥塞</li></ul></div>
+</div>
+<div class="note law">
+<b>标准怎么说</b>
+<p>IPv4 中 UDP 校验和是可选的（全 0 表示不校验），IPv6 中<strong>必须</strong>计算。校验和覆盖伪头部（源/目的 IP、协议号、UDP 长度）+ UDP 头 + 数据，所以能发现 IP 地址错误。</p>
+</div>
+
+<h3><span class="n">5.3</span>什么时候选 UDP</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>场景</th><th>为什么 UDP</th></tr></thead>
+<tbody>
+<tr><td>DNS 查询</td><td>一问一答，包小，重发比建连快</td></tr>
+<tr><td>DHCP</td><td>客户端还没有 IP，无法建 TCP；用广播</td></tr>
+<tr><td>实时音视频</td><td>宁可丢一帧，也不要等重传造成卡顿</td></tr>
+<tr><td>游戏状态同步</td><td>只关心最新状态，旧包没价值</td></tr>
+<tr><td>局域网设备发现</td><td>广播/组播，TCP 不支持</td></tr>
+<tr><td>CoAP / LwM2M</td><td>受限设备，开销小</td></tr>
+</tbody>
+</table>
+</div>
+<p>“UDP 不可靠”不等于“不能用”。很多协议在 UDP 之上自己做序号、确认、重传（QUIC 就是典型），把可靠性做成可定制的。</p>
+
+<h3><span class="n">5.4</span>本机观察 UDP</h3>
+<codeblock lang="bash" file="终端（Linux / macOS 示例）">
+# 终端 1：监听 9999 端口
+nc -u -l 9999
+
+# 终端 2：发送一个数据报
+echo "hello udp" | nc -u 127.0.0.1 9999
+
+# 查看本机 UDP 端口
+ss -lun          # Linux
+netstat -anu     # Windows / macOS
+</codeblock>
+<outblock label="终端 1 收到">
+hello udp
+</outblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>UDP 没有连接状态，防火墙/ NAT 的超时更短。设备如果长时间不发数据，NAT 映射可能被回收，导致“服务器发不进来”。需要心跳（keepalive）维持映射。</p>
+</div>
+
+<h3><span class="n">5.5</span>UDP 上的可靠性要自己补</h3>
+<p>如果业务需要“不丢、不重、有序”，又必须用 UDP（例如实时性要求高、或需要组播），就要自己实现：</p>
+<ul>
+<li>序号 + 确认 + 超时重传（或 NACK）。</li>
+<li>去重（同一序号只处理一次）。</li>
+<li>乱序缓冲（按序号重组）。</li>
+<li>拥塞控制（否则会压垮网络）。</li>
+</ul>
+<p>这也是 QUIC 做的事情——它把 TCP 的可靠性 + TLS 加密搬到了 UDP 之上，避免了 TCP 的队头阻塞。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 5 讲</div>
+<div class="pb">
+<ol>
+<li>一条 TCP 连接由哪四元组唯一确定？</li>
+<li>DNS 为什么通常用 UDP 而不是 TCP？</li>
+<li>UDP 校验和能发现 IP 地址错误吗？为什么？</li>
+<li>设备通过 NAT 发 UDP，长时间不发数据会怎样？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 源 IP、源端口、目的 IP、目的端口（加协议）。</p>
+<p><b>2.</b> 查询小、一问一答，UDP 省去建连开销；超时重发比 TCP 握手更快。大响应/区域传送会用 TCP。</p>
+<p><b>3.</b> 能。校验和覆盖伪头部，其中包含源/目的 IP。</p>
+<p><b>4.</b> NAT 映射可能超时被删除，服务器再发数据就找不到内网设备；需要周期性心跳维持。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：UDP 相比 TCP 缺少下面哪一项？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>端口号</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>校验和</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>确认、重传与顺序保证</span></button>
+</div>
+<div class="fb" data-fb>UDP 有端口和校验和，但不提供确认、重传、排序、流量控制与拥塞控制——这些正是 TCP 的核心。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>端口区分主机上的应用，套接字由 IP+端口+协议标识。</li>
+<li>UDP 头部只有 8 字节，保留消息边界，支持广播/组播。</li>
+<li>UDP 不保证送达、顺序与拥塞控制。</li>
+<li>实时、短查询、广播场景优先 UDP。</li>
+<li>需要可靠性时，在应用层自己补或改用 QUIC。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出 UDP 头部的四个字段</li>
+<li>我能判断一个场景该用 UDP 还是 TCP</li>
+<li>我知道 NAT 对 UDP 的影响</li>
+</ul>
+</div>

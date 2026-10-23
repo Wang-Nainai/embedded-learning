@@ -1,0 +1,133 @@
+<h3><span class="n">1.1</span>“协议”这个词被用得太宽了</h3>
+<p>有人说“我用 UART 协议”，有人说“我用 Modbus 协议”，还有人说“RS-485 协议”。这三句话里的“协议”根本不在一个层次：</p>
+<div class="table-wrap">
+<table>
+<caption>四个层次，各管一件事</caption>
+<thead><tr><th>层次</th><th>管什么</th><th>例子</th><th>典型问题</th></tr></thead>
+<tbody>
+<tr><td>接口 / 连接器</td><td>几根线、什么电平、什么接头</td><td>TTL 串口、RS-232 DB9、RS-485 A/B、RJ45</td><td>接反、共地、电平不匹配</td></tr>
+<tr><td>物理层 / 时序</td><td>0/1 怎么表示，什么时候采样</td><td>UART 波特率、I²C 开漏、SPI 时钟极性</td><td>波特率误差、采样点错、上升沿太慢</td></tr>
+<tr><td>数据链路</td><td>帧边界、地址、仲裁、校验、重传</td><td>UART 帧、I²C 地址+ACK、CAN 仲裁、CRC</td><td>丢字节、NACK、仲裁失败、CRC 错</td></tr>
+<tr><td>应用协议</td><td>这些字节是什么意思</td><td>Modbus RTU、自定义命令、AT 指令</td><td>功能码错、长度错、状态机错</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>“RS-485 协议”这个说法不准确。RS-485 只规定<strong>电气特性</strong>（差分、半双工、共模范围），不规定帧格式、地址和校验。跑在 RS-485 上的应用协议可以是 Modbus RTU，也可以是自定义协议。同理，UART 只规定“怎么把字节变成电平”，不规定“字节是什么意思”。</p>
+</div>
+
+<h3><span class="n">1.2</span>同步与异步：时钟从哪来</h3>
+<div class="grid2">
+<div class="card"><span class="tag">异步</span><h4>没有时钟线，靠约定</h4><p>UART、RS-485。收发双方各自用自己的时钟，靠起始位对齐，靠波特率保持同步。误差会累积。</p></div>
+<div class="card"><span class="tag">同步</span><h4>有时钟线，靠边沿</h4><p>I²C、SPI。主机提供时钟，从机在指定边沿采样。没有累积误差，但多一根线。</p></div>
+</div>
+<p>CAN 介于两者之间：它用位填充（bit stuffing）让接收方能从数据流里恢复时钟，属于“自同步”的串行总线。</p>
+
+<h3><span class="n">1.3</span>单端与差分：抗干扰的两种思路</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>单端</th><th>差分</th></tr></thead>
+<tbody>
+<tr><td>信号</td><td>一根线对地</td><td>两根线之间的电压差</td></tr>
+<tr><td>例子</td><td>TTL UART、I²C、SPI</td><td>RS-485、CAN、USB、以太网</td></tr>
+<tr><td>抗干扰</td><td>较弱，地电位差会影响</td><td>较强，共模干扰相互抵消</td></tr>
+<tr><td>距离</td><td>短（板内、几十厘米）</td><td>长（几十米到上千米）</td></tr>
+</tbody>
+</table>
+</div>
+<p>差分不是“两根线各传一个信号”，而是<strong>用两根线的电压差表示 0/1</strong>。干扰通常同时叠加在两根线上（共模），相减后被抵消。</p>
+
+<h3><span class="n">1.4</span>单工、半双工、全双工</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>模式</th><th>能否同时收发</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>单工</td><td>只能一个方向</td><td>传感器单向输出、红外发射</td></tr>
+<tr><td>半双工</td><td>不能同时</td><td>RS-485、CAN、I²C</td></tr>
+<tr><td>全双工</td><td>可以同时</td><td>UART（TX/RX 分开）、SPI（MOSI/MISO）</td></tr>
+</tbody>
+</table>
+</div>
+<p>半双工需要“方向控制”：发送时驱动总线，接收时释放总线。RS-485 的 DE/RE 引脚就是干这个的；切换时机不对，会把最后一两个字节截掉。</p>
+
+<h3><span class="n">1.5</span>从波形读出三个参数</h3>
+<p>看一条数字波形，至少能读出三样东西：</p>
+<div class="steps">
+<div><b>电平标准</b>　3.3 V TTL？5 V？差分？空闲是高还是低？</div>
+<div><b>比特率</b>　一个比特占多长时间。UART 还要看起始位和停止位。</div>
+<div><b>采样点</b>　接收方在比特的哪个位置采样（通常是中间）。</div>
+</div>
+<codeblock lang="text" file="速率计算示例">
+UART：115200 bps，8N1
+一帧 = 1 起始 + 8 数据 + 0 校验 + 1 停止 = 10 位
+一帧时间 = 10 / 115200 ≈ 86.8 µs
+每秒最多约 11520 字节（理论值，不含间隔）
+
+I²C：400 kHz，7 位地址，读写 1 字节
+START + 地址(8) + ACK + 数据(8) + ACK + STOP ≈ 20 个时钟
+一字节时间 ≈ 20 / 400k = 50 µs（不含软件开销）
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>“波特率”（baud）严格指<strong>每秒符号数</strong>，不是每秒比特数。UART 每个符号只携带 1 bit，所以两者相等；但在某些调制方式下，一个符号可以携带多个比特。日常说“串口波特率 115200”时，指的是比特率。</p>
+</div>
+
+<h3><span class="n">1.6</span>出问题时，先定位到层</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>现象</th><th>最可能在哪一层</th><th>先查什么</th></tr></thead>
+<tbody>
+<tr><td>完全没波形</td><td>接口 / 物理层</td><td>供电、地、引脚复用、使能</td></tr>
+<tr><td>波形有但全是乱码</td><td>物理层 / 链路层</td><td>波特率、数据位、校验、停止位</td></tr>
+<tr><td>偶尔错一个字节</td><td>物理层</td><td>上升沿、干扰、共地、终端电阻</td></tr>
+<tr><td>帧边界对不上</td><td>链路层 / 应用层</td><td>粘包、长度字段、转义</td></tr>
+<tr><td>CRC 经常错</td><td>链路层 / 物理层</td><td>位错误、噪声、校验算法</td></tr>
+<tr><td>设备不响应</td><td>应用层</td><td>地址、功能码、超时</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 1 讲</div>
+<div class="pb">
+<ol>
+<li>把 UART、I²C、SPI、CAN、RS-485、Modbus 分别归到四层中的哪几层。</li>
+<li>115200 8N1 传 1000 字节，理论最短时间是多少？</li>
+<li>为什么差分信号抗干扰？用“共模干扰”解释。</li>
+<li>RS-485 半双工切换方向时，为什么要等最后一个字节发完？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> UART：物理层+链路层；I²C：物理层+链路层；SPI：物理层+链路层；CAN：物理层+链路层；RS-485：接口/物理层；Modbus RTU：应用层（依赖串行链路）。</p>
+<p><b>2.</b> 每字节 10 位，1000 × 10 / 115200 ≈ 86.8 ms。</p>
+<p><b>3.</b> 干扰同时叠加在两根线上，接收端取差值时被减掉；单端信号以地为参考，地电位差会直接变成误差。</p>
+<p><b>4.</b> 提前释放总线会让最后一个字节的尾部失去驱动，接收方可能采到错误电平；要等移位寄存器空（TC 标志）再切。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：下面哪个属于“应用层协议”？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>RS-485</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>UART</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>Modbus RTU</span></button>
+</div>
+<div class="fb" data-fb>RS-485 是电气接口，UART 是串行收发机制（物理层+链路层），Modbus RTU 规定的是字节的含义与交互规则，属于应用层协议。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>接口、物理层、链路层、应用协议是四个层次，不能混为一谈。</li>
+<li>异步靠约定波特率，同步靠时钟线，CAN 靠位填充自同步。</li>
+<li>差分抗共模干扰，适合长距离；单端适合板内短距离。</li>
+<li>半双工需要方向控制，切换时机影响最后一字节。</li>
+<li>排障先定位层次，再查具体参数。</li>
+</ul>
+<ul class="checklist">
+<li>我能把常见总线归到正确的层</li>
+<li>我能从波形读出比特率和采样点</li>
+<li>我知道 RS-485 不等于 Modbus</li>
+</ul>
+</div>

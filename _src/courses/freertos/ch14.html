@@ -1,0 +1,229 @@
+<h3><span class="n">14.1</span>需求与任务划分</h3>
+<p>目标：每 10 ms 采一次传感器，做滑动平均，打包后通过串口/网络发出；同时监控系统健康（队列丢弃、栈余量、堆余量），异常时进入安全状态。</p>
+<div class="table-wrap">
+<table>
+<caption>任务划分（优先级数值越大越高）</caption>
+<thead><tr><th>任务</th><th>优先级</th><th>周期/触发</th><th>最坏执行</th><th>职责</th></tr></thead>
+<tbody>
+<tr><td>sensor</td><td>4</td><td>10 ms 周期</td><td>1.5 ms</td><td>读 ADC，写入原始队列</td></tr>
+<tr><td>process</td><td>3</td><td>队列到达</td><td>2 ms</td><td>滤波、换算、打包</td></tr>
+<tr><td>comm</td><td>2</td><td>队列到达</td><td>8 ms（含阻塞发送）</td><td>发送帧，处理重试</td></tr>
+<tr><td>monitor</td><td>1</td><td>1 s 周期</td><td>0.5 ms</td><td>统计、健康检查、喂狗</td></tr>
+</tbody>
+</table>
+</div>
+<p>优先级按“周期越短越高”分配。comm 的最坏执行最长，所以放在 process 之下；即使它阻塞，也不会拖住采样。</p>
+
+<h3><span class="n">14.2</span>数据流与队列</h3>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 240" role="img" aria-labelledby="fig14t fig14d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig14t">多任务数据链</title>
+<desc id="fig14d">采样任务把原始样本放入队列，处理任务取出滤波后放入发送队列，通信任务发送；监控任务读取统计并喂狗。</desc>
+<rect width="820" height="240" fill="#fbfdff"/>
+<g font-size="11.5" text-anchor="middle">
+<rect x="20" y="60" width="120" height="52" rx="8" fill="#e0e7ff" stroke="#818cf8"/><text x="80" y="82" fill="#26348f" font-weight="700">sensor</text><text x="80" y="100" fill="#475569">prio 4 · 10 ms</text>
+<rect x="170" y="60" width="110" height="52" rx="8" fill="#fef3c7" stroke="#fbbf24"/><text x="225" y="82" fill="#92400e" font-weight="700">q_raw</text><text x="225" y="100" fill="#78350f">长度 8</text>
+<rect x="310" y="60" width="120" height="52" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="370" y="82" fill="#166534" font-weight="700">process</text><text x="370" y="100" fill="#475569">prio 3</text>
+<rect x="460" y="60" width="110" height="52" rx="8" fill="#fef3c7" stroke="#fbbf24"/><text x="515" y="82" fill="#92400e" font-weight="700">q_tx</text><text x="515" y="100" fill="#78350f">长度 4</text>
+<rect x="600" y="60" width="120" height="52" rx="8" fill="#ede9fe" stroke="#c4b5fd"/><text x="660" y="82" fill="#5b21b6" font-weight="700">comm</text><text x="660" y="100" fill="#475569">prio 2</text>
+</g>
+<g stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#a14)">
+<path d="M140 86 L166 86"/><path d="M280 86 L306 86"/><path d="M430 86 L456 86"/><path d="M570 86 L596 86"/>
+</g>
+<defs><marker id="a14" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+<rect x="20" y="150" width="700" height="58" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="36" y="172" font-size="11.5" font-weight="700" fill="#334155">monitor（prio 1，1 s）</text>
+<text x="36" y="194" font-size="11" fill="#475569">读取 q_raw/q_tx 的丢弃计数、各任务高水位、堆最小值；全部健康才喂狗。</text>
+</svg>
+<figcaption>采样 → 处理 → 发送，监控任务旁路观察，不参与主数据流。</figcaption>
+</figure>
+
+<h3><span class="n">14.3</span>核心代码骨架</h3>
+<div class="note eng">
+<b>工程习惯</b>
+<p>下面的代码是<strong>目标板结构示例</strong>，依赖 FreeRTOS 与具体硬件接口，未在主机上编译验证。它展示的是任务划分、队列策略与错误处理方式，不是可直接烧录的完整工程。</p>
+</div>
+<codeblock lang="C11" file="app.c · 目标板示例（未在主机验证）">
+#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "event_groups.h"
+
+#define Q_RAW_LEN   8
+#define Q_TX_LEN    4
+
+typedef struct { uint16_t raw; uint32_t t_ms; } sample_t;
+typedef struct { int16_t value; uint32_t t_ms; uint8_t seq; } frame_t;
+
+static QueueHandle_t g_q_raw, g_q_tx;
+static EventGroupHandle_t g_health;
+static volatile uint32_t g_drop_raw, g_drop_tx;
+
+#define HEALTH_SENSOR  (1u << 0)
+#define HEALTH_PROC    (1u << 1)
+#define HEALTH_COMM    (1u << 2)
+
+static void sensor_task(void *arg)
+{
+    (void)arg;
+    TickType_t last = xTaskGetTickCount();
+    for (;;) {
+        sample_t s = { .raw = adc_read(), .t_ms = (uint32_t)xTaskGetTickCount() };
+
+        /* 采样不能被阻塞太久：最多等 2 ms，满则丢弃并计数 */
+        if (xQueueSend(g_q_raw, &s, pdMS_TO_TICKS(2)) != pdPASS) {
+            g_drop_raw++;
+        }
+
+        xEventGroupSetBits(g_health, HEALTH_SENSOR);
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
+    }
+}
+
+static void process_task(void *arg)
+{
+    (void)arg;
+    static int32_t window[8];
+    static size_t idx;
+    sample_t s;
+
+    for (;;) {
+        if (xQueueReceive(g_q_raw, &s, portMAX_DELAY) != pdPASS) {
+            continue;
+        }
+
+        window[idx++ % 8] = s.raw;
+        int32_t sum = 0;
+        for (size_t i = 0; i < 8; i++) {
+            sum += window[i];
+        }
+
+        frame_t f = { .value = (int16_t)(sum / 8), .t_ms = s.t_ms, .seq = (uint8_t)idx };
+        if (xQueueSend(g_q_tx, &f, pdMS_TO_TICKS(5)) != pdPASS) {
+            g_drop_tx++;
+        }
+        xEventGroupSetBits(g_health, HEALTH_PROC);
+    }
+}
+
+static void comm_task(void *arg)
+{
+    (void)arg;
+    frame_t f;
+    for (;;) {
+        if (xQueueReceive(g_q_tx, &f, portMAX_DELAY) != pdPASS) {
+            continue;
+        }
+
+        /* 发送可能阻塞：允许 50 ms，失败则重试一次 */
+        if (link_send(&f, sizeof f, pdMS_TO_TICKS(50)) != 0) {
+            (void)link_send(&f, sizeof f, pdMS_TO_TICKS(50));
+        }
+        xEventGroupSetBits(g_health, HEALTH_COMM);
+    }
+}
+
+static void monitor_task(void *arg)
+{
+    (void)arg;
+    const EventBits_t all = HEALTH_SENSOR | HEALTH_PROC | HEALTH_COMM;
+
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        EventBits_t bits = xEventGroupClearBits(g_health, all);
+        size_t heap_min = xPortGetMinimumEverFreeHeapSize();
+
+        if ((bits & all) == all && heap_min > 1024) {
+            watchdog_feed();                 /* 全部健康才喂狗 */
+        } else {
+            enter_safe_mode(bits, heap_min); /* 记录哪一项不健康 */
+        }
+    }
+}
+</codeblock>
+
+<h3><span class="n">14.4</span>队列长度与丢弃策略</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>队列</th><th>长度</th><th>满时策略</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>q_raw</td><td>8</td><td>丢弃新样本，计数</td><td>采样是周期性的，旧数据比新数据更没价值；不能阻塞采样</td></tr>
+<tr><td>q_tx</td><td>4</td><td>丢弃新帧，计数</td><td>通信拥塞时保留最近的几帧，避免无限积压</td></tr>
+</tbody>
+</table>
+</div>
+<p>两个队列都<strong>不阻塞生产者太久</strong>：采样任务最多等 2 ms，处理任务最多等 5 ms。超过就丢弃并计数，由监控任务上报。这比“无限等待”更可控。</p>
+
+<h3><span class="n">14.5</span>时序与可调度性检查</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>任务</th><th>周期</th><th>最坏执行</th><th>CPU 占比</th></tr></thead>
+<tbody>
+<tr><td>sensor</td><td>10 ms</td><td>1.5 ms</td><td>15%</td></tr>
+<tr><td>process</td><td>10 ms（跟随采样）</td><td>2.0 ms</td><td>20%</td></tr>
+<tr><td>comm</td><td>约 10 ms</td><td>8.0 ms（含阻塞）</td><td>取决于链路</td></tr>
+<tr><td>monitor</td><td>1000 ms</td><td>0.5 ms</td><td>&lt;1%</td></tr>
+<tr><td>idle</td><td>—</td><td>—</td><td>剩余</td></tr>
+</tbody>
+</table>
+</div>
+<p>注意 comm 的 8 ms 里大部分是“阻塞等待发送完成”，并不占 CPU。真正要算的是<strong>CPU 占用</strong>，不是墙上时间。如果 comm 的发送是忙等，就会把 CPU 吃光——这也是为什么驱动要提供阻塞式/中断式发送。</p>
+<div class="note bad">
+<b>易错</b>
+<p>把所有任务都设成高优先级，等于没有优先级。优先级的意义是“在冲突时谁先运行”，如果每个任务都“很重要”，系统就无法在过载时保住关键任务。</p>
+</div>
+
+<h3><span class="n">14.6</span>测试与验收</h3>
+<ul class="checklist">
+<li>空载：4 个任务都运行，CPU 占用 &lt; 30%</li>
+<li>满负载：采样 10 ms 不丢帧，队列丢弃计数为 0</li>
+<li>通信断开：q_tx 满后按策略丢弃，系统不卡死，恢复后能继续</li>
+<li>注入错误：传感器返回非法值，process 不崩溃</li>
+<li>连续运行 24 h：堆最小值不持续下降，无栈溢出</li>
+<li>看门狗：人为挂起 comm 任务，系统应在超时后复位</li>
+</ul>
+
+<div class="practice">
+<div class="ph">项目练习 · 第 14 讲</div>
+<div class="pb">
+<ol>
+<li>把 q_raw 长度改成 2，重新分析丢弃率与延迟。</li>
+<li>给 comm 任务加“指数退避重试”，最多 3 次。</li>
+<li>设计一个“配置更新”命令：通过队列发给 process，要求不阻塞采样。</li>
+<li>用 <code>vTaskGetRunTimeStats</code> 验证 CPU 占用是否符合预期。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 长度 2 只能吸收 20 ms 的抖动；只要 process 偶尔超过 20 ms，就会开始丢弃。适合“允许丢帧、但要低延迟”的场景。</p>
+<p><b>2.</b> 保存 <code class="i">backoff</code>，失败后 <code class="i">vTaskDelay(backoff)</code>，<code class="i">backoff = min(backoff*2, MAX)</code>；成功则复位。注意 comm 阻塞期间 q_tx 会积压，要配合丢弃策略。</p>
+<p><b>3.</b> 单独建一个配置队列，process 在每次循环里非阻塞地检查配置队列；或者用事件组置位 + 共享配置结构（加互斥量）。</p>
+<p><b>4.</b> 开 <code class="i">configGENERATE_RUN_TIME_STATS</code>，运行典型负载后打印统计，和 14.5 的估算对比。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：采样任务在队列满时应该？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>无限等待，直到有空间</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>短超时后丢弃并计数，保证采样周期</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>直接覆盖队列里的旧数据</span></button>
+</div>
+<div class="fb" data-fb>采样任务的第一职责是“按时采样”。无限等待会破坏周期；队列本身不支持覆盖。正确做法是短超时 + 丢弃 + 计数，由监控任务上报。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>任务划分按“周期 + 职责”，优先级按截止期分配。</li>
+<li>队列长度与丢弃策略要显式设计，不能无限等待。</li>
+<li>监控任务旁路观察，全部健康才喂狗。</li>
+<li>CPU 占用要按“实际执行时间”算，不是墙上时间。</li>
+<li>测试要覆盖空载、满载、断链、错误注入与长时间运行。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出这条数据链</li>
+<li>我能解释每个队列的长度与策略</li>
+<li>我能设计健康检查与看门狗</li>
+</ul>
+</div>

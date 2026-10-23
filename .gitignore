@@ -1,0 +1,25 @@
+# 本地构建与测试产物
+_src/__pycache__/
+__pycache__/
+*.pyc
+
+# 原始文件备份（不公开发布）
+_原始备份/
+
+# 本地工具链与测试环境
+_tools/
+_tools_pdf/
+_test/
+_shots/
+
+# 编译产物
+*.exe
+*.o
+*.obj
+*.pdb
+*.ilk
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

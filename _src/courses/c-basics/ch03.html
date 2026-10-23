@@ -1,0 +1,217 @@
+<h3><span class="n">3.1</span>运算符全家福</h3>
+<div class="table-wrap">
+<table>
+<caption>C 的运算符按优先级从高到低（同组内按结合方向）</caption>
+<thead><tr><th>优先级</th><th>运算符</th><th>结合方向</th><th>常见用途</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>()</code> <code>[]</code> <code>-&gt;</code> <code>.</code></td><td>左</td><td>调用、下标、成员访问</td></tr>
+<tr><td>2</td><td><code>!</code> <code>~</code> <code>++</code> <code>--</code> <code>+</code> <code>-</code> <code>*</code> <code>&amp;</code> <code>(类型)</code> <code>sizeof</code></td><td>右</td><td>单目运算、强制转换</td></tr>
+<tr><td>3–4</td><td><code>*</code> <code>/</code> <code>%</code>　然后　<code>+</code> <code>-</code></td><td>左</td><td>算术</td></tr>
+<tr><td>5</td><td><code>&lt;&lt;</code> <code>&gt;&gt;</code></td><td>左</td><td>移位</td></tr>
+<tr><td>6</td><td><code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code></td><td>左</td><td>大小比较</td></tr>
+<tr><td>7</td><td><code>==</code> <code>!=</code></td><td>左</td><td>相等比较</td></tr>
+<tr><td>8</td><td><code>&amp;</code></td><td>左</td><td>按位与</td></tr>
+<tr><td>9</td><td><code>^</code></td><td>左</td><td>按位异或</td></tr>
+<tr><td>10</td><td><code>|</code></td><td>左</td><td>按位或</td></tr>
+<tr><td>11</td><td><code>&amp;&amp;</code></td><td>左</td><td>逻辑与</td></tr>
+<tr><td>12</td><td><code>||</code></td><td>左</td><td>逻辑或</td></tr>
+<tr><td>13</td><td><code>?:</code></td><td>右</td><td>条件表达式</td></tr>
+<tr><td>14</td><td><code>=</code> <code>+=</code> <code>-=</code> 等</td><td>右</td><td>赋值</td></tr>
+<tr><td>15</td><td><code>,</code></td><td>左</td><td>逗号</td></tr>
+</tbody>
+</table>
+</div>
+<p>不要背这张表。记住三条规则就够了：<strong>单目高于双目</strong>、<strong>算术 &gt; 移位 &gt; 关系 &gt; 相等 &gt; 位运算 &gt; 逻辑</strong>、<strong>拿不准就加括号</strong>。加括号不丢人，读不懂的表达式才丢人。</p>
+
+<h3><span class="n">3.2</span>四个经典优先级陷阱</h3>
+<codeblock lang="C11" file="precedence.c · 片段">
+int a = 1, b = 2, c = 3;
+
+/* 1. 关系运算高于位运算：a & b == c 等价于 a & (b == c) */
+if (a & b == c) { }          /* 先算 b==c 得 0，再算 a&0 */
+
+/* 2. 赋值低于比较：if (x = 0) 是赋值，不是比较 */
+int x = 5;
+if (x = 0) { }               /* 条件恒假，且 x 被改成 0 */
+
+/* 3. 后缀 ++ 高于 *：*p++ 等价于 *(p++)，指针先移动 */
+int arr[3] = {10, 20, 30};
+int *p = arr;
+int v = *p++;                /* v=10, p 指向 arr[1] */
+
+/* 4. 逗号运算符优先级最低 */
+int y = (1, 2, 3);           /* y = 3，不是 1 */
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>打开 <code class="i">-Wall</code> 后，<code class="i">if (x = 0)</code> 会得到 <code class="i">-Wparentheses</code> 警告。更稳的写法是把常量放左边：<code class="i">if (0 == x)</code>，一旦漏写等号就会直接编译失败。现代编译器已经能拦住大部分此类错误，但习惯仍然值得保留。</p>
+</div>
+
+<h3><span class="n">3.3</span>整数提升与寻常算术转换</h3>
+<p>在真正做算术之前，C 会先把小的整数类型“抬”到 <code class="i">int</code>，这叫<strong>整数提升</strong>（integer promotion）。<code class="i">char</code>、<code class="i">short</code>、位域，以及枚举，只要 <code class="i">int</code> 能表示它的全部值，就会变成 <code class="i">int</code>。</p>
+<codeblock lang="C11" file="promote.c">
+#include <stdio.h>
+
+int main(void)
+{
+    unsigned char a = 200, b = 100;
+    printf("%d\n", a + b);          /* 300：先提升为 int，再相加 */
+    printf("%zu\n", sizeof(a + b)); /* 4：表达式类型是 int */
+
+    unsigned char c = (unsigned char)(a + b);
+    printf("%u\n", c);              /* 44：赋值时才截断 */
+    return 0;
+}
+</codeblock>
+<outblock>
+300
+4
+44
+</outblock>
+<p>两个操作数类型不同时，还会发生<strong>寻常算术转换</strong>：向“能容纳更多值”的类型靠拢。大致顺序是 <code class="i">int → unsigned int → long → unsigned long → long long → unsigned long long → float → double → long double</code>。真正危险的是有符号和无符号相遇：有符号会被转成无符号。</p>
+<codeblock lang="C11" file="unsigned_trap.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int i = -1;
+    unsigned int u = 1;
+    if (i < u) {
+        printf("-1 < 1u 成立\n");
+    } else {
+        printf("-1 < 1u 不成立：i 被转成了 4294967295\n");
+    }
+
+    /* 循环变量用无符号，倒序循环会翻车 */
+    for (unsigned int k = 3; k >= 0; k--) {
+        printf("%u ", k);          /* 打印 3 2 1 0 后继续，k-- 回绕成 4294967295 */
+        if (k == 0) break;         /* 没有这句就是死循环 */
+    }
+    return 0;
+}
+</codeblock>
+<outblock>
+-1 &lt; 1u 不成立：i 被转成了 4294967295
+3 2 1 0
+</outblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>在 GCC/Clang 开启 <code class="i">-Wsign-compare</code>（通常随 <code class="i">-Wextra</code>）时，这段代码会给出警告——这正是我们想观察的现象。真实项目里不要忽略它：绝大多数“有符号和无符号比较”的警告背后，都藏着一个边界条件错误。</p>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>把 <code class="i">strlen(s) - 1</code> 直接和 0 比较也会踩这个坑：<code class="i">strlen</code> 返回 <code class="i">size_t</code>，空串时 <code class="i">0 - 1</code> 变成一个巨大的正数，循环条件永远成立。正确写法是先判断长度是否为 0，或者用 <code class="i">int n = (int)strlen(s);</code>（确认长度不会超过 INT_MAX）。</p>
+</div>
+
+<h3><span class="n">3.4</span>短路求值：不只是省事，更是安全</h3>
+<p><code class="i">&amp;&amp;</code> 和 <code class="i">||</code> 保证从左到右求值，并且一旦结果确定就停止。这不是优化，是语言规则。</p>
+<codeblock lang="C11" file="short_circuit.c · 片段">
+if (p != NULL && p->value > 0) {   /* p 为空时右边不会执行，安全 */
+    use(p->value);
+}
+
+if (count == 0 || data[count - 1] == 0) {  /* count 为 0 时不会越界访问 */
+    /* ... */
+}
+</codeblock>
+<p>反过来，如果右边有副作用，短路会让你“以为执行了其实没执行”：</p>
+<codeblock lang="C11" file="side_effect.c · 片段">
+int i = 0;
+int a[3] = {0};
+a[i++] = 1;          /* i 变成 1，a[0]=1，顺序明确 */
+int x = i++ + i++;   /* 未定义行为：同一表达式中对 i 多次无序列修改 */
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>两个序列点之间对同一对象多次修改，或者既修改又读取（读取是为了决定写入值的情况除外），都是未定义行为。<code class="i">i++ + i++</code>、<code class="i">a[i] = i++</code> 都属于这一类。不要试图猜编译器会给出什么结果。</p>
+</div>
+
+<h3><span class="n">3.5</span>位运算：嵌入式的日常语言</h3>
+<p><code class="i">&amp;</code>（与）、<code class="i">|</code>（或）、<code class="i">^</code>（异或）、<code class="i">~</code>（取反）、<code class="i">&lt;&lt;</code>（左移）、<code class="i">&gt;&gt;</code>（右移）。它们在通信协议、寄存器配置、掩码提取里出现频率极高。</p>
+<div class="lab" id="lab-bits">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>位运算实验台</h4>
+    <p>输入两个 0–255 的整数，选一个运算，同时看二进制和十进制结果。注意 <code class="i">~</code> 会把结果变成负数（因为 int 是 32 位）。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>A <input id="bitA" type="number" value="178" min="0" max="255"></label>
+      <label>B <input id="bitB" type="number" value="204" min="0" max="255"></label>
+      <label>运算
+        <select id="bitOp">
+          <option value="and">A &amp; B</option>
+          <option value="or">A | B</option>
+          <option value="xor">A ^ B</option>
+          <option value="not">~A</option>
+          <option value="shl">A &lt;&lt; 1</option>
+          <option value="shr">A &gt;&gt; 1</option>
+        </select>
+      </label>
+      <button class="lab-btn pri" type="button" id="bitGo">计算</button>
+    </div>
+    <div class="lab-read" id="bitOut" aria-live="polite"></div>
+    <p class="lab-note">二进制按 8 位显示，方便观察字节级操作；实际运算在 int（32 位）上进行。</p>
+  </div>
+</div>
+
+<p>三个最常用的套路，先混个脸熟，第 2 册会展开讲：</p>
+<codeblock lang="C11" file="bit_idioms.c · 片段">
+unsigned int reg = 0;
+
+reg |=  (1u << 3);        /* 置位：把第 3 位置 1 */
+reg &= ~(1u << 3);        /* 清位：把第 3 位置 0 */
+reg ^=  (1u << 3);        /* 翻转：第 3 位取反 */
+int on = (reg >> 3) & 1u; /* 读取：取出第 3 位 */
+
+/* 取出低 4 位，其余清零 */
+unsigned int low = reg & 0x0Fu;
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>写 <code class="i">1 &lt;&lt; 31</code> 是未定义行为：<code class="i">1</code> 是 <code class="i">int</code>，左移 31 位会溢出有符号类型。要写 <code class="i">1u &lt;&lt; 31</code> 或 <code class="i">1UL &lt;&lt; 31</code>。这个细节在第 2 册讲寄存器时非常关键。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 3 讲</div>
+<div class="pb">
+<ol>
+<li>不用编译器，判断 <code class="i">-1 &lt; sizeof(int)</code> 的真假，并解释。</li>
+<li>写一个表达式，取出 <code class="i">x</code> 的第 4–7 位（从 0 开始计数），结果右对齐。</li>
+<li>把 <code class="i">if (x = 0)</code> 改写成编译器一定会警告或报错的写法。</li>
+<li>解释 <code class="i">*p++</code> 与 <code class="i">(*p)++</code> 的区别。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 假。<code class="i">sizeof</code> 返回 <code class="i">size_t</code>（无符号），比较时 <code class="i">-1</code> 被转成该无符号类型的最大值，所以 <code class="i">-1 &lt; 4</code> 不成立。编译器通常会给出 <code class="i">-Wsign-compare</code> 警告。</p>
+<p><b>2.</b> <code class="i">(x &gt;&gt; 4) &amp; 0x0F</code>。先右移把目标位对齐到最低位，再用掩码清掉其他位。</p>
+<p><b>3.</b> <code class="i">if (0 == x)</code>；或者打开 <code class="i">-Wparentheses</code> 并保留 <code class="i">if (x = 0)</code>。</p>
+<p><b>4.</b> <code class="i">*p++</code> 先取 <code class="i">*p</code> 的值，再把指针 <code class="i">p</code> 加 1；<code class="i">(*p)++</code> 把 <code class="i">p</code> 指向的那个值加 1，指针不动。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：<code class="i">unsigned char a = 250; int b = a + 10;</code>，<code class="i">b</code> 的值是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>260</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>4</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>-6</span></button>
+</div>
+<div class="fb" data-fb><code class="i">a</code> 先被整数提升为 <code class="i">int</code>，250+10=260，结果赋给 <code class="i">int b</code>，不截断。只有在把 260 存回 <code class="i">unsigned char</code> 时才会变成 4。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>优先级记三条主线即可，复杂表达式一律加括号。</li>
+<li>小整数参与运算会先提升为 int，赋值时才截断。</li>
+<li>有符号与无符号混算会把有符号转成无符号，比较和循环都要小心。</li>
+<li><code class="i">&amp;&amp;</code> / <code class="i">||</code> 短路是语言规则，可用来做空指针保护，但别在右边放必要副作用。</li>
+<li>位运算的四个动作：置位、清位、翻转、读取。</li>
+</ul>
+<ul class="checklist">
+<li>我能解释 <code class="i">-1 &lt; 1u</code> 为什么为假</li>
+<li>我会用掩码取出任意连续位</li>
+<li>我知道 <code class="i">1 &lt;&lt; 31</code> 为什么要写成 <code class="i">1u &lt;&lt; 31</code></li>
+</ul>
+</div>

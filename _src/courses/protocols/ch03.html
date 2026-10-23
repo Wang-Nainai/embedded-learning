@@ -1,0 +1,168 @@
+<h3><span class="n">3.1</span>为什么轮询接收会丢数据</h3>
+<p>UART 接收寄存器通常只能存 1 个字节。如果 CPU 正在处理别的事，第二个字节到达时，第一个还没被读走，就会<strong>溢出</strong>（overrun）。标志位会告诉你“丢了一个字节”，但数据已经没了。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>波特率</th><th>一个字节时间</th><th>主循环能耽误多久</th></tr></thead>
+<tbody>
+<tr><td>9600</td><td>≈ 1.04 ms</td><td>约 1 ms</td></tr>
+<tr><td>115200</td><td>≈ 86.8 µs</td><td>不到 0.1 ms</td></tr>
+<tr><td>921600</td><td>≈ 10.9 µs</td><td>几乎不能耽误</td></tr>
+</tbody>
+</table>
+</div>
+<p>所以高速/连续接收必须用中断或 DMA，把“搬运”与“处理”分开。</p>
+
+<h3><span class="n">3.2</span>中断 + 环形缓冲区</h3>
+<codeblock lang="C11" file="uart_rx.c · 平台相关（伪寄存器名）">
+#include <stdint.h>
+#include <stdbool.h>
+
+#define RX_CAP 128
+
+static volatile uint8_t  g_rx[RX_CAP];
+static volatile uint16_t g_head, g_tail;
+static volatile uint32_t g_overrun;
+
+void USART1_IRQHandler(void)
+{
+    uint32_t sr = UART_SR;
+
+    if (sr & UART_SR_ORE) {
+        g_overrun++;                  /* 记录溢出，读 DR 清标志 */
+    }
+    if (sr & UART_SR_RXNE) {
+        uint8_t byte = (uint8_t)UART_DR;
+        uint16_t next = (uint16_t)((g_head + 1u) % RX_CAP);
+        if (next != g_tail) {
+            g_rx[g_head] = byte;
+            g_head = next;
+        } else {
+            g_overrun++;              /* 缓冲区满：丢弃并计数 */
+        }
+    }
+}
+
+/* 主循环：取出所有已到达的字节 */
+bool rx_pop(uint8_t *out)
+{
+    if (g_head == g_tail) {
+        return false;
+    }
+    *out = g_rx[g_tail];
+    g_tail = (uint16_t)((g_tail + 1u) % RX_CAP);
+    return true;
+}
+</codeblock>
+<div class="note">
+<b>先修回顾</b>
+<p>环形缓冲区就是一块固定数组加两个索引：<code class="i">head</code> 由写入方（中断）推进，<code class="i">tail</code> 由读取方（主循环）推进；索引到末尾回绕到 0。写的时候先写数据再移动 <code class="i">head</code>，读的时候先取数据再移动 <code class="i">tail</code>，这样对方看到指针变化时数据一定已经就绪。完整实现与满/空判定见第 2 册第 10 讲。</p>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>中断里只做“读寄存器 + 存缓冲区 + 计数”，不做解析、不打印。解析放在主循环或任务里。这样即使一帧很长、处理很慢，中断也能及时把字节收走。</p>
+</div>
+
+<h3><span class="n">3.3</span>怎么知道一帧结束了</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>方法</th><th>原理</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td>固定长度</td><td>收满 N 字节即一帧</td><td>协议长度固定</td></tr>
+<tr><td>结束符</td><td>收到 <code>\n</code> / <code>\r</code> / 自定义字节</td><td>文本命令、AT 指令</td></tr>
+<tr><td>长度字段</td><td>先读长度，再收够载荷</td><td>二进制协议</td></tr>
+<tr><td>空闲中断（IDLE）</td><td>总线静默超过 1 个字符时间</td><td>不定长帧、Modbus RTU</td></tr>
+<tr><td>DMA + 半满/全满</td><td>DMA 搬运，达到阈值通知</td><td>高速、大批量</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="uart_idle.c · 平台相关（STM32 风格）">
+/* 空闲中断：一帧结束，把 DMA 收到的数据交给解析器 */
+void USART1_IRQHandler(void)
+{
+    if (uart_flag_get(UART_FLAG_IDLE)) {
+        uart_flag_clear(UART_FLAG_IDLE);
+
+        size_t len = dma_received_count();
+        parser_feed(g_dma_buf, len);      /* 注意：解析可能耗时，建议只入队 */
+        dma_restart(g_dma_buf, sizeof g_dma_buf);
+    }
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p>IDLE 中断的判定是“接收线在 1 个字符时间内没有新边沿”。它对 Modbus RTU 的 3.5 字符间隔很友好，但对“连续高速流”不适用——流永远不空闲。此时应改用长度字段或 DMA 半满中断。</p>
+</div>
+
+<h3><span class="n">3.4</span>DMA：让硬件搬字节</h3>
+<p>DMA 把“外设寄存器 → 内存”的搬运交给硬件，CPU 只在“半满/全满/空闲”时被通知。适合高波特率、大批量数据。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>模式</th><th>优点</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>普通模式</td><td>简单，收满即停</td><td>要手动重启，重启期间可能丢字节</td></tr>
+<tr><td>循环模式</td><td>不停搬运，适合连续流</td><td>要处理“回绕”和“覆盖”，用半满/全满中断</td></tr>
+<tr><td>双缓冲</td><td>一边收一边处理</td><td>配置复杂，但吞吐最高</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">3.5</span>四个错误标志</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>标志</th><th>含义</th><th>处理</th></tr></thead>
+<tbody>
+<tr><td>ORE（溢出）</td><td>上一个字节还没读，新字节又到了</td><td>读 DR 清除，计数告警</td></tr>
+<tr><td>FE（帧错误）</td><td>停止位不是高电平</td><td>波特率/接线/干扰问题</td></tr>
+<tr><td>NE（噪声）</td><td>采样时检测到多次跳变</td><td>检查上升沿、共地、屏蔽</td></tr>
+<tr><td>PE（校验错）</td><td>校验位不匹配</td><td>双方校验配置不一致，或位错误</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>很多 HAL 库在发生 ORE 后会“锁死”接收，必须读 SR 再读 DR 才能恢复。如果中断里只处理 RXNE、不处理 ORE，表现为“跑一段时间后再也收不到数据”。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 3 讲</div>
+<div class="pb">
+<ol>
+<li>115200 下，主循环每 5 ms 才轮询一次，会丢多少字节？</li>
+<li>设计一个“以 \n 结尾”的命令接收流程，说明中断和主循环各做什么。</li>
+<li>IDLE 中断适合什么帧？不适合什么帧？</li>
+<li>ORE 标志为什么必须显式处理？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 5 ms / 86.8 µs ≈ 57 个字节；接收寄存器只有 1 个，其余全部丢失（具体取决于 FIFO 深度）。</p>
+<p><b>2.</b> 中断：读字节、存环形缓冲、遇到 <code>\n</code> 置“整行就绪”标志；主循环：取行、解析、执行。解析不放在中断里。</p>
+<p><b>3.</b> 适合不定长、帧间有明显空闲的协议（Modbus RTU）；不适合连续高速流（永远不空闲）。</p>
+<p><b>4.</b> ORE 会导致接收逻辑停摆，且必须“读 SR + 读 DR”才能清除；不处理会永久收不到数据。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：接收中断里最不应该做的是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>读数据寄存器</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>把字节存入环形缓冲区</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>解析完整帧并执行命令</span></button>
+</div>
+<div class="fb" data-fb>解析和执行可能耗时、可能阻塞、可能调用不可重入函数，应放到主循环或任务里。中断只负责“尽快把字节搬走”。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>轮询接收在高波特率下很容易丢数据，取决于轮询间隔与接收 FIFO 深度。</li>
+<li>中断 + 环形缓冲是标准接收路径。</li>
+<li>帧边界可用长度、结束符、IDLE 或 DMA 阈值判断。</li>
+<li>DMA 适合高速/大批量，但要处理回绕与覆盖。</li>
+<li>ORE/FE/NE/PE 都要显式处理并计数。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出中断收字节 + 环形缓冲</li>
+<li>我知道 IDLE 中断的适用边界</li>
+<li>我能说出四个错误标志的含义</li>
+</ul>
+</div>

@@ -1,0 +1,159 @@
+<h3><span class="n">4.1</span>tick：内核的心跳</h3>
+<p>FreeRTOS 需要一个周期性的时基来推进延时、超时和时间片。这个时基由硬件定时器（通常是 SysTick）产生，频率由 <code class="i">configTICK_RATE_HZ</code> 决定。</p>
+<codeblock lang="C11" file="FreeRTOSConfig.h · 片段">
+#define configTICK_RATE_HZ  1000      /* 1 kHz：1 tick = 1 ms */
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>configTICK_RATE_HZ</th><th>1 tick</th><th>影响</th></tr></thead>
+<tbody>
+<tr><td>100</td><td>10 ms</td><td>开销小，但延时精度差、时间片粗</td></tr>
+<tr><td>1000</td><td>1 ms</td><td>常用折中</td></tr>
+<tr><td>10000</td><td>0.1 ms</td><td>精度高，但中断频繁、CPU 开销明显</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p><code class="i">vTaskDelay(100)</code> 的参数是 <strong>tick 数，不是毫秒</strong>。在 100 Hz 的配置下，它延时 1 秒，不是 100 ms。要么用 <code class="i">pdMS_TO_TICKS(100)</code>，要么在注释里写清楚单位。</p>
+</div>
+<codeblock lang="C11" file="ms_to_ticks.c">
+/* pdMS_TO_TICKS 按整数除法换算，通常向下取整；小于 1 tick 会变成 0 */
+vTaskDelay(pdMS_TO_TICKS(100));
+
+/* 如果编译期就知道 tick 率，也可以直接算，但不要手写魔法数字 */
+#define MS_TO_TICKS(ms) ((TickType_t)(((ms) * configTICK_RATE_HZ) / 1000))
+</codeblock>
+
+<h3><span class="n">4.2</span>相对延时：为什么会漂移</h3>
+<codeblock lang="C11" file="drift.c">
+for (;;) {
+    do_work();                       /* 假设耗时 3 ms */
+    vTaskDelay(pdMS_TO_TICKS(10));   /* 再等 10 ms */
+}
+</codeblock>
+<p>实际周期不是 10 ms，而是 <strong>3 ms + 10 ms = 13 ms</strong>，再加上调度延迟。每轮都多出 3 ms，100 轮就偏了 300 ms。这叫<strong>累积漂移</strong>。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 200" role="img" aria-labelledby="fig4t fig4d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig4t">相对延时与绝对延时的漂移对比</title>
+<desc id="fig4d">相对延时每轮都从执行结束开始计时，误差累积；绝对延时按固定周期安排下一次唤醒，误差不累积。</desc>
+<rect width="820" height="200" fill="#fbfdff"/>
+<text x="24" y="26" font-size="12" font-weight="700" fill="#334155">vTaskDelay：周期 = 执行时间 + 延时</text>
+<g font-size="10.5" fill="#475569">
+<rect x="24" y="38" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="54" y="54" text-anchor="middle">work</text>
+<rect x="84" y="38" width="90" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="129" y="54" text-anchor="middle">delay 10</text>
+<rect x="174" y="38" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="204" y="54" text-anchor="middle">work</text>
+<rect x="234" y="38" width="90" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="279" y="54" text-anchor="middle">delay 10</text>
+<rect x="324" y="38" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="354" y="54" text-anchor="middle">work</text>
+<rect x="384" y="38" width="90" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="429" y="54" text-anchor="middle">delay 10</text>
+</g>
+<path d="M24 78 L474 78" stroke="#b91c1c" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="484" y="82" font-size="11" fill="#b91c1c">每轮多 3 ms，越走越偏</text>
+
+<text x="24" y="116" font-size="12" font-weight="700" fill="#334155">vTaskDelayUntil：周期 = 固定 10 tick</text>
+<g font-size="10.5" fill="#475569">
+<rect x="24" y="128" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="54" y="144" text-anchor="middle">work</text>
+<rect x="84" y="128" width="40" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="104" y="144" text-anchor="middle">7</text>
+<rect x="124" y="128" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="154" y="144" text-anchor="middle">work</text>
+<rect x="184" y="128" width="40" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="204" y="144" text-anchor="middle">7</text>
+<rect x="224" y="128" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="254" y="144" text-anchor="middle">work</text>
+<rect x="284" y="128" width="40" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="304" y="144" text-anchor="middle">7</text>
+</g>
+<path d="M24 168 L324 168" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="334" y="172" font-size="11" fill="#0f766e">每 10 tick 一次，误差不累积</text>
+</svg>
+<figcaption>相对延时把执行时间算进周期；绝对延时保持固定节拍。</figcaption>
+</figure>
+
+<h3><span class="n">4.3</span>vTaskDelayUntil：固定周期</h3>
+<codeblock lang="C11" file="periodic.c">
+#include "FreeRTOS.h"
+#include "task.h"
+
+static void sample_task(void *arg)
+{
+    (void)arg;
+    TickType_t last = xTaskGetTickCount();
+    const TickType_t period = pdMS_TO_TICKS(10);
+
+    for (;;) {
+        do_sample();                        /* 必须短于 period */
+        vTaskDelayUntil(&last, period);     /* 按绝对时间安排下一次唤醒 */
+    }
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th><code>vTaskDelay</code></th><th><code>vTaskDelayUntil</code></th></tr></thead>
+<tbody>
+<tr><td>计时起点</td><td>调用时刻（相对）</td><td>上一次唤醒时刻（绝对）</td></tr>
+<tr><td>周期</td><td>执行时间 + 延时</td><td>固定 period</td></tr>
+<tr><td>漂移</td><td>累积</td><td>不累积</td></tr>
+<tr><td>适用</td><td>一次性等待、非周期任务</td><td>固定采样率、控制周期</td></tr>
+<tr><td>超时</td><td>—</td><td>如果执行超过 period，会立刻返回并落后，需要检测</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">vTaskDelayUntil</code> 不会“追赶”错过的周期。如果某次执行超过 period，下一次会立刻返回，<code class="i">last</code> 仍然按 period 递增，于是任务持续落后。需要检测这种情况（比较当前 tick 与 last），并决定是跳过错过的周期还是报警。</p>
+</div>
+
+<h3><span class="n">4.4</span>抖动、漂移与精度</h3>
+<ul>
+<li><strong>抖动</strong>：单次唤醒相对理想时刻的偏差，通常由中断延迟、调度延迟、临界区造成。</li>
+<li><strong>漂移</strong>：长期平均周期偏离目标，通常由相对延时或时钟源误差造成。</li>
+<li><strong>分辨率</strong>：最小可表达的时间是 1 tick；小于 1 tick 的延时可能被换算成 0，需要自己加 1 或提高 tick 频率。</li>
+</ul>
+<p>需要微秒级精度时，不要指望 RTOS 的 tick：用硬件定时器 + 输入捕获/比较，或者用高分辨率定时器做时间戳，RTOS 只负责任务调度。</p>
+
+<h3><span class="n">4.5</span>低功耗：tickless idle</h3>
+<p>默认配置下，即使没有任务要运行，tick 中断也会每 1 ms 唤醒 CPU。对电池设备，这很浪费。FreeRTOS 提供 tickless 模式（<code class="i">configUSE_TICKLESS_IDLE</code>），在空闲时关闭 tick 中断，直到下一个任务需要唤醒。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>tickless 模式需要移植层实现“进入低功耗、按到期时间唤醒”，并且会引入额外的唤醒误差。先用默认模式把功能跑通，再评估功耗优化；不要一上来就开 tickless，否则调试会变复杂。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 4 讲</div>
+<div class="pb">
+<ol>
+<li><code class="i">configTICK_RATE_HZ = 200</code> 时，<code class="i">vTaskDelay(15)</code> 实际延时多少毫秒？</li>
+<li>把 4.2 节的相对延时改成 <code class="i">vTaskDelayUntil</code>，周期设为 10 ms。</li>
+<li>解释为什么“延时 1 tick”在 100 Hz 配置下可能是 10 ms，也可能略多。</li>
+<li>一个任务执行时间偶尔超过周期，<code class="i">vTaskDelayUntil</code> 会怎样？如何检测？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 15 × 5 ms = 75 ms（1 tick = 1000/200 = 5 ms）。</p>
+<p><b>2.</b> 初始化 <code class="i">last = xTaskGetTickCount()</code>，循环里 <code class="i">vTaskDelayUntil(&amp;last, pdMS_TO_TICKS(10))</code>。</p>
+<p><b>3.</b> tick 中断本身有响应延迟，任务被唤醒后还要等调度器切换；所以实际间隔 ≥ 1 tick。</p>
+<p><b>4.</b> 下一次会立刻返回（因为目标时刻已过），任务持续落后。可以在循环开头比较 <code class="i">xTaskGetTickCount() - last</code> 与 period，超过就记录一次 overrun。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">configTICK_RATE_HZ = 1000</code>，<code class="i">vTaskDelay(50)</code> 大约延时多久？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>50 微秒</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>5 毫秒</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>50 毫秒</span></button>
+</div>
+<div class="fb" data-fb>1 kHz 时 1 tick = 1 ms，所以 50 tick = 50 ms。参数单位是 tick，只有在 1 kHz 配置下才“恰好”等于毫秒。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>tick 是内核时基，1 tick 不一定等于 1 ms。</li>
+<li>相对延时会累积执行时间，导致周期漂移。</li>
+<li>周期任务用 <code>vTaskDelayUntil</code>，并按 period 检查 overrun。</li>
+<li>抖动来自中断与调度延迟，分辨率受 tick 限制。</li>
+<li>微秒级精度要靠硬件定时器，不是 RTOS tick。</li>
+</ul>
+<ul class="checklist">
+<li>我能换算 tick 与毫秒</li>
+<li>我能写出不漂移的周期任务</li>
+<li>我知道 tickless 模式解决什么问题</li>
+</ul>
+</div>

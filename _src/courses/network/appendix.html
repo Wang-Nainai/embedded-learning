@@ -1,0 +1,112 @@
+<h3><span class="n">A.1</span>常用端口</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>端口</th><th>协议</th><th>传输层</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>20/21</td><td>FTP</td><td>TCP</td><td>数据/控制（明文，不推荐）</td></tr>
+<tr><td>22</td><td>SSH</td><td>TCP</td><td>远程登录</td></tr>
+<tr><td>23</td><td>Telnet</td><td>TCP</td><td>明文，仅调试</td></tr>
+<tr><td>53</td><td>DNS</td><td>UDP/TCP</td><td>查询用 UDP，区域传送用 TCP</td></tr>
+<tr><td>67/68</td><td>DHCP</td><td>UDP</td><td>服务器/客户端</td></tr>
+<tr><td>80</td><td>HTTP</td><td>TCP</td><td>明文 Web</td></tr>
+<tr><td>123</td><td>NTP</td><td>UDP</td><td>时间同步</td></tr>
+<tr><td>443</td><td>HTTPS</td><td>TCP</td><td>HTTP over TLS</td></tr>
+<tr><td>1883</td><td>MQTT</td><td>TCP</td><td>明文</td></tr>
+<tr><td>8883</td><td>MQTT over TLS</td><td>TCP</td><td>加密</td></tr>
+<tr><td>5683</td><td>CoAP</td><td>UDP</td><td>受限设备</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.2</span>地址段速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>地址段</th><th>用途</th><th>备注</th></tr></thead>
+<tbody>
+<tr><td>10.0.0.0/8</td><td>私有</td><td>约 1677 万地址</td></tr>
+<tr><td>172.16.0.0/12</td><td>私有</td><td>172.16–172.31</td></tr>
+<tr><td>192.168.0.0/16</td><td>私有</td><td>家庭/办公</td></tr>
+<tr><td>127.0.0.0/8</td><td>回环</td><td>127.0.0.1</td></tr>
+<tr><td>169.254.0.0/16</td><td>链路本地</td><td>DHCP 失败</td></tr>
+<tr><td>224.0.0.0/4</td><td>组播</td><td>224.0.0.1 所有主机</td></tr>
+<tr><td>255.255.255.255</td><td>受限广播</td><td>不被路由器转发</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.3</span>协议对比</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th></th><th>TCP</th><th>UDP</th><th>MQTT</th><th>HTTP</th></tr></thead>
+<tbody>
+<tr><td>层</td><td>传输</td><td>传输</td><td>应用</td><td>应用</td></tr>
+<tr><td>连接</td><td>有</td><td>无</td><td>基于 TCP</td><td>基于 TCP</td></tr>
+<tr><td>可靠性</td><td>可靠有序</td><td>不保证</td><td>QoS 可选</td><td>依赖 TCP</td></tr>
+<tr><td>模型</td><td>字节流</td><td>数据报</td><td>发布/订阅</td><td>请求/响应</td></tr>
+<tr><td>开销</td><td>20+ 字节头</td><td>8 字节头</td><td>2–4 字节固定头</td><td>文本头，较大</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.4</span>命令速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>目的</th><th>Linux / macOS</th><th>Windows</th></tr></thead>
+<tbody>
+<tr><td>看地址</td><td><code>ip addr</code></td><td><code>ipconfig</code></td></tr>
+<tr><td>看路由</td><td><code>ip route</code></td><td><code>route print</code></td></tr>
+<tr><td>看 ARP</td><td><code>ip neigh</code></td><td><code>arp -a</code></td></tr>
+<tr><td>看监听端口</td><td><code>ss -lntp</code></td><td><code>netstat -ano</code></td></tr>
+<tr><td>测试端口</td><td><code>nc -vz host port</code></td><td><code>Test-NetConnection host -Port 80</code></td></tr>
+<tr><td>路径</td><td><code>traceroute</code></td><td><code>tracert</code></td></tr>
+<tr><td>DNS</td><td><code>dig</code></td><td><code>nslookup</code></td></tr>
+<tr><td>HTTP</td><td><code>curl -v</code></td><td><code>curl.exe -v</code></td></tr>
+<tr><td>抓包</td><td><code>tcpdump</code></td><td><code>Wireshark / pktmon</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.5</span>错误对照</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>错误</th><th>含义</th><th>排查顺序</th></tr></thead>
+<tbody>
+<tr><td>Network is unreachable</td><td>没有路由到目标网络</td><td>网关、掩码、路由表</td></tr>
+<tr><td>No route to host</td><td>ARP 失败或中间设备拒绝</td><td>同子网？网关 MAC？防火墙</td></tr>
+<tr><td>Connection refused</td><td>端口没监听</td><td>服务、端口号、绑定地址</td></tr>
+<tr><td>Connection timed out</td><td>无响应</td><td>防火墙、NAT、IP、对端状态</td></tr>
+<tr><td>Connection reset</td><td>收到 RST</td><td>服务崩溃、超时、代理</td></tr>
+<tr><td>Name resolution failed</td><td>DNS 失败</td><td>DNS 服务器、域名、hosts</td></tr>
+<tr><td>Certificate verify failed</td><td>TLS 证书问题</td><td>时间、根证书、域名、链</td></tr>
+<tr><td>413 Payload Too Large</td><td>请求体太大</td><td>服务端限制、分片上传</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.6</span>术语表</h3>
+<div class="term-grid">
+<div class="term"><b>封装</b><span>每层给数据加自己的头部。</span></div>
+<div class="term"><b>MTU</b><span>链路层最大载荷，以太网通常 1500。</span></div>
+<div class="term"><b>CIDR</b><span>用 /n 表示网络前缀长度。</span></div>
+<div class="term"><b>默认网关</b><span>跨子网流量的下一跳。</span></div>
+<div class="term"><b>ARP</b><span>IPv4 地址到 MAC 的解析。</span></div>
+<div class="term"><b>NAT</b><span>改写 IP/端口，实现地址共享。</span></div>
+<div class="term"><b>三次握手</b><span>TCP 建立连接的双向确认。</span></div>
+<div class="term"><b>TIME_WAIT</b><span>主动关闭方等待 2MSL，保证可靠关闭。</span></div>
+<div class="term"><b>QoS</b><span>MQTT 的消息交付保证等级。</span></div>
+<div class="term"><b>Broker</b><span>MQTT 的消息中转服务器。</span></div>
+<div class="term"><b>SLAAC</b><span>IPv6 无状态地址自动配置。</span></div>
+<div class="term"><b>TLS</b><span>提供加密、完整性与身份验证的协议。</span></div>
+</div>
+
+<h3><span class="n">A.7</span>上线前检查清单</h3>
+<ul class="checklist">
+<li>设备能拿到 IP，网关与 DNS 正确</li>
+<li>断网/重启后能自动重连，且有退避</li>
+<li>所有外发数据都有超时，不会永久阻塞</li>
+<li>凭据不硬编码，支持轮换/吊销</li>
+<li>TLS 校验证书与域名，设备时间可用</li>
+<li>关键请求有重试与幂等设计</li>
+<li>抓包验证过完整连接与消息流程</li>
+<li>长时间运行无内存/连接泄漏</li>
+</ul>

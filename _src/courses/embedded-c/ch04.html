@@ -1,0 +1,185 @@
+<h3><span class="n">4.1</span>const：一个承诺，不是一种存储</h3>
+<p><code class="i">const</code> 的含义是“通过这个名字不能修改”。它<strong>不保证</strong>对象真的存放在只读存储器里，也<strong>不保证</strong>别人不能改。</p>
+<codeblock lang="C11" file="const_semantics.c">
+const int table[4] = {1, 2, 3, 4};
+/* table[0] = 9;   编译错误：通过 table 不能改 */
+
+int *p = (int *)table;   /* 强制去掉 const：语法上能过 */
+/* *p = 9;              未定义行为：修改 const 对象 */
+
+const int n = 10;
+int arr[n];              /* C99 VLA；不是“常量表达式”，不能用于 case 标签 */
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>常见说法</th><th>是否准确</th><th>更准确的说法</th></tr></thead>
+<tbody>
+<tr><td>const 变量一定在 Flash / ROM</td><td>不准确</td><td>可能被放进 <code>.rodata</code>，也可能被优化成立即数，甚至放在栈上；由实现和链接脚本决定。</td></tr>
+<tr><td>const 变量不能改</td><td>部分准确</td><td>不能<strong>通过这个名字</strong>改；通过强制转换后的指针修改是未定义行为。</td></tr>
+<tr><td>const 可以用来做数组长度</td><td>不准确</td><td>C 里 <code>const int</code> 不是整型常量表达式；用 <code>#define</code> 或 <code>enum</code>。</td></tr>
+<tr><td>函数参数加 const 更安全</td><td>准确</td><td>它表达“我不会改你的数据”，是接口契约的一部分。</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>只读查表数据（如字库、CRC 表、字符串）写 <code class="i">const</code>，让链接器有机会放进 Flash，节省宝贵的 SRAM。但不要假设“写了 const 就一定省 RAM”，要看 map 文件确认。</p>
+</div>
+
+<h3><span class="n">4.2</span>volatile：三保证，三不保证</h3>
+<div class="grid2">
+<div class="card"><span class="tag">保证</span><h4>它确实做的</h4>
+<ul><li>每次访问都真实发生，不合并、不缓存</li><li>不会被优化删除</li><li>同一线程内，volatile 访问的相对顺序不被编译器调换</li></ul></div>
+<div class="card"><span class="tag">不保证</span><h4>它做不到的</h4>
+<ul><li>不保证原子性（32 位写可能分成两次 16 位）</li><li>不保证多核/多设备的可见性与顺序（需要屏障或原子类型）</li><li>不替代锁，不解决竞态</li></ul></div>
+</div>
+<codeblock lang="C11" file="volatile_use.c">
+#include <stdint.h>
+#include <stdbool.h>
+
+/* 1. 内存映射寄存器：必须 volatile */
+#define STATUS (*(volatile uint32_t *)0x40001000UL)
+
+/* 2. 中断与主循环共享的标志：必须 volatile */
+volatile bool g_button_pressed = false;
+
+void EXTI_IRQHandler(void)
+{
+    g_button_pressed = true;      /* 中断里写 */
+}
+
+int main(void)
+{
+    while (1) {
+        if (g_button_pressed) {   /* 主循环读：没有 volatile 可能被优化成只读一次 */
+            g_button_pressed = false;
+            /* 处理按键 */
+        }
+    }
+}
+
+/* 3. 只读状态寄存器：const + volatile 组合 */
+#define ID_REG (*(const volatile uint32_t *)0x40001FF0UL)
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>下面这段代码即使加了 <code class="i">volatile</code> 也不安全：</p>
+<codeblock lang="C11" file="counter_race.c · 片段">
+volatile uint32_t counter = 0;
+counter++;      /* 读-改-写三步，中断可能插在中间 */
+</codeblock>
+<p>两个上下文同时执行 <code class="i">counter++</code>，可能各自读到 5，各自写回 6，最终少加一次。正确做法是关中断做临界区，或用硬件原子指令，或使用 C11 <code class="i">_Atomic</code>。</p>
+</div>
+
+<h3><span class="n">4.3</span>static：一个关键字，三种身份</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>位置</th><th>含义</th><th>典型用途</th></tr></thead>
+<tbody>
+<tr><td>函数内部的变量</td><td>静态存储期：只初始化一次，函数返回后仍存在</td><td>计数器、状态缓存、一次性初始化标志</td></tr>
+<tr><td>文件作用域的变量/函数</td><td>内部链接：其他 .c 文件看不到</td><td>模块私有实现，避免符号冲突</td></tr>
+<tr><td>数组参数中的 <code>static</code></td><td>C99：承诺至少能访问这么多元素</td><td>给编译器优化提示，日常很少用</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="static_demo.c">
+static int module_counter;              /* 只在本文件可见 */
+
+static void helper(void) { }            /* 只在本文件可调用 */
+
+void api_init(void)
+{
+    static bool inited = false;         /* 只初始化一次 */
+    if (inited) {
+        return;
+    }
+    inited = true;
+    module_counter = 0;
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p>函数内的 <code class="i">static</code> 变量如果没有显式初始化，会被清零，且初始化发生在程序启动前（对嵌入式来说就是启动代码的清零/复制阶段）。它不是线程安全的：多个任务同时第一次调用，可能都看到 <code class="i">inited == false</code>。</p>
+</div>
+
+<h3><span class="n">4.4</span>extern：声明“别处有定义”</h3>
+<codeblock lang="C11" file="module.h">
+#ifndef MODULE_H
+#define MODULE_H
+
+/* 声明：告诉编译器有这么个变量，但不分配存储 */
+extern uint32_t g_sample_count;
+
+void module_init(void);
+
+#endif
+</codeblock>
+<codeblock lang="C11" file="module.c">
+#include "module.h"
+
+/* 定义：真正分配存储，整个程序只能有一处 */
+uint32_t g_sample_count = 0;
+</codeblock>
+<p>常见错误是在头文件里写 <code class="i">uint32_t g_sample_count = 0;</code>：每个包含它的 <code class="i">.c</code> 都会生成一份定义，链接时报 <code class="i">multiple definition</code>。</p>
+<div class="note law">
+<b>标准怎么说</b>
+<p>在 C 中，文件作用域的 <code class="i">int x;</code> 是<strong>暂定定义</strong>（tentative definition），同一个翻译单元里可以出现多次，最终合并为一个；但跨翻译单元仍然是多个定义。<code class="i">extern int x;</code> 是纯声明，不分配存储。C++ 的规则不同，不要把 C++ 的 inline 变量习惯带过来。</p>
+</div>
+
+<h3><span class="n">4.5</span>四个关键字放在一起看</h3>
+<div class="table-wrap">
+<table>
+<caption>它们各自约束什么</caption>
+<thead><tr><th>关键字</th><th>约束对象</th><th>管得住</th><th>管不住</th></tr></thead>
+<tbody>
+<tr><td><code>const</code></td><td>访问权限</td><td>通过该名字不能写</td><td>存储位置、别名修改</td></tr>
+<tr><td><code>volatile</code></td><td>编译器优化</td><td>访问不被删除/合并</td><td>原子性、竞态、跨核顺序</td></tr>
+<tr><td><code>static</code></td><td>链接与存储期</td><td>可见范围、生命周期</td><td>线程安全、重入</td></tr>
+<tr><td><code>extern</code></td><td>声明方式</td><td>“定义在别处”</td><td>类型是否真的一致</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 4 讲</div>
+<div class="pb">
+<ol>
+<li>判断：<code class="i">const</code> 全局数组一定不占 SRAM。为什么？</li>
+<li>判断：给共享变量加 <code class="i">volatile</code> 就不需要临界区了。为什么？</li>
+<li>写一个模块，暴露 <code class="i">counter_get()</code>，内部计数器对外不可见、不可改。</li>
+<li>解释 <code class="i">static</code> 函数和普通函数在链接阶段的区别。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 不一定。是否放进 <code class="i">.rodata</code>（Flash）取决于实现和链接脚本；即使放进去，某些情况下也可能有 RAM 副本。用 map 文件确认。</p>
+<p><b>2.</b> 不能。<code class="i">volatile</code> 只阻止优化，不阻止中断在“读”和“写”之间插入，<code class="i">counter++</code> 仍会丢更新。</p>
+<p><b>3.</b> 在 <code class="i">.c</code> 里定义 <code class="i">static uint32_t s_counter;</code>，只导出 <code class="i">uint32_t counter_get(void)</code>。头文件里不出现变量名。</p>
+<p><b>4.</b> <code class="i">static</code> 函数具有内部链接，符号不出现在目标文件的全局符号表里，不会与其他文件的同名函数冲突；普通函数是外部链接，全程序只能有一个定义。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：下面哪个场景<strong>必须</strong>使用 <code class="i">volatile</code>？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>一个只在主循环里读写的局部变量</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>一个用 mutex 保护的共享结构体</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>一个由中断修改、主循环轮询的标志</span></button>
+</div>
+<div class="fb" data-fb>中断会在编译器看不见的时刻改变量，主循环的轮询必须每次真实读内存，否则可能被优化成死循环。mutex 保护的变量需要的是同步语义，不是 volatile；局部变量不存在异步修改。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li><code class="i">const</code> 是访问权限承诺，不等于“放在 ROM”。</li>
+<li><code class="i">volatile</code> 保证访问真实发生，不保证原子性与同步。</li>
+<li><code class="i">static</code> 管链接和存储期，不管线程安全。</li>
+<li><code class="i">extern</code> 是声明，定义只能有一处。</li>
+<li>四个关键字各管一件事，不能互相替代。</li>
+</ul>
+<ul class="checklist">
+<li>我能准确说出 volatile 的三条保证和三条不保证</li>
+<li>我能区分 static 的三种用法</li>
+<li>我知道头文件里不能定义变量</li>
+</ul>
+</div>

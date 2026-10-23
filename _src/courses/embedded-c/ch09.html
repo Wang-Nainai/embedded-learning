@@ -1,0 +1,244 @@
+<h3><span class="n">9.1</span>什么时候该用状态机</h3>
+<p>当一段逻辑满足下面任意两条，就该考虑状态机：</p>
+<ul>
+<li>行为依赖“之前发生过什么”，而不是只看当前输入。</li>
+<li>分支里出现多层嵌套的 <code class="i">if</code>，且每层都在判断“现在处于哪个阶段”。</li>
+<li>需要处理超时、重试、异常恢复。</li>
+<li>同一件事在不同阶段有不同反应（例如“连接中”收到数据要丢弃，“已连接”收到数据要处理）。</li>
+</ul>
+<p>状态机把这些隐含的“阶段”显式写出来：<strong>状态</strong>是现在在哪，<strong>事件</strong>是发生了什么，<strong>迁移</strong>是接下来去哪，<strong>动作</strong>是迁移时做什么。</p>
+
+<h3><span class="n">9.2</span>用 enum + switch 写一个</h3>
+<codeblock lang="C11" file="fsm_switch.c">
+#include <stdint.h>
+#include <stdio.h>
+
+typedef enum {
+    ST_IDLE = 0,
+    ST_CONNECTING,
+    ST_READY,
+    ST_ERROR
+} state_t;
+
+typedef enum {
+    EV_START = 0,
+    EV_CONNECTED,
+    EV_TIMEOUT,
+    EV_FAIL,
+    EV_RESET
+} event_t;
+
+typedef struct {
+    state_t  state;
+    uint32_t retry;
+} fsm_t;
+
+static void on_enter(state_t s)
+{
+    printf("  -> 进入状态 %d\n", (int)s);
+}
+
+void fsm_dispatch(fsm_t *f, event_t ev)
+{
+    switch (f->state) {
+    case ST_IDLE:
+        if (ev == EV_START) {
+            f->state = ST_CONNECTING;
+            on_enter(f->state);
+        }
+        break;
+
+    case ST_CONNECTING:
+        if (ev == EV_CONNECTED) {
+            f->state = ST_READY;
+            f->retry = 0;
+            on_enter(f->state);
+        } else if (ev == EV_TIMEOUT || ev == EV_FAIL) {
+            f->retry++;
+            if (f->retry >= 3) {
+                f->state = ST_ERROR;
+                on_enter(f->state);
+            }
+            /* 否则留在 CONNECTING，等待下一次重试 */
+        }
+        break;
+
+    case ST_READY:
+        if (ev == EV_FAIL || ev == EV_TIMEOUT) {
+            f->state = ST_CONNECTING;
+            on_enter(f->state);
+        }
+        break;
+
+    case ST_ERROR:
+        if (ev == EV_RESET) {
+            f->state = ST_IDLE;
+            f->retry = 0;
+            on_enter(f->state);
+        }
+        break;
+
+    default:
+        f->state = ST_ERROR;
+        break;
+    }
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>每个 <code class="i">switch</code> 都写 <code class="i">default</code>，把非法状态收敛到 <code class="i">ST_ERROR</code>。状态变量被内存踩坏时，程序会进入可控的故障态，而不是执行随机的分支。</p>
+</div>
+
+<h3><span class="n">9.3</span>表驱动：状态多了以后</h3>
+<codeblock lang="C11" file="fsm_table.c">
+#include <stddef.h>
+
+typedef void (*action_fn)(fsm_t *f);
+
+typedef struct {
+    state_t   from;
+    event_t   event;
+    state_t   to;
+    action_fn action;
+} transition_t;
+
+static void act_start(fsm_t *f)   { (void)f; }
+static void act_fail(fsm_t *f)    { f->retry++; }
+
+static const transition_t g_table[] = {
+    { ST_IDLE,       EV_START,     ST_CONNECTING, act_start },
+    { ST_CONNECTING, EV_CONNECTED, ST_READY,      NULL      },
+    { ST_CONNECTING, EV_FAIL,      ST_ERROR,      act_fail  },
+    { ST_ERROR,      EV_RESET,     ST_IDLE,       NULL      },
+};
+
+void fsm_dispatch_table(fsm_t *f, event_t ev)
+{
+    for (size_t i = 0; i < sizeof g_table / sizeof g_table[0]; i++) {
+        if (g_table[i].from == f->state && g_table[i].event == ev) {
+            if (g_table[i].action != NULL) {
+                g_table[i].action(f);
+            }
+            f->state = g_table[i].to;
+            return;
+        }
+    }
+    /* 没有匹配的迁移：记录日志或进入错误态 */
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>switch 实现</th><th>表驱动</th></tr></thead>
+<tbody>
+<tr><td>可读性</td><td>状态少时直观</td><td>状态多时一目了然</td></tr>
+<tr><td>新增迁移</td><td>改 switch 分支</td><td>加一行表项</td></tr>
+<tr><td>代码体积</td><td>较小</td><td>多一张常量表（放 Flash）</td></tr>
+<tr><td>调试</td><td>断点好打</td><td>可以在循环里统一打日志</td></tr>
+<tr><td>复杂动作</td><td>直接写</td><td>要拆成函数</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lab" id="lab-fsm">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>状态机跑起来</h4>
+    <p>点击事件按钮，看当前状态、允许的迁移和重试计数。注意“连接中”收到“已连接”和“失败”会走向完全不同的分支。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl" id="fsmCtl">
+      <button class="lab-btn pri" type="button" data-ev="start">start</button>
+      <button class="lab-btn" type="button" data-ev="connected">connected</button>
+      <button class="lab-btn" type="button" data-ev="timeout">timeout</button>
+      <button class="lab-btn" type="button" data-ev="fail">fail</button>
+      <button class="lab-btn" type="button" data-ev="reset">reset</button>
+      <button class="lab-btn" type="button" id="fsmReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="fsmCanvas"></div>
+    <div class="lab-read" id="fsmOut" aria-live="polite"></div>
+    <p class="lab-note">没有匹配迁移的事件会被忽略，并记录一条日志——这正是实际工程里应该做的。</p>
+  </div>
+</div>
+
+<h3><span class="n">9.4</span>非阻塞：状态机的好搭档</h3>
+<p>状态机让“等”变成“记住现在在等”。不要在状态处理里写 <code class="i">delay_ms(1000)</code>，而是记录时间戳，下次进来检查是否超时。</p>
+<codeblock lang="C11" file="fsm_timeout.c">
+#include <stdint.h>
+#include <stdbool.h>
+
+typedef struct {
+    state_t  state;
+    uint32_t deadline_ms;
+} conn_t;
+
+/* 由 1 ms 定时器或主循环周期调用 */
+void conn_tick(conn_t *c, uint32_t now_ms)
+{
+    if (c->state == ST_CONNECTING && (int32_t)(now_ms - c->deadline_ms) >= 0) {
+        fsm_dispatch((fsm_t *)c, EV_TIMEOUT);   /* 超时，走重试逻辑 */
+        c->deadline_ms = now_ms + 500;          /* 下一次超时时间 */
+    }
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">(int32_t)(now - deadline) &gt;= 0</code> 是处理计时器回绕的标准写法：无符号相减得到差值，转成有符号再比较，即使 <code class="i">now</code> 溢出也能正确判断。直接写 <code class="i">now &gt;= deadline</code> 在回绕时会出错。</p>
+</div>
+
+<h3><span class="n">9.5</span>状态机的常见错误</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误</th><th>后果</th><th>修正</th></tr></thead>
+<tbody>
+<tr><td>在状态处理里阻塞等待</td><td>整个系统卡住，其他事件得不到处理</td><td>记录状态与时间戳，下次 tick 再判断</td></tr>
+<tr><td>状态迁移没有默认分支</td><td>非法状态执行随机逻辑</td><td><code>default</code> 进入错误态</td></tr>
+<tr><td>事件在错误的状态被处理</td><td>逻辑错乱，难以复现</td><td>每个状态只处理明确列出的事件</td></tr>
+<tr><td>进入/退出动作重复执行</td><td>资源重复初始化或重复释放</td><td>明确 on_enter / on_exit 只调用一次</td></tr>
+<tr><td>状态变量被多处直接赋值</td><td>绕过迁移规则</td><td>只允许 <code>fsm_dispatch</code> 修改状态</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 9 讲</div>
+<div class="pb">
+<ol>
+<li>为“按键消抖”画一个状态机：松开、按下抖动、稳定按下、长按。</li>
+<li>把 9.2 节的 switch 版本改写成表驱动，并保证行为一致。</li>
+<li>给连接状态机加一个“退避重试”策略：每次失败等待时间翻倍。</li>
+<li>解释为什么状态机适合处理协议解析，而不适合处理纯计算。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 松开 →（检测到低电平）抖动 →（持续 20 ms 低）稳定按下 →（持续 1 s）长按；中途变高则回到松开。</p>
+<p><b>2.</b> 把每个 <code class="i">case</code> 里的 <code class="i">if</code> 拆成表项，动作抽成函数；注意“留在原状态”的迁移也要显式写出或明确忽略。</p>
+<p><b>3.</b> 保存 <code class="i">backoff_ms</code>，失败时 <code class="i">backoff_ms = min(backoff_ms * 2, MAX)</code>，成功时复位。</p>
+<p><b>4.</b> 协议解析天然有“阶段”（等帧头、等长度、等载荷、等校验），且事件是离散字节；纯计算没有状态依赖，用状态机反而增加开销。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：状态机里处理“等待超时”最合适的做法是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>记录截止时间，在周期 tick 中比较</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>在状态处理函数里循环等待</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>用递归调用自己直到超时</span></button>
+</div>
+<div class="fb" data-fb>状态机的前提是非阻塞：等待要变成“记住截止时间 + 周期检查”。阻塞等待会让整个主循环停摆，其他事件全部延迟。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>状态机把隐含的“阶段”显式化，适合有历史依赖、超时和异常恢复的逻辑。</li>
+<li>状态、事件、迁移、动作四要素要分清。</li>
+<li>状态少用 switch，状态多用表驱动。</li>
+<li>非阻塞的关键是“记录时间戳，周期检查”。</li>
+<li>只允许一个入口修改状态，非法状态收敛到错误态。</li>
+</ul>
+<ul class="checklist">
+<li>我能把一段嵌套 if 改写成状态机</li>
+<li>我能写出表驱动的迁移表</li>
+<li>我会用无符号差值处理计时回绕</li>
+</ul>
+</div>

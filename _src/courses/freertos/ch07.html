@@ -1,0 +1,184 @@
+<h3><span class="n">7.1</span>互斥量不是“二值信号量换名字”</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>二值信号量</th><th>互斥量（mutex）</th></tr></thead>
+<tbody>
+<tr><td>所有者</td><td>无</td><td>有：谁取到，谁负责给</td></tr>
+<tr><td>优先级继承</td><td>不支持</td><td>支持（可配置）</td></tr>
+<tr><td>中断中使用</td><td>可以（FromISR 给）</td><td>不可以</td></tr>
+<tr><td>递归获取</td><td>不支持</td><td>可用递归互斥量</td></tr>
+<tr><td>典型用途</td><td>事件通知</td><td>保护共享资源</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="mutex_basic.c">
+#include "FreeRTOS.h"
+#include "semphr.h"
+
+static SemaphoreHandle_t g_i2c_mutex;
+
+void app_init(void)
+{
+    g_i2c_mutex = xSemaphoreCreateMutex();
+    configASSERT(g_i2c_mutex != NULL);
+}
+
+int read_sensor(uint8_t addr, uint8_t *out, size_t n)
+{
+    if (xSemaphoreTake(g_i2c_mutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+        return -1;                       /* 等不到锁：返回错误，不要死等 */
+    }
+
+    int ret = i2c_transfer(addr, out, n);
+
+    xSemaphoreGive(g_i2c_mutex);         /* 必须由持有者释放 */
+    return ret;
+}
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>在中断里调用 <code class="i">xSemaphoreTake</code> 取互斥量是未定义行为：中断没有任务上下文，也不存在“所有者”。中断要保护数据，用临界区；要通知任务，用 FromISR 的信号量或队列。</p>
+</div>
+
+<h3><span class="n">7.2</span>优先级反转：高优先级被低优先级“拖住”</h3>
+<p>场景：低优先级任务 L 持有互斥量，高优先级任务 H 需要同一把锁，于是 H 阻塞。此时中优先级任务 M 就绪——M 的优先级高于 L，于是 M 抢占 L，L 无法继续执行，也就无法释放锁。<strong>结果：H 在等 M 跑完。</strong></p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 240" role="img" aria-labelledby="fig7t fig7d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig7t">优先级反转与优先级继承</title>
+<desc id="fig7d">无继承时中优先级任务抢占持锁的低优先级任务，导致高优先级任务被间接阻塞；有继承时低优先级任务临时提升到高优先级，尽快释放锁。</desc>
+<rect width="820" height="240" fill="#fbfdff"/>
+<text x="24" y="24" font-size="12" font-weight="700" fill="#334155">无优先级继承</text>
+<g font-size="10.5">
+<rect x="24" y="34" width="90" height="26" fill="#dcfce7" stroke="#4ade80"/><text x="69" y="51" text-anchor="middle" fill="#166534">L 持锁</text>
+<rect x="114" y="34" width="120" height="26" fill="#fef3c7" stroke="#fbbf24"/><text x="174" y="51" text-anchor="middle" fill="#92400e">M 抢占 L</text>
+<rect x="234" y="34" width="90" height="26" fill="#dcfce7" stroke="#4ade80"/><text x="279" y="51" text-anchor="middle" fill="#166534">L 继续</text>
+<rect x="324" y="34" width="120" height="26" fill="#e0e7ff" stroke="#818cf8"/><text x="384" y="51" text-anchor="middle" fill="#26348f">H 才拿到锁</text>
+</g>
+<text x="24" y="80" font-size="11" fill="#b91c1c">H 被 M 间接阻塞，阻塞时间取决于 M 的执行时间——不可控。</text>
+
+<text x="24" y="116" font-size="12" font-weight="700" fill="#334155">有优先级继承</text>
+<g font-size="10.5">
+<rect x="24" y="126" width="90" height="26" fill="#dcfce7" stroke="#4ade80"/><text x="69" y="143" text-anchor="middle" fill="#166534">L 持锁</text>
+<rect x="114" y="126" width="180" height="26" fill="#ddd6fe" stroke="#a78bfa"/><text x="204" y="143" text-anchor="middle" fill="#5b21b6">L 继承 H 的优先级</text>
+<rect x="294" y="126" width="90" height="26" fill="#e0e7ff" stroke="#818cf8"/><text x="339" y="143" text-anchor="middle" fill="#26348f">H 运行</text>
+<rect x="384" y="126" width="90" height="26" fill="#f1f5f9" stroke="#cbd5e1"/><text x="429" y="143" text-anchor="middle" fill="#475569">M 稍后</text>
+</g>
+<text x="24" y="172" font-size="11" fill="#0f766e">L 临时提升到 H 的优先级，M 无法抢占；L 释放锁后恢复原优先级。</text>
+<text x="24" y="204" font-size="11" fill="#64748b">优先级继承只缓解“持锁期间被中优先级抢占”，不能解决死锁，也不能让持锁时间变短。</text>
+</svg>
+<figcaption>优先级反转的成因与优先级继承的作用。</figcaption>
+</figure>
+
+<div class="lab" id="lab-invert">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>三种优先级，一次反转</h4>
+    <p>切换“无继承 / 有继承”，单步看 CPU 被谁占用，以及 L 的优先级如何变化。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" data-inv="off">无优先级继承</button>
+      <button class="lab-btn" type="button" data-inv="on">有优先级继承</button>
+      <button class="lab-btn" type="button" id="invStep">单步</button>
+      <button class="lab-btn" type="button" id="invReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="invCanvas"></div>
+    <div class="lab-read" id="invOut" aria-live="polite"></div>
+    <p class="lab-note">现实中反转往往表现为“偶尔卡顿几百毫秒”，很难复现；一旦出现，先查持锁任务是否被中优先级任务抢占。</p>
+  </div>
+</div>
+
+<h3><span class="n">7.3</span>死锁：互相等对方的锁</h3>
+<codeblock lang="C11" file="deadlock.c · 错误示范">
+/* 任务 A */
+xSemaphoreTake(m1, portMAX_DELAY);
+xSemaphoreTake(m2, portMAX_DELAY);   /* 等 B 释放 m2 */
+
+/* 任务 B */
+xSemaphoreTake(m2, portMAX_DELAY);
+xSemaphoreTake(m1, portMAX_DELAY);   /* 等 A 释放 m1 */
+</codeblock>
+<p>死锁需要四个条件同时成立：互斥、持有并等待、不可剥夺、循环等待。破坏任意一个就能避免：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>条件</th><th>怎么破坏</th></tr></thead>
+<tbody>
+<tr><td>循环等待</td><td>全局约定加锁顺序（例如永远先 m1 后 m2）</td></tr>
+<tr><td>持有并等待</td><td>一次性申请所有锁，或申请失败就释放已持有的</td></tr>
+<tr><td>不可剥夺</td><td>用带超时的 <code>xSemaphoreTake</code>，超时后释放重试</td></tr>
+<tr><td>互斥</td><td>尽量用无锁设计（单生产者单消费者队列）</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>带超时的加锁不是“万能解”，但它能把“永久卡死”变成“可恢复的错误”。超时后要记录日志、释放已持有的锁、按退避策略重试，否则只是换一种方式失败。</p>
+</div>
+
+<h3><span class="n">7.4</span>递归互斥量</h3>
+<codeblock lang="C11" file="recursive.c">
+static SemaphoreHandle_t g_lock;
+
+void init(void)
+{
+    g_lock = xSemaphoreCreateRecursiveMutex();
+}
+
+void outer(void)
+{
+    xSemaphoreTakeRecursive(g_lock, portMAX_DELAY);
+    inner();                                  /* inner 里还会再取一次 */
+    xSemaphoreGiveRecursive(g_lock);
+}
+
+void inner(void)
+{
+    xSemaphoreTakeRecursive(g_lock, portMAX_DELAY);
+    /* ... */
+    xSemaphoreGiveRecursive(g_lock);
+}
+</codeblock>
+<p>普通互斥量在同一任务里重复获取会死锁（任务等自己释放）。递归互斥量用计数解决这个问题，但<strong>获取和释放必须成对</strong>，且不能跨任务使用。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 7 讲</div>
+<div class="pb">
+<ol>
+<li>用互斥量保护一个 I2C 总线，写出带超时的读写函数。</li>
+<li>解释优先级继承为什么不能解决死锁。</li>
+<li>两个任务分别以 A→B 和 B→A 的顺序加锁，如何修改？</li>
+<li>什么情况下应该用递归互斥量？给出一个真实场景。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 继承只提升持锁者的优先级，让它可以尽快运行；但死锁是“双方都在等对方释放”，提升优先级也不会让任何一方释放。</p>
+<p><b>3.</b> 统一加锁顺序（都先 A 后 B），或者用一次性申请/超时回退。</p>
+<p><b>4.</b> 一个公共函数可能被“已经持锁”的调用者再次调用，例如日志模块的 <code class="i">log_write</code> 内部又调用了 <code class="i">log_flush</code>，两者都加同一把锁。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：优先级继承的作用是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>让高优先级任务永远不阻塞</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>防止死锁</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>让持锁的低优先级任务临时提升，尽快释放锁</span></button>
+</div>
+<div class="fb" data-fb>继承只提升“持锁者”的优先级，缩短高优先级任务的间接阻塞时间；它不消除阻塞，也不防止死锁。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>互斥量有所有者、支持优先级继承、不能在 ISR 使用。</li>
+<li>优先级反转：中优先级任务间接阻塞高优先级任务。</li>
+<li>继承缓解反转，但不解决死锁与长临界区。</li>
+<li>死锁靠加锁顺序、超时与无锁设计来避免。</li>
+<li>递归互斥量解决同任务重复加锁，但必须成对。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出互斥量与二值信号量的三点差异</li>
+<li>我能画出优先级反转的时序</li>
+<li>我知道如何避免死锁</li>
+</ul>
+</div>

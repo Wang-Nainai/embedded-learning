@@ -1,0 +1,3593 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="FreeRTOS 实时操作系统教程：裸机与 RTOS 的取舍、任务与调度、延时与周期、队列、信号量、互斥量与优先级继承、事件组与任务通知、中断通信、临界区、软件定时器、内存与栈、故障排查，以及一个完整的多任务数据链项目。">
+<title>FreeRTOS 实时操作系统教程 · 嵌入式学习路径</title>
+<style>
+/* ==========================================================================
+   嵌入式学习路径 · 系列教程共享样式
+   设计语言：深色封面 + 浅色纸面正文 + 深色代码区 + 图解画布
+   ========================================================================== */
+
+:root{
+  --bg:#f5f7fb;
+  --bg-2:#eef2f9;
+  --paper:#ffffff;
+  --paper-2:#f8fafc;
+  --ink:#151d2e;
+  --ink-2:#33415c;
+  --muted:#63708a;
+  --faint:#8b97ac;
+  --line:#e3e9f3;
+  --line-2:#cfd8e8;
+
+  --accent:#3b5bdb;
+  --accent-d:#2a44b0;
+  --accent-soft:#eef2ff;
+  --accent-line:#c7d2fe;
+  --accent-ink:#26348f;
+
+  --ok:#0f7a54; --ok-bg:#ecfdf5; --ok-line:#a7f3d0;
+  --warn:#9a5b00; --warn-bg:#fffbeb; --warn-line:#fcd34d;
+  --bad:#b42318; --bad-bg:#fef3f2; --bad-line:#fecaca;
+  --info:#0e6f8e; --info-bg:#eff9fc; --info-line:#a5e3f2;
+
+  --code-bg:#0b1220;
+  --code-bg2:#101a2e;
+  --code-ink:#d9e6f8;
+  --code-dim:#7f93b3;
+
+  --r:18px;
+  --r-sm:11px;
+  --shadow:0 16px 44px rgba(18,30,58,.08);
+  --shadow-sm:0 6px 18px rgba(18,30,58,.06);
+  --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"SFMono-Regular",Menlo,"Liberation Mono",monospace;
+  --max:1480px;
+  --topbar:58px;
+}
+
+html[data-theme="dark"]{
+  --bg:#0b111c;
+  --bg-2:#0e1624;
+  --paper:#111a29;
+  --paper-2:#16202f;
+  --ink:#e8eefb;
+  --ink-2:#c2cee3;
+  --muted:#93a2ba;
+  --faint:#75849c;
+  --line:#22304a;
+  --line-2:#2e3f5c;
+
+  --accent:#8ba4ff;
+  --accent-d:#a9bcff;
+  --accent-soft:#1a2440;
+  --accent-line:#31406a;
+  --accent-ink:#c3d0ff;
+
+  --ok:#5ee0ac; --ok-bg:#0e2a22; --ok-line:#1d5344;
+  --warn:#f3c46b; --warn-bg:#2a2313; --warn-line:#5a4a1e;
+  --bad:#ff9b93; --bad-bg:#2c1717; --bad-line:#5c2b28;
+  --info:#7fd6ef; --info-bg:#0d2530; --info-line:#1c4b5c;
+
+  --code-bg:#070d18;
+  --code-bg2:#0c1524;
+  --code-ink:#d9e6f8;
+  --code-dim:#7286a4;
+
+  --shadow:0 18px 50px rgba(0,0,0,.45);
+  --shadow-sm:0 6px 20px rgba(0,0,0,.35);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--topbar) + 22px);-webkit-text-size-adjust:100%}
+body.no-scroll{overflow:hidden}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16.5px;
+  line-height:1.88;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-wrap:break-word;
+}
+img,svg{max-width:100%}
+a{color:var(--accent-d);text-underline-offset:.2em;text-decoration-thickness:.06em}
+a:hover{color:var(--accent)}
+::selection{background:var(--accent-line);color:#0b1220}
+:focus-visible{outline:3px solid #f59e0b;outline-offset:3px;border-radius:4px}
+hr{border:0;border-top:1px solid var(--line);margin:28px 0}
+
+.skip{position:fixed;left:14px;top:-90px;z-index:200;background:#111827;color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;text-decoration:none;transition:top .18s}
+.skip:focus{top:12px;color:#fff}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  background:var(--paper);
+  background:color-mix(in srgb,var(--paper) 92%,transparent);
+  border-bottom:1px solid var(--line);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+.topbar-in{max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px);height:var(--topbar);display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;color:var(--ink)}
+.brand-mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(140deg,var(--accent),#7c3aed);color:#fff;display:grid;place-items:center;font-weight:900;font-size:13px;flex:0 0 auto;letter-spacing:-.04em}
+.brand-txt{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.brand-txt b{font-size:13.5px;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand-txt span{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.topbar-sp{flex:1}
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  height:38px;min-width:38px;padding:0 11px;border-radius:10px;
+  border:1px solid var(--line-2);background:var(--paper);color:var(--ink-2);
+  font-size:13.5px;font-weight:650;cursor:pointer;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.icon-btn:hover{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-ink)}
+.icon-btn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn .lbl{white-space:nowrap}
+@media(max-width:720px){.icon-btn .lbl{display:none}.icon-btn{width:38px;padding:0}}
+.progress{position:absolute;left:0;bottom:-1px;height:2px;width:0;background:linear-gradient(90deg,var(--accent),#8b5cf6);transition:width .1s linear}
+
+/* ---------- 封面 ---------- */
+.cover{
+  position:relative;overflow:hidden;color:#fff;
+  background:
+    radial-gradient(760px 380px at 84% 6%,rgba(99,102,241,.42),transparent 62%),
+    radial-gradient(620px 420px at 4% 100%,rgba(14,165,233,.26),transparent 64%),
+    linear-gradient(126deg,#070c17 0%,#0d1730 38%,#1a1550 70%,#0a1020 100%);
+  padding:clamp(46px,6.4vw,84px) 0 clamp(38px,4.6vw,58px);
+}
+.cover::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(rgba(148,163,184,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.13) 1px,transparent 1px);
+  background-size:46px 46px;
+  mask-image:linear-gradient(180deg,#000,transparent 82%);
+  -webkit-mask-image:linear-gradient(180deg,#000,transparent 82%);
+}
+.cover::after{
+  content:"";position:absolute;right:-180px;top:-200px;width:620px;height:620px;border-radius:50%;
+  background:radial-gradient(circle,rgba(139,92,246,.28),transparent 66%);filter:blur(12px);pointer-events:none;
+}
+.cover-in{position:relative;z-index:1;max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px)}
+.cover-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.72fr);gap:clamp(24px,4.6vw,60px);align-items:center}
+.series-tag{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#bfd0ff}
+.series-tag::before{content:"";width:30px;height:2px;background:linear-gradient(90deg,var(--accent),#67e8f9);border-radius:2px}
+.cover h1{margin:14px 0 16px;font-size:clamp(2.1rem,4.9vw,4rem);line-height:1.1;letter-spacing:-.03em;font-weight:850}
+.cover h1 em{font-style:normal;background:linear-gradient(92deg,#c7d2fe 0%,#7dd3fc 52%,#d8b4fe 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cover .sub{margin:0;max-width:44em;color:#d5e0f8;font-size:clamp(15px,1.5vw,17.5px);line-height:1.85}
+.cover .sub b{color:#fff;font-weight:750}
+.cover-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.ctag{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);font-size:12.5px;color:#e6edff;font-weight:600}
+.ctag i{width:5px;height:5px;border-radius:50%;background:#67e8f9;font-style:normal}
+.cover-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:44px;padding:9px 17px;border-radius:11px;border:1px solid transparent;
+  font-size:14.5px;font-weight:750;text-decoration:none;cursor:pointer;font-family:inherit;
+  transition:transform .16s,filter .16s,background .16s;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:linear-gradient(135deg,#5b6ef5,#2563eb);color:#fff;box-shadow:0 10px 26px rgba(37,99,235,.34)}
+.btn-primary:hover{color:#fff;filter:brightness(1.08)}
+.btn-ghost{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.26);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.15);color:#fff}
+
+.dossier{border:1px solid rgba(255,255,255,.16);border-radius:20px;padding:18px 20px;background:linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,.035));box-shadow:0 24px 60px rgba(0,0,0,.3);backdrop-filter:blur(8px)}
+.dossier h2{margin:0 0 10px;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:#a9c0e8;font-weight:800}
+.dossier dl{margin:0;display:grid;gap:0}
+.dossier .row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px dashed rgba(255,255,255,.13);font-size:13px}
+.dossier .row:last-child{border-bottom:0}
+.dossier dt{color:#9fb2d4;white-space:nowrap;margin:0}
+.dossier dd{margin:0;text-align:right;color:#f0f5ff;font-weight:650}
+.dossier .note{margin-top:12px;padding-top:11px;border-top:1px solid rgba(255,255,255,.14);font-size:11.5px;line-height:1.7;color:#b9c8e4}
+.pathstrip{display:flex;gap:6px;margin-top:22px;flex-wrap:wrap}
+.pathstrip a,.pathstrip span{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;font-size:11.5px;text-decoration:none;color:#a9b8d6;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+.pathstrip a.on,.pathstrip span.on{color:#fff;border-color:rgba(147,197,253,.6);background:rgba(96,165,250,.18);font-weight:700}
+.pathstrip a:hover{color:#fff;border-color:rgba(255,255,255,.34)}
+
+/* ---------- 布局 ---------- */
+.shell{max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px);display:grid;grid-template-columns:272px minmax(0,1fr);gap:40px;align-items:start}
+.sidebar{position:sticky;top:calc(var(--topbar) + 20px);max-height:calc(100vh - var(--topbar) - 40px);overflow:auto;padding:22px 0 30px;scrollbar-width:thin}
+.sidebar h2{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 10px;font-weight:800}
+.toc{list-style:none;margin:0;padding:0;border-left:2px solid var(--line);display:grid;gap:1px}
+.toc a{display:flex;gap:9px;padding:7px 10px 7px 12px;margin-left:-2px;border-left:2px solid transparent;text-decoration:none;color:var(--muted);font-size:13.2px;line-height:1.45;transition:color .15s,border-color .15s,background .15s}
+.toc a b{font-family:var(--mono);font-size:11.5px;color:var(--faint);font-weight:700;padding-top:1px;flex:0 0 auto}
+.toc a:hover{color:var(--ink);background:var(--paper-2)}
+.toc a.active{color:var(--accent-ink);border-left-color:var(--accent);background:var(--accent-soft);font-weight:700}
+.toc a.active b{color:var(--accent)}
+.side-tools{display:grid;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.side-tools .icon-btn{width:100%;justify-content:flex-start}
+.main{min-width:0;padding:26px 0 70px}
+
+/* ---------- 课程地图 ---------- */
+.mapcard{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:clamp(20px,3vw,30px);box-shadow:var(--shadow-sm);margin-bottom:26px}
+.mapcard h2{margin:0 0 6px;font-size:clamp(20px,2.6vw,25px);letter-spacing:-.01em}
+.mapcard>p{margin:0 0 18px;color:var(--muted);font-size:14.5px}
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:11px}
+.mapitem{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:13px;padding:12px 13px;background:var(--paper-2);transition:border-color .16s,transform .16s,box-shadow .16s}
+.mapitem:hover{border-color:var(--accent-line);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+.mapitem .n{font-family:var(--mono);font-size:11px;font-weight:800;color:var(--accent);letter-spacing:.06em}
+.mapitem b{display:block;font-size:14px;line-height:1.5;margin:3px 0 4px;color:var(--ink)}
+.mapitem span{display:block;font-size:12px;color:var(--muted);line-height:1.55}
+.mapitem .t{display:inline-block;margin-top:6px;font-size:10.5px;color:var(--faint);border:1px solid var(--line-2);border-radius:5px;padding:1px 5px}
+
+/* ---------- 章节 ---------- */
+.ch{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:clamp(22px,3.2vw,44px);margin:0 0 26px;box-shadow:var(--shadow-sm)}
+.ch-head{display:flex;gap:16px;align-items:flex-start;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.ch-no{flex:0 0 auto;width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-family:var(--mono);font-size:19px;font-weight:800;color:var(--accent-ink);background:linear-gradient(145deg,var(--accent-soft),var(--paper-2));border:1px solid var(--accent-line)}
+.ch-title{min-width:0}
+.ch-kicker{margin:0 0 3px;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.ch-kicker span{color:var(--faint);font-weight:650;letter-spacing:0}
+.ch h2{margin:2px 0 6px;font-size:clamp(22px,3.1vw,30px);line-height:1.28;letter-spacing:-.02em;color:var(--ink)}
+.ch-lede{margin:0;color:var(--ink-2);font-size:15px;line-height:1.75}
+.goals{margin:18px 0 6px;border:1px solid var(--accent-line);background:linear-gradient(180deg,var(--accent-soft),var(--paper));border-radius:13px;padding:13px 16px}
+.goals h3{margin:0 0 5px;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:850}
+.goals ul{margin:0;padding-left:1.15em;display:grid;gap:2px}
+.goals li{font-size:14px;color:var(--ink-2);line-height:1.65}
+.goals li::marker{color:var(--accent)}
+
+.ch h3{font-size:19.5px;line-height:1.5;margin:32px 0 9px;color:var(--ink);letter-spacing:-.01em;font-weight:800}
+.ch h3 .n{font-family:var(--mono);font-size:13px;color:var(--accent);margin-right:9px;font-weight:800;letter-spacing:0}
+.ch h4{font-size:15.5px;margin:22px 0 6px;color:var(--ink-2);font-weight:800}
+.ch p{margin:10px 0}
+.ch ul,.ch ol{margin:10px 0;padding-left:1.5em}
+.ch li{margin:5px 0}
+.ch li::marker{color:var(--faint)}
+.ch strong{font-weight:750;color:var(--ink)}
+.ch em{font-style:normal;color:var(--accent-ink);font-weight:650}
+code.i{font-family:var(--mono);font-size:.88em;background:var(--paper-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--accent-ink);white-space:normal;overflow-wrap:anywhere}
+kbd{font-family:var(--mono);font-size:.82em;background:var(--paper);border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;padding:1px 5px;color:var(--ink-2)}
+
+/* ---------- 提示块 ---------- */
+.note{position:relative;border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--paper-2);border-radius:10px;padding:11px 14px;margin:15px 0;font-size:14.6px;line-height:1.78}
+.note>b{display:inline-block;font-size:11px;letter-spacing:.08em;font-weight:850;padding:1px 7px;border-radius:4px;margin-right:7px;vertical-align:1.5px;background:var(--accent-soft);color:var(--accent-ink);border:1px solid var(--accent-line)}
+.note.law{border-left-color:#0f766e;background:var(--info-bg);border-color:var(--info-line)}
+.note.law>b{background:#ccfbf1;color:#0f5132;border-color:#99f6e4}
+.note.impl{border-left-color:#7c3aed;background:#f7f3ff;border-color:#e0d5ff}
+.note.impl>b{background:#ede9fe;color:#5b21b6;border-color:#ddd6fe}
+.note.eng{border-left-color:#b45309;background:var(--warn-bg);border-color:var(--warn-line)}
+.note.eng>b{background:#fef3c7;color:#8a4b00;border-color:#fde68a}
+.note.bad{border-left-color:var(--bad);background:var(--bad-bg);border-color:var(--bad-line)}
+.note.bad>b{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+.note.good{border-left-color:var(--ok);background:var(--ok-bg);border-color:var(--ok-line)}
+.note.good>b{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+html[data-theme="dark"] .note.law>b{background:#0f3b34;color:#9ef0d8;border-color:#1c5a4e}
+html[data-theme="dark"] .note.impl{background:#1c1633;border-color:#3b2d66}
+html[data-theme="dark"] .note.impl>b{background:#2a1f52;color:#d3c4ff;border-color:#443077}
+html[data-theme="dark"] .note.eng>b{background:#3a2c10;color:#f7d488;border-color:#5a4a1e}
+html[data-theme="dark"] .note.bad>b{background:#3d1d1b;color:#ffb4ad;border-color:#5c2b28}
+html[data-theme="dark"] .note.good>b{background:#10322a;color:#9df0cd;border-color:#1d5344}
+.note p{margin:5px 0}
+.note ul,.note ol{margin:5px 0;padding-left:1.3em}
+.note li{margin:2px 0}
+
+.analogy{border:1px dashed var(--warn-line);background:var(--warn-bg);border-radius:11px;padding:12px 15px;margin:16px 0;font-size:14.6px;color:var(--ink-2)}
+.analogy>b{display:inline-block;font-size:11px;letter-spacing:.08em;font-weight:850;background:#fde68a;color:#7a4400;border-radius:4px;padding:1px 7px;margin-right:7px;vertical-align:1.5px}
+.analogy p{margin:5px 0}
+.analogy .limit{display:block;margin-top:7px;padding-top:7px;border-top:1px dashed var(--warn-line);font-size:13px;color:var(--warn)}
+html[data-theme="dark"] .analogy>b{background:#4a3810;color:#f7d488}
+
+/* ---------- 代码 ---------- */
+.code{max-width:100%;min-width:0;margin:16px 0;border-radius:12px;overflow:hidden;background:var(--code-bg);border:1px solid #1d2b45;box-shadow:0 8px 24px rgba(8,15,30,.16)}
+.code-bar{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--code-bg2);border-bottom:1px solid #1b2740;font-family:var(--mono);font-size:11.5px;color:var(--code-dim)}
+.code-bar .file{color:#a9c1e6;font-weight:700}
+.code-bar .lang{margin-left:auto;border:1px solid #2a3a58;border-radius:4px;padding:1px 6px;color:#8aa2c6;font-size:10.5px;letter-spacing:.04em}
+.copy{border:1px solid #2c3d5c;background:#16233a;color:#a9c1e6;border-radius:6px;padding:2px 8px;font-size:11px;font-family:var(--sans);cursor:pointer;transition:background .15s,color .15s}
+.copy:hover{background:#20304d;color:#fff}
+.copy.ok{background:#14532d;border-color:#166534;color:#bbf7d0}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13.2px;line-height:1.72;color:var(--code-ink);tab-size:4;-webkit-overflow-scrolling:touch}
+.code pre code{font-family:inherit;white-space:pre;background:none;border:0;padding:0;color:inherit;font-size:inherit}
+.code pre::-webkit-scrollbar{height:8px}
+.code pre::-webkit-scrollbar-thumb{background:#2c3d5c;border-radius:4px}
+.out{margin:-6px 0 16px;border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;background:var(--paper-2);overflow:hidden}
+.out>b{display:block;padding:5px 13px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ok);background:var(--ok-bg);border-bottom:1px solid var(--line);font-weight:850}
+.out pre{margin:0;padding:10px 14px;overflow-x:auto;font-family:var(--mono);font-size:12.6px;line-height:1.65;color:var(--ink-2);white-space:pre}
+
+/* ---------- 表格 ---------- */
+.table-wrap{max-width:100%;margin:16px 0;border:1px solid var(--line);border-radius:11px;overflow-x:auto;background:var(--paper);-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13.6px;line-height:1.65;min-width:520px}
+caption{caption-side:top;text-align:left;padding:9px 13px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);background:var(--paper-2)}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:var(--paper-2);font-size:12.4px;color:var(--ink-2);font-weight:800;white-space:nowrap;letter-spacing:.01em}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--paper-2)}
+td code,th code{font-family:var(--mono);font-size:12.3px;background:var(--accent-soft);border-radius:4px;padding:1px 4px;color:var(--accent-ink);white-space:nowrap}
+
+/* ---------- 图解 ---------- */
+.fig{margin:18px 0;border:1px solid var(--line);border-radius:13px;background:#fbfcff;padding:12px;overflow:hidden}
+.fig svg{display:block;width:100%;height:auto;max-width:100%}
+.fig figcaption{margin:8px 3px 0;font-size:12.4px;color:#5b6b85;line-height:1.65}
+.fig figcaption b{color:#22304a}
+.fig .zoom{overflow-x:auto;-webkit-overflow-scrolling:touch}
+html[data-theme="dark"] .fig{background:#f7f9fd;border-color:#2a3752}
+html[data-theme="dark"] .fig figcaption{color:#4b5a72}
+
+/* ---------- 卡片/网格 ---------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:15px 0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:15px 0}
+.card{border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:var(--paper-2)}
+.card h4{margin:0 0 5px;font-size:14px;color:var(--ink)}
+.card p{margin:3px 0;font-size:13.4px;color:var(--ink-2);line-height:1.7}
+.card ul{margin:4px 0 0;padding-left:1.2em;font-size:13.2px}
+.card .tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--accent-ink);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:4px;padding:1px 6px;margin-bottom:5px}
+@media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}}
+
+.steps{counter-reset:s;margin:16px 0;display:grid;gap:9px}
+.steps>div{position:relative;padding:9px 13px 9px 42px;border:1px solid var(--line);border-radius:10px;background:var(--paper-2);font-size:14px}
+.steps>div::before{counter-increment:s;content:counter(s);position:absolute;left:11px;top:9px;width:21px;height:21px;border-radius:6px;background:var(--accent);color:#fff;font-size:11.5px;font-weight:800;display:grid;place-items:center;font-family:var(--mono)}
+.steps b{color:var(--ink)}
+
+/* ---------- 交互实验台 ---------- */
+.lab{margin:20px 0;border:1px solid var(--accent-line);border-radius:14px;background:linear-gradient(180deg,var(--accent-soft),var(--paper) 42%);overflow:hidden}
+.lab-head{padding:12px 15px 0}
+.lab-head .badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:5px;padding:2px 8px}
+.lab-head h4{margin:6px 0 3px;font-size:15px;color:var(--ink)}
+.lab-head p{margin:0 0 10px;font-size:13px;color:var(--muted);line-height:1.7}
+.lab-body{padding:0 15px 14px;display:grid;gap:11px}
+.lab-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lab-ctl label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);font-weight:650}
+.lab-ctl select,.lab-ctl input[type="number"],.lab-ctl input[type="text"]{
+  font-family:var(--mono);font-size:12.5px;padding:5px 7px;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--paper);color:var(--ink);min-height:32px;
+}
+.lab-ctl input[type="range"]{accent-color:var(--accent);width:130px;max-width:100%}
+.lab-btn{
+  font-family:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;min-height:34px;
+  border-radius:8px;border:1px solid var(--line-2);background:var(--paper);color:var(--ink-2);cursor:pointer;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.lab-btn:hover{border-color:var(--accent-line);color:var(--accent-ink);background:var(--accent-soft)}
+.lab-btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.lab-btn.pri:hover{filter:brightness(1.08);color:#fff}
+.lab-btn:disabled{opacity:.45;cursor:not-allowed}
+.lab-canvas{background:#f8fafd;border:1px solid #dbe4f3;border-radius:10px;padding:10px;overflow-x:auto}
+.lab-canvas svg{display:block;width:100%;height:auto;min-width:0}
+.lab-read{font-family:var(--mono);font-size:12.4px;line-height:1.7;background:var(--code-bg);color:var(--code-ink);border-radius:9px;padding:9px 12px;white-space:pre-wrap;overflow-x:auto}
+.lab-read .k{color:#7dd3fc}
+.lab-read .v{color:#fcd34d}
+.lab-read .e{color:#fca5a5}
+.lab-read .g{color:#86efac}
+.lab-note{font-size:12.2px;color:var(--muted);line-height:1.65}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line-2);border-radius:6px;padding:2px 7px;background:var(--paper);color:var(--ink-2)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ---------- 练习/测验 ---------- */
+.practice{margin:22px 0 6px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--paper)}
+.practice>.ph{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--paper-2);border-bottom:1px solid var(--line);font-size:11.5px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink)}
+.practice>.pb{padding:12px 15px}
+.practice ol{margin:6px 0;padding-left:1.35em}
+.practice li{margin:7px 0;font-size:14.4px}
+details.qa{margin:9px 0 0;border:1px dashed var(--line-2);border-radius:9px;background:var(--paper-2);overflow:hidden}
+details.qa>summary{cursor:pointer;padding:7px 12px;font-size:12.6px;font-weight:750;color:var(--accent-ink);list-style:none;display:flex;align-items:center;gap:7px;min-height:34px}
+details.qa>summary::-webkit-details-marker{display:none}
+details.qa>summary::before{content:"▸";font-size:11px;transition:transform .18s;display:inline-block}
+details.qa[open]>summary::before{transform:rotate(90deg)}
+details.qa>summary:hover{background:var(--accent-soft)}
+details.qa .ans{padding:2px 13px 11px;font-size:13.8px;line-height:1.78;border-top:1px solid var(--line)}
+details.qa .ans p{margin:6px 0}
+details.deep{margin:16px 0;border:1px solid var(--line-2);border-radius:11px;background:var(--paper-2)}
+details.deep>summary{cursor:pointer;padding:9px 14px;font-size:13.2px;font-weight:750;color:var(--ink-2);list-style:none;display:flex;gap:8px;align-items:center;min-height:38px}
+details.deep>summary::-webkit-details-marker{display:none}
+details.deep>summary::before{content:"＋";font-family:var(--mono);color:var(--accent);font-weight:800}
+details.deep[open]>summary::before{content:"－"}
+details.deep>summary:hover{background:var(--accent-soft);border-radius:11px 11px 0 0}
+details.deep .inner{padding:2px 15px 12px;border-top:1px solid var(--line);font-size:14px}
+
+.quiz{margin:18px 0;border:1px solid var(--line);border-radius:13px;padding:14px 16px;background:var(--paper)}
+.quiz>p.q{font-weight:750;font-size:14.8px;margin:0 0 10px;color:var(--ink)}
+.quiz .opts{display:grid;gap:7px}
+.quiz .opt{display:flex;gap:9px;align-items:flex-start;text-align:left;padding:8px 11px;border:1px solid var(--line-2);border-radius:9px;background:var(--paper-2);font-family:inherit;font-size:13.8px;line-height:1.6;color:var(--ink-2);cursor:pointer;transition:border-color .15s,background .15s}
+.quiz .opt:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.quiz .opt b{flex:0 0 auto;font-family:var(--mono);font-size:11.5px;color:var(--accent);width:14px}
+.quiz .opt.right{border-color:#16a34a;background:#ecfdf5;color:#14532d}
+.quiz .opt.right b{color:#15803d}
+.quiz .opt.wrong{border-color:#dc2626;background:#fef2f2;color:#7f1d1d}
+.quiz .opt.wrong b{color:#b91c1c}
+html[data-theme="dark"] .quiz .opt.right{background:#10322a;color:#c7f7e4;border-color:#1d6b52}
+html[data-theme="dark"] .quiz .opt.wrong{background:#3a1a18;color:#ffd6d1;border-color:#7f2d27}
+.quiz .fb{margin-top:9px;font-size:13.2px;line-height:1.7;padding:8px 11px;border-radius:8px;background:var(--paper-2);border-left:3px solid var(--accent);color:var(--ink-2);display:none}
+.quiz .fb.show{display:block}
+.quiz .fb b{color:var(--accent-ink)}
+
+.summary{margin:26px 0 4px;padding:14px 17px;border-radius:12px;border:1px solid var(--line-2);background:var(--paper-2)}
+.summary h3{margin:0 0 7px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:850}
+.summary ul{margin:4px 0;padding-left:1.3em}
+.summary li{font-size:14px;margin:4px 0}
+.checklist{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:5px}
+.checklist li{position:relative;padding-left:24px;font-size:13.8px;color:var(--ink-2)}
+.checklist li::before{content:"";position:absolute;left:0;top:.45em;width:13px;height:13px;border:1.6px solid var(--line-2);border-radius:4px}
+
+.ch-foot{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;margin-top:22px;padding-top:14px;border-top:1px solid var(--line);font-size:12.8px;color:var(--muted)}
+.ch-foot a{font-weight:700;text-decoration:none}
+.ch-foot a:hover{text-decoration:underline}
+
+/* ---------- 附录 ---------- */
+.appendix{margin-top:30px}
+.cheat{width:100%;border-collapse:collapse;font-size:13px}
+.cheat th{position:static}
+.term-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:14px 0}
+.term{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--paper-2)}
+.term b{display:block;font-size:13.4px;color:var(--accent-ink);font-family:var(--mono)}
+.term span{font-size:12.6px;color:var(--ink-2);line-height:1.65}
+
+/* ---------- 搜索 ---------- */
+.searchbox{position:fixed;inset:0;z-index:120;display:none;background:rgba(9,14,25,.55);backdrop-filter:blur(3px);padding:9vh 16px 16px}
+.searchbox.on{display:block}
+.search-panel{max-width:660px;margin:0 auto;background:var(--paper);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.35);overflow:hidden}
+.search-top{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.search-top svg{width:17px;height:17px;stroke:var(--muted);fill:none;stroke-width:2}
+.search-top input{flex:1;border:0;background:none;font-family:inherit;font-size:15px;color:var(--ink);outline:none;min-width:0}
+.search-top kbd{font-size:10.5px}
+.search-res{max-height:56vh;overflow:auto;padding:6px}
+.sr-item{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 11px;border-radius:8px;cursor:pointer;font-family:inherit}
+.sr-item:hover,.sr-item.sel{background:var(--accent-soft)}
+.sr-item b{display:block;font-size:13.6px;color:var(--ink);font-weight:700}
+.sr-item span{display:block;font-size:11.6px;color:var(--muted);line-height:1.55;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-empty{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ---------- 页脚 ---------- */
+.foot{border-top:1px solid var(--line);background:var(--paper);padding:26px 0 34px;margin-top:10px}
+.foot-in{max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px);display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;font-size:12.4px;color:var(--muted)}
+.foot-in b{color:var(--ink-2)}
+.foot-links{display:flex;gap:14px;flex-wrap:wrap}
+.foot-links a{text-decoration:none}
+
+.totop{position:fixed;right:18px;bottom:18px;z-index:50;width:42px;height:42px;border-radius:50%;border:1px solid var(--line-2);background:var(--paper);color:var(--ink-2);display:none;place-items:center;cursor:pointer;box-shadow:var(--shadow-sm)}
+.totop.on{display:grid}
+.totop:hover{color:var(--accent);border-color:var(--accent-line)}
+.totop svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- 右栏：本讲目录 ---------- */
+.rail{display:none}
+.rail-kicker{margin:0 0 4px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:800}
+.rail-title{margin:0 0 10px;font-size:13px;font-weight:750;color:var(--ink-2);line-height:1.5}
+.rail-list{list-style:none;margin:0;padding:0;border-left:1px solid var(--line)}
+.rail-list a{display:block;padding:5px 0 5px 10px;margin-left:-1px;border-left:2px solid transparent;font-size:12.2px;line-height:1.55;color:var(--muted);text-decoration:none;transition:color .15s,border-color .15s}
+.rail-list a:hover{color:var(--ink)}
+.rail-list a.active{color:var(--accent-ink);border-left-color:var(--accent);font-weight:700}
+.rail-list li{margin:0}
+.rail-progress{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:7px;color:var(--muted);font-size:11px}
+.rail-progress b{font-family:var(--mono);font-size:20px;color:var(--accent);letter-spacing:-.02em}
+
+/* ---------- 响应式 ---------- */
+@media(min-width:1700px){
+  .shell{max-width:1720px;grid-template-columns:272px minmax(0,1fr) 236px}
+  .cover-in,.topbar-in,.foot-in{max-width:1720px}
+  .rail{display:block;position:sticky;top:calc(var(--topbar) + 20px);align-self:start;max-height:calc(100vh - var(--topbar) - 40px);overflow:auto;padding:22px 0 30px;scrollbar-width:thin}
+}
+@media(max-width:1024px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:0}
+  .sidebar{position:fixed;left:0;top:var(--topbar);bottom:0;width:min(310px,86vw);max-height:none;background:var(--paper);border-right:1px solid var(--line);padding:18px 16px 30px;z-index:70;transform:translateX(-104%);transition:transform .22s ease;box-shadow:var(--shadow)}
+  .sidebar.open{transform:none}
+  .scrim{position:fixed;inset:var(--topbar) 0 0;background:rgba(8,13,24,.45);z-index:65;display:none}
+  .scrim.on{display:block}
+  .main{padding-top:18px}
+  .cover-grid{grid-template-columns:minmax(0,1fr)}
+  .dossier{max-width:520px}
+}
+@media(max-width:640px){
+  body{font-size:16px;line-height:1.82}
+  .topbar-in,.cover-in,.shell,.foot-in{padding-left:14px;padding-right:14px}
+  .ch{padding:18px 15px;border-radius:14px}
+  .ch-head{gap:11px}
+  .ch-no{width:42px;height:42px;font-size:15px;border-radius:11px}
+  .ch h3{font-size:18px;margin-top:26px}
+  .ch h2{font-size:21px}
+  .code pre{font-size:12.4px;padding:12px}
+  .lab-body{padding:0 11px 12px}
+  .lab-head{padding:11px 12px 0}
+  .mapgrid{grid-template-columns:1fr}
+  .cover{padding-top:34px}
+  .cover-actions .btn{flex:1 1 auto}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .quiz .opt{font-size:13.2px}
+  .dossier{padding:14px 15px}
+  .pathstrip{gap:5px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+
+/* ---------- 打印 ---------- */
+@media print{
+  @page{margin:16mm 14mm}
+  html,body{background:#fff!important;color:#000!important;font-size:11pt;line-height:1.6}
+  .topbar,.sidebar,.scrim,.totop,.searchbox,.cover-actions,.pathstrip,.side-tools,.lab-ctl,.copy,.ch-foot,.foot-links,.skip,.rail{display:none!important}
+  .cover{background:#fff!important;color:#000!important;padding:0 0 10mm;border-bottom:2px solid #000}
+  .cover::before,.cover::after{display:none}
+  .cover h1,.cover .sub,.cover .sub b{color:#000!important;-webkit-text-fill-color:#000}
+  .cover h1 em{background:none!important;color:#000!important;-webkit-text-fill-color:#000}
+  .series-tag,.ctag,.dossier h2,.dossier dt,.dossier dd,.dossier .note{color:#000!important}
+  .ctag,.dossier{border-color:#999!important;background:#fff!important}
+  .shell{display:block;padding:0}
+  .ch{break-inside:auto;page-break-inside:auto;border:0;box-shadow:none;padding:0;margin:0 0 8mm}
+  .ch{break-before:page;page-break-before:always}
+  .ch:first-of-type{break-before:auto;page-break-before:auto}
+  .ch-head{border-bottom:1.5px solid #000}
+  .ch-no{background:#fff!important;border:1px solid #000;color:#000!important;box-shadow:none!important}
+  .dossier{box-shadow:none!important}
+  .ch h3,.ch h3 .n,.ch-kicker{color:#000!important}
+  .ch-lede{color:#222!important}
+  .goals{background:#fff!important}
+  .code pre code{color:#000!important}
+  .code{background:#f5f5f5!important;border:1px solid #999;box-shadow:none;break-inside:avoid}
+  .code-bar{background:#e8e8e8!important;color:#333!important;border-bottom:1px solid #bbb}
+  .code-bar .file,.code-bar .lang{color:#333!important}
+  .code pre{color:#000!important;font-size:9pt;white-space:pre-wrap;word-break:break-word}
+  .out{background:#fafafa!important;border:1px solid #bbb;break-inside:avoid}
+  .out pre{color:#000!important}
+  .fig{break-inside:avoid;page-break-inside:avoid;background:#fff!important;border:1px solid #bbb}
+  .fig svg{max-height:88mm}
+  table{font-size:9pt}
+  .table-wrap{overflow:visible;break-inside:auto}
+  tr{break-inside:avoid}
+  .lab{border:1px solid #999;background:#fff!important;break-inside:avoid}
+  .lab-canvas{background:#fff!important;border:1px solid #ccc}
+  .lab-read{background:#f2f2f2!important;color:#000!important}
+  .note,.analogy,.summary,.practice,.quiz{border-color:#999!important;background:#fafafa!important;break-inside:avoid}
+  details.qa,details.deep{break-inside:avoid}
+  details:not([open])>*:not(summary){display:block!important}
+  details>summary{list-style:none}
+  a{color:#000!important;text-decoration:none}
+  .appendix{break-before:page}
+}
+
+
+:root{--accent:#7c3aed;--accent-d:#6427c9;--accent-soft:#f5f3ff;--accent-line:#ddd6fe;--accent-ink:#5b21b6}
+html[data-theme="dark"]{--accent:#c4b5fd;--accent-d:#ddd6fe;--accent-soft:#1e1738;--accent-line:#3b2d66;--accent-ink:#e0d5ff}
+
+</style>
+</head>
+<body>
+<a class="skip" href="#map">跳到正文</a>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <button class="icon-btn" id="menuBtn" type="button" aria-label="打开课程目录" aria-expanded="false" aria-controls="sidebar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">E3</span>
+      <span class="brand-txt"><b>FreeRTOS</b><span>嵌入式学习路径 · 第 3 册</span></span>
+    </a>
+    <span class="topbar-sp"></span>
+    <button class="icon-btn" id="searchBtn" type="button" aria-label="搜索本册内容（Ctrl+K）">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <span class="lbl">搜索</span>
+    </button>
+    <button class="icon-btn" id="themeBtn" type="button" aria-pressed="false" aria-label="切换到深色模式">
+      <svg class="ic-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+      <svg class="ic-moon" viewBox="0 0 24 24" aria-hidden="true" style="display:none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>
+    </button>
+  </div>
+  <div class="progress" id="progressBar" aria-hidden="true"></div>
+</header>
+
+<div id="top"></div>
+<section class="cover">
+  <div class="cover-in">
+    <div class="cover-grid">
+      <div>
+        <p class="series-tag">嵌入式学习路径 · 第 3 册</p>
+        <h1>FreeRTOS<br><em>实时操作系统</em></h1>
+        <p class="sub">当裸机大循环撑不住多任务时，RTOS 用<b>任务、优先级、队列和信号量</b>把并发变成可设计的东西。这一册讲清调度、同步与实时性，也讲清它们的边界。</p>
+        <div class="cover-tags"><span class="ctag"><i></i>需要 C 与裸机基础</span><span class="ctag"><i></i>调度时间轴</span><span class="ctag"><i></i>队列与同步</span><span class="ctag"><i></i>14 讲 + API 速查</span><span class="ctag"><i></i>完全离线</span></div>
+        <div class="cover-actions">
+          <a class="btn btn-primary" href="#map">开始学习</a>
+          <a class="btn btn-ghost" href="#ch01">直接进入第 01 讲</a>
+          <button class="btn btn-ghost" type="button" onclick="window.print()">打印 / 导出 PDF</button>
+        </div>
+        <div class="pathstrip" aria-label="系列中的位置"><span class="off">1 · C 语言基础</span><span class="off">2 · 嵌入式 C 进阶</span><span class="on">3 · FreeRTOS</span><span class="off">4 · 通信协议</span><span class="off">5 · 计算机网络</span></div>
+      </div>
+      <aside class="dossier" aria-label="课程档案">
+        <h2>课程档案</h2>
+        <dl><div class="row"><dt>适合读者</dt><dd>写过裸机程序 / 准备做项目</dd></div><div class="row"><dt>先修要求</dt><dd>C 指针、中断、环形缓冲区（第 1–2 册）</dd></div><div class="row"><dt>课程规模</dt><dd>14 讲 + 附录</dd></div><div class="row"><dt>预计学时</dt><dd>22 – 28 小时</dd></div><div class="row"><dt>API 基准</dt><dd>FreeRTOS V10.x / V11，Cortex-M 为例</dd></div><div class="row"><dt>在系列中</dt><dd>第 3 册 / 共 5 册</dd></div></dl>
+        <p class="note">本册以 FreeRTOS 内核的通用行为为主，示例默认 Cortex-M + GCC。不同端口、不同版本的宏名和默认值可能不同，使用前请对照你手里的版本。</p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<div class="shell">
+  <nav class="sidebar" id="sidebar" aria-label="课程目录">
+    <h2>课程目录</h2>
+    <ol class="toc">
+<li><a href="#map"><b>00</b><span>课程地图与学习路径</span></a></li>
+<li><a href="#ch01"><b>01</b><span>什么时候需要 RTOS，代价是什么</span></a></li>
+<li><a href="#ch02"><b>02</b><span>xTaskCreate、栈深度与优先级</span></a></li>
+<li><a href="#ch03"><b>03</b><span>谁在什么时候拿到 CPU</span></a></li>
+<li><a href="#ch04"><b>04</b><span>tick 不是毫秒，Delay 与 DelayUntil</span></a></li>
+<li><a href="#ch05"><b>05</b><span>值拷贝、阻塞与超时</span></a></li>
+<li><a href="#ch06"><b>06</b><span>只传事件，不传数据</span></a></li>
+<li><a href="#ch07"><b>07</b><span>一把有主人的钥匙</span></a></li>
+<li><a href="#ch08"><b>08</b><span>等多个条件，或敲一个人的门</span></a></li>
+<li><a href="#ch09"><b>09</b><span>ISR 只报告，任务才处理</span></a></li>
+<li><a href="#ch10"><b>10</b><span>把“一行 C”拆成真正的原子操作</span></a></li>
+<li><a href="#ch11"><b>11</b><span>借用守护任务计时</span></a></li>
+<li><a href="#ch12"><b>12</b><span>每个任务都在悄悄花 RAM</span></a></li>
+<li><a href="#ch13"><b>13</b><span>四类故障，四种不同的“卡住”</span></a></li>
+<li><a href="#ch14"><b>14</b><span>采集、处理、通信与监控</span></a></li>
+<li><a href="#appendix"><b>附</b><span>API 速查</span></a></li>
+    </ol>
+    <div class="side-tools">
+      <button class="icon-btn" type="button" onclick="window.print()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6M7 18H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7z"/></svg>
+        <span>打印 / 导出 PDF</span>
+      </button>
+      <a class="icon-btn" href="#top">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        <span>回到顶部</span>
+      </a>
+    </div>
+  </nav>
+
+  <main class="main" id="main">
+    <section class="mapcard" id="map">
+      <h2>课程地图</h2>
+      <p>第 1–4 讲建立“任务如何被调度”的模型；第 5–8 讲是任务间通信与同步的四种工具；第 9–11 讲处理中断、临界区与时间；第 12–14 讲收尾到资源、故障与项目。每讲的 API 都标注了上下文限制与配置前提。</p>
+      <div class="mapgrid">
+<a class="mapitem" href="#ch01"><span class="n">第 01 讲</span><b>从裸机大循环到 RTOS</b><span>什么时候需要 RTOS，代价是什么</span><span class="t">45 分钟</span></a>
+<a class="mapitem" href="#ch02"><span class="n">第 02 讲</span><b>任务与任务创建</b><span>xTaskCreate、栈深度与优先级</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch03"><span class="n">第 03 讲</span><b>状态、优先级与调度</b><span>谁在什么时候拿到 CPU</span><span class="t">60 分钟</span></a>
+<a class="mapitem" href="#ch04"><span class="n">第 04 讲</span><b>延时、节拍与周期任务</b><span>tick 不是毫秒，Delay 与 DelayUntil</span><span class="t">50 分钟</span></a>
+<a class="mapitem" href="#ch05"><span class="n">第 05 讲</span><b>队列：有界的数据传送带</b><span>值拷贝、阻塞与超时</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch06"><span class="n">第 06 讲</span><b>二值信号量与计数信号量</b><span>只传事件，不传数据</span><span class="t">50 分钟</span></a>
+<a class="mapitem" href="#ch07"><span class="n">第 07 讲</span><b>互斥量、优先级继承与共享资源</b><span>一把有主人的钥匙</span><span class="t">60 分钟</span></a>
+<a class="mapitem" href="#ch08"><span class="n">第 08 讲</span><b>事件组与任务通知</b><span>等多个条件，或敲一个人的门</span><span class="t">50 分钟</span></a>
+<a class="mapitem" href="#ch09"><span class="n">第 09 讲</span><b>中断与任务的通信</b><span>ISR 只报告，任务才处理</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch10"><span class="n">第 10 讲</span><b>临界区、竞争条件与线程安全</b><span>把“一行 C”拆成真正的原子操作</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch11"><span class="n">第 11 讲</span><b>软件定时器</b><span>借用守护任务计时</span><span class="t">45 分钟</span></a>
+<a class="mapitem" href="#ch12"><span class="n">第 12 讲</span><b>内存管理、堆方案与任务栈</b><span>每个任务都在悄悄花 RAM</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch13"><span class="n">第 13 讲</span><b>死锁、优先级反转、饥饿与溢出</b><span>四类故障，四种不同的“卡住”</span><span class="t">60 分钟</span></a>
+<a class="mapitem" href="#ch14"><span class="n">第 14 讲</span><b>综合项目：多任务数据链</b><span>采集、处理、通信与监控</span><span class="t">90 分钟</span></a>
+<a class="mapitem" href="#appendix"><span class="n">附录</span><b>API 速查、配置项与排障清单</b><span>API 速查</span><span class="t">随时查阅</span></a>
+      </div>
+    </section>
+<section class="ch" id="ch01" aria-labelledby="ch01-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">01</div>
+  <div class="ch-title">
+    <p class="ch-kicker">入门 · 45 分钟 · ★★☆</p>
+    <h2 id="ch01-h">从裸机大循环到 RTOS</h2>
+    <p class="ch-lede">一个大循环加中断能解决很多问题。什么时候它开始不够用？引入 RTOS 又要付出什么？</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>说清裸机大循环的三个瓶颈</li><li>列出 RTOS 提供的四类能力</li><li>判断项目是否真的需要 RTOS</li><li>估算 RTOS 的 RAM / Flash 与复杂度代价</li></ul></div>
+<h3 id="ch01-s1"><span class="n">1.1</span>一个大循环能走多远</h3>
+<p>大多数裸机程序长这样：</p>
+<div class="code"><div class="code-bar"><span class="file">main_loop.c · 片段（裸机结构示意）</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>int main(void)
+{
+    board_init();
+    for (;;) {
+        read_sensor();       /* 可能要等 10 ms */
+        update_display();    /* 可能要 30 ms */
+        handle_uart();       /* 数据来了才需要处理 */
+        feed_watchdog();
+    }
+}</code></pre></div>
+<p>它能工作，但有三个结构性瓶颈：</p>
+<div class="grid3">
+<div class="card"><h4>阻塞传染</h4><p>任何一步等待，后面所有逻辑都被推迟。显示刷新 30 ms，串口响应就可能晚 30 ms。</p></div>
+<div class="card"><h4>响应不确定</h4><p>最坏响应时间等于整个循环的时间，而不是某个事件的处理时间。</p></div>
+<div class="card"><h4>状态耦合</h4><p>各模块共享一个大循环，靠全局变量和标志沟通，越加越乱。</p></div>
+</div>
+
+<h3 id="ch01-s2"><span class="n">1.2</span>RTOS 提供的四样东西</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>能力</th><th>解决什么问题</th><th>FreeRTOS 中的对应物</th></tr></thead>
+<tbody>
+<tr><td>并发抽象</td><td>把“同时要做的事”写成独立函数</td><td>任务（task）</td></tr>
+<tr><td>调度</td><td>决定现在运行谁，让等待不再阻塞别人</td><td>调度器、优先级、tick</td></tr>
+<tr><td>通信</td><td>任务之间安全地传数据</td><td>队列、任务通知、事件组</td></tr>
+<tr><td>同步</td><td>保护共享资源、等待事件</td><td>信号量、互斥量、临界区</td></tr>
+</tbody>
+</table>
+</div>
+<p>注意：RTOS 不提供“无限资源”，也不提供“硬实时保证”。它提供的是<strong>可分析的结构</strong>：你能说清每个任务的周期、优先级、阻塞点和最坏执行时间。</p>
+
+<h3 id="ch01-s3"><span class="n">1.3</span>代价：RAM、Flash 与复杂度</h3>
+<div class="table-wrap">
+<table>
+<caption>典型 Cortex-M 上的量级（具体取决于配置与编译器）</caption>
+<thead><tr><th>项目</th><th>量级</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>内核 Flash</td><td>6–12 KB</td><td>取决于启用的功能（定时器、事件组、统计等）</td></tr>
+<tr><td>内核 RAM</td><td>1–3 KB</td><td>就绪列表、TCB、空闲任务等</td></tr>
+<tr><td>每个任务栈</td><td>256 B – 2 KB</td><td>由局部变量、调用深度决定</td></tr>
+<tr><td>堆</td><td>几 KB – 几十 KB</td><td><code>configTOTAL_HEAP_SIZE</code>，队列和任务都从这里分配</td></tr>
+<tr><td>切换开销</td><td>几十个周期</td><td>保存/恢复上下文，Cortex-M 有硬件加速</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>先问“需不需要”，再问“用哪个”。一个 8 位 MCU、只有 2 KB RAM、逻辑就是“读传感器 → 串口发出去”，用 RTOS 往往得不偿失。反过来，如果有 3 个以上独立时序、需要阻塞等待、需要协议栈，RTOS 通常比手写状态机更省心。</p>
+</div>
+
+<h3 id="ch01-s4"><span class="n">1.4</span>什么时候不需要 RTOS</h3>
+<ul>
+<li>逻辑是严格的单一时序，没有并发等待。</li>
+<li>RAM 极度紧张，任务栈的开销无法承受。</li>
+<li>响应时间要求可以用“中断 + 主循环”满足，且可预测。</li>
+<li>团队不熟悉并发调试，引入 RTOS 反而增加风险。</li>
+</ul>
+<p>反过来，出现下面任意两条，就该认真考虑 RTOS：多个独立周期、需要阻塞等待、通信协议栈、需要优先级（紧急事件优先处理）、代码需要长期维护和扩展。</p>
+
+<h3 id="ch01-s5"><span class="n">1.5</span>最小可运行结构</h3>
+<div class="code"><div class="code-bar"><span class="file">main_rtos.c · FreeRTOS V10/V11</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+
+static void blink_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        gpio_toggle(LED_PIN);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
+
+int main(void)
+{
+    board_init();
+
+    if (xTaskCreate(blink_task, "blink", 128, NULL, 2, NULL) != pdPASS) {
+        for (;;) { }              /* 创建失败：停在这里，便于调试 */
+    }
+
+    vTaskStartScheduler();        /* 正常情况下不会返回 */
+    for (;;) { }
+}</code></pre></div>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">vTaskStartScheduler()</code> 会创建空闲任务（idle task），如果启用了软件定时器还会创建定时器守护任务。空闲任务优先级最低（0），负责释放被删除任务的内存、执行 idle hook。它必须始终有机会运行，否则低优先级清理工作永远做不了。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 1 讲</div>
+<div class="pb">
+<ol>
+<li>列出你当前项目里所有的周期性工作，标出周期和最坏执行时间。</li>
+<li>判断：一个“按键点亮 LED + 每 100 ms 读一次温度”的项目需要 RTOS 吗？为什么？</li>
+<li>RTOS 的“实时”到底指什么？和“快”是一回事吗？</li>
+<li>如果 <code class="i">xTaskCreate</code> 返回 <code class="i">errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY</code>，先查什么？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 通常不需要。两个工作都很短、周期宽松，用主循环 + 定时器中断即可；引入 RTOS 只会增加栈和堆开销。</p>
+<p><b>3.</b> 实时指“在截止时间内完成”，不是“平均很快”。一个 1 ms 完成但偶尔 100 ms 延迟的系统，不如一个稳定 5 ms 的系统实时。</p>
+<p><b>4.</b> 先看 <code class="i">configTOTAL_HEAP_SIZE</code> 是否够、任务栈是否太大、是否用了 <code class="i">heap_1</code>（不能释放）；再看是否有内存碎片。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：下面哪一项<strong>不是</strong> RTOS 直接提供的？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>任务调度</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>硬实时的最坏执行时间保证</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>任务间通信机制</span></button>
+</div>
+<div class="fb" data-fb>RTOS 提供调度机制，但不保证你的任务一定能在截止时间内完成。最坏执行时间要靠测量、分析和设计（优先级、任务划分、临界区长度）来保证。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch01-s6">本讲小结</h3>
+<ul>
+<li>裸机大循环的三个瓶颈：阻塞传染、响应不确定、状态耦合。</li>
+<li>RTOS 提供任务、调度、通信、同步四类能力。</li>
+<li>代价是 RAM/Flash、切换开销和并发调试复杂度。</li>
+<li>是否需要 RTOS，取决于并发等待与可维护性，而不是“看起来高级”。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出裸机大循环的三个瓶颈</li>
+<li>我能估算 RTOS 的 RAM 开销</li>
+<li>我知道 RTOS 不保证硬实时</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 01 讲 · 共 14 讲</span><span class="ch-nav"><a href="#map">← 课程地图</a> <a href="#ch02">第 02 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch02" aria-labelledby="ch02-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">02</div>
+  <div class="ch-title">
+    <p class="ch-kicker">核心 · 55 分钟 · ★★★</p>
+    <h2 id="ch02-h">任务与任务创建</h2>
+    <p class="ch-lede">任务函数为什么不能返回？栈深度 128 到底是 128 字节还是 512 字节？参数传局部变量为什么会出错？</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>正确调用 xTaskCreate 并检查返回值</li><li>解释栈深度以“字”为单位</li><li>说明任务函数不能返回的原因</li><li>避免参数生命周期与栈溢出问题</li></ul></div>
+<h3 id="ch02-s1"><span class="n">2.1</span>任务函数的形状</h3>
+<div class="code"><div class="code-bar"><span class="file">task_shape.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+
+static void my_task(void *arg)
+{
+    /* 初始化：只在任务第一次运行时执行 */
+    int *config = (int *)arg;
+
+    for (;;) {
+        /* 循环体：任务的主体 */
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    /* 永远不要执行到这里 */
+    vTaskDelete(NULL);
+}</code></pre></div>
+<p>三个硬性要求：</p>
+<div class="steps">
+<div><b>签名固定</b>　<code class="i">void (*)(void *)</code>，参数是一个 <code class="i">void *</code>，返回值是 <code class="i">void</code>。</div>
+<div><b>不能返回</b>　返回意味着任务函数退出，但任务没有“调用者”可以返回。必须死循环，或者显式 <code class="i">vTaskDelete(NULL)</code>。</div>
+<div><b>栈上别放大对象</b>　任务栈通常只有几百字节到几 KB，大数组请用静态分配或堆。</div>
+</div>
+
+<h3 id="ch02-s2"><span class="n">2.2</span>xTaskCreate 的六个参数</h3>
+<div class="code"><div class="code-bar"><span class="file">create.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>BaseType_t xTaskCreate(
+    TaskFunction_t        pxTaskCode,   /* 任务函数 */
+    const char * const    pcName,       /* 名字，仅用于调试 */
+    configSTACK_DEPTH_TYPE usStackDepth,/* 栈深度，单位是“字” */
+    void * const          pvParameters, /* 传给任务的参数 */
+    UBaseType_t           uxPriority,   /* 优先级，数字越大越高 */
+    TaskHandle_t * const  pxCreatedTask /* 返回句柄，可为 NULL */
+);</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>参数</th><th>注意点</th></tr></thead>
+<tbody>
+<tr><td><code>usStackDepth</code></td><td><strong>单位是 StackType_t 的个数，不是字节</strong>。Cortex-M 上 <code>StackType_t</code> 是 <code>uint32_t</code>，所以 128 表示 512 字节。</td></tr>
+<tr><td><code>pvParameters</code></td><td>只是把指针存起来，不会复制所指对象。传局部变量地址会在任务启动前失效。</td></tr>
+<tr><td><code>uxPriority</code></td><td>范围 0 到 <code>configMAX_PRIORITIES - 1</code>；数值越大优先级越高。</td></tr>
+<tr><td>返回值</td><td><code>pdPASS</code> 成功；<code>errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY</code> 表示堆不够。</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>“栈深度 128”被理解成 128 字节，是最常见的误解之一。实际字节数 = <code class="i">usStackDepth * sizeof(StackType_t)</code>。在 Cortex-M 上是 4 倍关系，在 8 位 AVR 上是 1 倍，在 16 位 MSP430 上是 2 倍。</p>
+</div>
+
+<h3 id="ch02-s3"><span class="n">2.3</span>创建、检查、再使用</h3>
+<div class="code"><div class="code-bar"><span class="file">create_check.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+
+#define TASK_STACK_WORDS  256          /* 1024 字节（Cortex-M） */
+#define TASK_PRIO         3
+
+static TaskHandle_t g_worker;
+
+void app_start(void)
+{
+    BaseType_t ok = xTaskCreate(worker_task, "worker", TASK_STACK_WORDS,
+                                NULL, TASK_PRIO, &amp;g_worker);
+    if (ok != pdPASS) {
+        /* 不要静默继续：记录错误、点亮故障灯、复位 */
+        fatal_error(ERR_TASK_CREATE);
+    }
+}</code></pre></div>
+<p>句柄的用途：删除任务、改变优先级、给任务发通知、查询状态。如果不需要，传 <code class="i">NULL</code> 即可。</p>
+
+<h3 id="ch02-s4"><span class="n">2.4</span>静态创建：不用堆</h3>
+<div class="code"><div class="code-bar"><span class="file">create_static.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+
+static StaticTask_t g_task_buf;
+static StackType_t  g_task_stack[256];
+
+void app_start_static(void)
+{
+    TaskHandle_t h = xTaskCreateStatic(worker_task, "worker", 256, NULL, 3,
+                                       g_task_stack, &amp;g_task_buf);
+    configASSERT(h != NULL);
+}</code></pre></div>
+<p>静态创建要求 <code class="i">configSUPPORT_STATIC_ALLOCATION = 1</code>，并且需要自己提供空闲任务和定时器任务的内存（如果启用）。好处是<strong>链接期就能确定 RAM 占用</strong>，没有堆分配失败的风险。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>安全关键或长期运行的设备，优先静态创建：内存占用可预测，不会因为碎片在运行几个月后突然创建失败。原型阶段用动态创建更方便，量产前再评估是否切换。</p>
+</div>
+
+<h3 id="ch02-s5"><span class="n">2.5</span>删除任务</h3>
+<div class="code"><div class="code-bar"><span class="file">delete.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 任务删除自己：传入 NULL */
+vTaskDelete(NULL);
+
+/* 删除别的任务：需要句柄 */
+if (g_worker != NULL) {
+    vTaskDelete(g_worker);
+    g_worker = NULL;
+}</code></pre></div>
+<div class="note impl">
+<b>实现细节</b>
+<p>删除任务时，它占用的栈和 TCB 不会立刻释放，而是由<strong>空闲任务</strong>回收。如果程序不停地创建和删除任务，而空闲任务得不到运行机会，内存就会持续减少。这是“动态创建任务”最常见的隐性泄漏。</p>
+</div>
+
+<h3 id="ch02-s6"><span class="n">2.6</span>四个典型错误</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误</th><th>现象</th><th>修正</th></tr></thead>
+<tbody>
+<tr><td>任务函数返回</td><td>HardFault 或行为异常</td><td>死循环，或返回前 <code>vTaskDelete(NULL)</code></td></tr>
+<tr><td>栈太小</td><td>偶发崩溃、变量被改</td><td>增大栈，开栈溢出检测，看高水位</td></tr>
+<tr><td>传局部变量地址</td><td>任务读到随机值</td><td>传静态/全局变量，或把值放进结构体</td></tr>
+<tr><td>优先级超出范围</td><td>创建失败或被截断</td><td>检查 <code>configMAX_PRIORITIES</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 2 讲</div>
+<div class="pb">
+<ol>
+<li>创建一个每 200 ms 翻转 LED 的任务，栈给 128 字，优先级 2。</li>
+<li>如果目标板是 Cortex-M，这个任务栈实际占多少字节？</li>
+<li>解释为什么“把局部变量地址传给任务”会出错。</li>
+<li>把动态创建改成静态创建，需要额外提供哪些东西？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 128 × 4 = 512 字节（还要加上 TCB 和可能的对齐开销）。</p>
+<p><b>3.</b> <code class="i">xTaskCreate</code> 只保存指针；任务真正开始运行时，创建它的函数可能已经返回，栈帧失效，指针悬空。</p>
+<p><b>4.</b> <code class="i">StaticTask_t</code> 和 <code class="i">StackType_t</code> 数组；如果启用定时器/空闲任务，还要提供它们的内存；并打开 <code class="i">configSUPPORT_STATIC_ALLOCATION</code>。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：Cortex-M 上 <code class="i">xTaskCreate(..., 128, ...)</code> 的栈大约是多少字节？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>128</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>256</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>512</span></button>
+</div>
+<div class="fb" data-fb>栈深度单位是 <code class="i">StackType_t</code> 的个数。Cortex-M 上它是 32 位，所以 128 × 4 = 512 字节。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch02-s7">本讲小结</h3>
+<ul>
+<li>任务函数签名固定、不能返回、必须有死循环或自删除。</li>
+<li>栈深度单位是“字”，不是字节。</li>
+<li>参数只传指针，不复制对象，注意生命周期。</li>
+<li>创建失败必须处理，不能假设一定成功。</li>
+<li>静态创建内存可预测，适合量产与安全关键场景。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出正确的任务函数</li>
+<li>我能算出任务栈的字节数</li>
+<li>我知道删除任务后内存由谁回收</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 02 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch01">← 第 01 讲</a> <a href="#ch03">第 03 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch03" aria-labelledby="ch03-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">03</div>
+  <div class="ch-title">
+    <p class="ch-kicker">核心 · 60 分钟 · ★★★</p>
+    <h2 id="ch03-h">状态、优先级与调度</h2>
+    <p class="ch-lede">任务只有四种状态。调度器每次切换都在回答一个问题：现在最该运行的是谁？</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>画出任务四状态迁移图</li><li>区分抢占式调度与时间片轮转</li><li>解释优先级数值与硬件中断优先级的不同</li><li>说明调度不提供硬实时保证</li></ul></div>
+<h3 id="ch03-s1"><span class="n">3.1</span>任务只有四种状态</h3>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 330" role="img" aria-labelledby="fig3t fig3d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig3t">FreeRTOS 任务状态迁移</title>
+<desc id="fig3d">任务在运行、就绪、阻塞、挂起四种状态之间迁移；阻塞有超时，挂起没有超时，必须显式恢复。</desc>
+<rect width="820" height="330" fill="#fbfdff"/>
+<g font-size="12">
+<rect x="60" y="60" width="150" height="52" rx="9" fill="#dcfce7" stroke="#4ade80"/>
+<text x="135" y="92" fill="#166534" text-anchor="middle" font-weight="700">Running 运行</text>
+
+<rect x="330" y="60" width="150" height="52" rx="9" fill="#e0e7ff" stroke="#818cf8"/>
+<text x="405" y="92" fill="#26348f" text-anchor="middle" font-weight="700">Ready 就绪</text>
+
+<rect x="600" y="60" width="160" height="52" rx="9" fill="#fef3c7" stroke="#fbbf24"/>
+<text x="680" y="92" fill="#92400e" text-anchor="middle" font-weight="700">Blocked 阻塞</text>
+
+<rect x="330" y="230" width="150" height="52" rx="9" fill="#f1f5f9" stroke="#94a3b8"/>
+<text x="405" y="262" fill="#334155" text-anchor="middle" font-weight="700">Suspended 挂起</text>
+</g>
+<g stroke="#64748b" stroke-width="1.6" fill="none" marker-end="url(#a3)">
+<path d="M210 78 C 260 78, 280 86, 326 86"/>
+<path d="M330 100 C 280 100, 250 100, 214 100"/>
+<path d="M480 86 C 530 86, 560 86, 596 86"/>
+<path d="M600 100 C 560 112, 500 140, 440 140 C 410 140, 405 130, 405 116"/>
+<path d="M680 112 C 680 160, 560 200, 484 246"/>
+<path d="M330 250 C 250 250, 180 220, 150 118"/>
+</g>
+<defs><marker id="a3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#64748b"/></marker></defs>
+<g font-size="11" fill="#475569">
+<text x="252" y="70">被更高优先级抢占</text>
+<text x="250" y="122">时间片用完 / 让出</text>
+<text x="520" y="76">等待事件（带超时）</text>
+<text x="446" y="156">超时或事件到达</text>
+<text x="520" y="206">vTaskSuspend()</text>
+<text x="196" y="200">vTaskResume()</text>
+</g>
+<text x="60" y="312" font-size="11.5" fill="#64748b">只有 Running 的任务真正占用 CPU；同一时刻每个核只有一个 Running。</text>
+</svg>
+<figcaption>图 3-1　四状态迁移：阻塞带超时，挂起必须显式恢复。</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+<thead><tr><th>状态</th><th>含义</th><th>怎么进入</th><th>怎么离开</th></tr></thead>
+<tbody>
+<tr><td>Running</td><td>正在使用 CPU</td><td>被调度器选中</td><td>被抢占、阻塞、挂起、删除</td></tr>
+<tr><td>Ready</td><td>可运行，但没轮到</td><td>创建、被唤醒、被恢复</td><td>被调度、被挂起</td></tr>
+<tr><td>Blocked</td><td>在等事件或超时</td><td><code>vTaskDelay</code>、队列/信号量带超时的等待</td><td>事件到达、超时</td></tr>
+<tr><td>Suspended</td><td>被显式暂停</td><td><code>vTaskSuspend</code></td><td><code>vTaskResume</code>，无超时</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch03-s2"><span class="n">3.2</span>调度器怎么选下一个任务</h3>
+<p>FreeRTOS 为每个优先级维护一个就绪列表，并用一个位图记录“哪些优先级有任务就绪”。调度时找<strong>最高的非空优先级</strong>，取该列表的第一个任务。</p>
+<div class="steps">
+<div><b>抢占</b>　如果新就绪的任务优先级高于当前任务，立刻切换（<code>configUSE_PREEMPTION = 1</code>）。</div>
+<div><b>时间片</b>　同优先级任务之间按 tick 轮转（<code>configUSE_TIME_SLICING = 1</code>）。</div>
+<div><b>阻塞</b>　当前任务阻塞时，调度器立刻选下一个就绪任务，不让 CPU 空转。</div>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>FreeRTOS 的优先级数值<strong>越大越高</strong>，0 是最低（空闲任务）。Cortex-M 的硬件中断优先级则相反：<strong>数值越小越高</strong>。这两套规则经常被混淆，配置中断优先级时要特别小心（第 9 讲展开）。</p>
+</div>
+
+<div class="lab" id="lab-sched">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>抢占式调度时间轴</h4>
+    <p>三个任务：H（优先级 3，每 4 tick 运行 1 tick）、M（优先级 2，每 8 tick 运行 2 tick）、L（优先级 1，始终就绪）。单步或播放，看 CPU 归谁。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="schedPlay">播放</button>
+      <button class="lab-btn" type="button" id="schedStep">单步</button>
+      <button class="lab-btn" type="button" id="schedReset">重置</button>
+      <span class="chip" id="schedTick">t = 0</span>
+    </div>
+    <div class="lab-canvas" id="schedCanvas"></div>
+    <div class="lab-read" id="schedOut" aria-live="polite"></div>
+    <p class="lab-note">H 一旦就绪就立刻抢占 M 和 L；同优先级才会轮转。L 只能捡空隙运行，这就是“低优先级饥饿”的雏形。</p>
+  </div>
+</div>
+
+<h3 id="ch03-s3"><span class="n">3.3</span>调度不是“硬实时保证”</h3>
+<p>FreeRTOS 是<strong>优先级抢占式</strong>内核，它能保证“更高优先级的就绪任务会先运行”，但不能保证“任务一定在某个时刻前完成”。原因至少有三类：</p>
+<ul>
+<li><strong>临界区</strong>：关中断期间，高优先级任务也无法运行。</li>
+<li><strong>中断延迟</strong>：中断响应受当前指令、优先级屏蔽影响。</li>
+<li><strong>执行时间波动</strong>：缓存、分支预测、DMA 争用都会让最坏执行时间大于平均值。</li>
+</ul>
+<div class="note law">
+<b>标准怎么说</b>
+<p>FreeRTOS 不声称自己是“硬实时认证内核”。要做硬实时分析，需要测量每个任务的最坏执行时间（WCET）、计算响应时间、考虑阻塞时间，并留足余量。RTOS 只是让这些分析<strong>可能</strong>，不是替你做完了。</p>
+</div>
+
+<h3 id="ch03-s4"><span class="n">3.4</span>优先级怎么分配</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>任务类型</th><th>建议优先级</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>安全/故障处理</td><td>最高</td><td>必须立刻响应，且执行时间短</td></tr>
+<tr><td>硬实时控制</td><td>高</td><td>截止期最紧，周期固定</td></tr>
+<tr><td>通信/协议栈</td><td>中</td><td>有一定实时性，但可容忍几十 ms</td></tr>
+<tr><td>数据处理/显示</td><td>低</td><td>计算量大，可被抢占</td></tr>
+<tr><td>日志/统计</td><td>最低（高于 idle）</td><td>后台工作，不能影响主逻辑</td></tr>
+</tbody>
+</table>
+</div>
+<p>经验法则：<strong>周期越短、截止期越紧，优先级越高</strong>（速率单调调度思想的简化版）。但优先级不是越多越好——层数太多会让分析变难，通常 4–6 层足够。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 3 讲</div>
+<div class="pb">
+<ol>
+<li>画出“任务从创建到第一次运行”经过的状态。</li>
+<li>同优先级的两个任务，如何保证一个不会长期霸占 CPU？</li>
+<li>为什么中断优先级数值和任务优先级数值的方向相反？</li>
+<li>一个任务每 10 ms 运行一次，每次 3 ms；另一个每 50 ms 运行一次，每次 8 ms。谁该优先级更高？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 创建后进入 Ready；调度器选中后进入 Running。</p>
+<p><b>2.</b> 打开 <code class="i">configUSE_TIME_SLICING</code>，同优先级任务在每个 tick 轮转；或者任务主动阻塞/让出。</p>
+<p><b>3.</b> 任务优先级是软件概念，数值越大越“重要”；Cortex-M 的中断优先级是硬件寄存器编码，数值越小优先级越高。这是两套独立规则。</p>
+<p><b>4.</b> 第一个：周期更短（10 ms），截止期更紧。用速率单调的思路，周期短的优先级高。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：一个任务调用 <code class="i">vTaskDelay(100)</code> 后处于什么状态？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>Blocked，超时后回到 Ready</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>Suspended，必须手动恢复</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>Running，只是不占用 CPU</span></button>
+</div>
+<div class="fb" data-fb><code class="i">vTaskDelay</code> 让任务进入阻塞态并设置超时；超时后自动回到就绪态，不需要手动恢复。挂起态才需要 <code class="i">vTaskResume</code>。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch03-s5">本讲小结</h3>
+<ul>
+<li>四状态：Running、Ready、Blocked、Suspended。</li>
+<li>调度器总是运行最高优先级的就绪任务；同优先级按时间片轮转。</li>
+<li>任务优先级数值越大越高，中断优先级数值越小越高。</li>
+<li>RTOS 提供调度机制，不提供硬实时保证。</li>
+<li>优先级按周期与截止期分配，层数不宜过多。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出四状态迁移图</li>
+<li>我能解释抢占与时间片的区别</li>
+<li>我知道优先级反转的伏笔（下一讲展开）</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 03 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch02">← 第 02 讲</a> <a href="#ch04">第 04 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch04" aria-labelledby="ch04-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">04</div>
+  <div class="ch-title">
+    <p class="ch-kicker">核心 · 50 分钟 · ★★★</p>
+    <h2 id="ch04-h">延时、节拍与周期任务</h2>
+    <p class="ch-lede">1 tick 不一定等于 1 ms；相对延时会累积漂移；周期任务要用绝对时间基准。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>换算 tick 与毫秒</li><li>区分 vTaskDelay 与 vTaskDelayUntil</li><li>解释抖动与漂移</li><li>设计一个不累积误差的周期任务</li></ul></div>
+<h3 id="ch04-s1"><span class="n">4.1</span>tick：内核的心跳</h3>
+<p>FreeRTOS 需要一个周期性的时基来推进延时、超时和时间片。这个时基由硬件定时器（通常是 SysTick）产生，频率由 <code class="i">configTICK_RATE_HZ</code> 决定。</p>
+<div class="code"><div class="code-bar"><span class="file">FreeRTOSConfig.h · 片段</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#define configTICK_RATE_HZ  1000      /* 1 kHz：1 tick = 1 ms */</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>configTICK_RATE_HZ</th><th>1 tick</th><th>影响</th></tr></thead>
+<tbody>
+<tr><td>100</td><td>10 ms</td><td>开销小，但延时精度差、时间片粗</td></tr>
+<tr><td>1000</td><td>1 ms</td><td>常用折中</td></tr>
+<tr><td>10000</td><td>0.1 ms</td><td>精度高，但中断频繁、CPU 开销明显</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p><code class="i">vTaskDelay(100)</code> 的参数是 <strong>tick 数，不是毫秒</strong>。在 100 Hz 的配置下，它延时 1 秒，不是 100 ms。要么用 <code class="i">pdMS_TO_TICKS(100)</code>，要么在注释里写清楚单位。</p>
+</div>
+<div class="code"><div class="code-bar"><span class="file">ms_to_ticks.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* pdMS_TO_TICKS 按整数除法换算，通常向下取整；小于 1 tick 会变成 0 */
+vTaskDelay(pdMS_TO_TICKS(100));
+
+/* 如果编译期就知道 tick 率，也可以直接算，但不要手写魔法数字 */
+#define MS_TO_TICKS(ms) ((TickType_t)(((ms) * configTICK_RATE_HZ) / 1000))</code></pre></div>
+
+<h3 id="ch04-s2"><span class="n">4.2</span>相对延时：为什么会漂移</h3>
+<div class="code"><div class="code-bar"><span class="file">drift.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>for (;;) {
+    do_work();                       /* 假设耗时 3 ms */
+    vTaskDelay(pdMS_TO_TICKS(10));   /* 再等 10 ms */
+}</code></pre></div>
+<p>实际周期不是 10 ms，而是 <strong>3 ms + 10 ms = 13 ms</strong>，再加上调度延迟。每轮都多出 3 ms，100 轮就偏了 300 ms。这叫<strong>累积漂移</strong>。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 200" role="img" aria-labelledby="fig4t fig4d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig4t">相对延时与绝对延时的漂移对比</title>
+<desc id="fig4d">相对延时每轮都从执行结束开始计时，误差累积；绝对延时按固定周期安排下一次唤醒，误差不累积。</desc>
+<rect width="820" height="200" fill="#fbfdff"/>
+<text x="24" y="26" font-size="12" font-weight="700" fill="#334155">vTaskDelay：周期 = 执行时间 + 延时</text>
+<g font-size="10.5" fill="#475569">
+<rect x="24" y="38" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="54" y="54" text-anchor="middle">work</text>
+<rect x="84" y="38" width="90" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="129" y="54" text-anchor="middle">delay 10</text>
+<rect x="174" y="38" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="204" y="54" text-anchor="middle">work</text>
+<rect x="234" y="38" width="90" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="279" y="54" text-anchor="middle">delay 10</text>
+<rect x="324" y="38" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="354" y="54" text-anchor="middle">work</text>
+<rect x="384" y="38" width="90" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="429" y="54" text-anchor="middle">delay 10</text>
+</g>
+<path d="M24 78 L474 78" stroke="#b91c1c" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="484" y="82" font-size="11" fill="#b91c1c">每轮多 3 ms，越走越偏</text>
+
+<text x="24" y="116" font-size="12" font-weight="700" fill="#334155">vTaskDelayUntil：周期 = 固定 10 tick</text>
+<g font-size="10.5" fill="#475569">
+<rect x="24" y="128" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="54" y="144" text-anchor="middle">work</text>
+<rect x="84" y="128" width="40" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="104" y="144" text-anchor="middle">7</text>
+<rect x="124" y="128" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="154" y="144" text-anchor="middle">work</text>
+<rect x="184" y="128" width="40" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="204" y="144" text-anchor="middle">7</text>
+<rect x="224" y="128" width="60" height="24" fill="#e0e7ff" stroke="#818cf8"/><text x="254" y="144" text-anchor="middle">work</text>
+<rect x="284" y="128" width="40" height="24" fill="#f1f5f9" stroke="#cbd5e1"/><text x="304" y="144" text-anchor="middle">7</text>
+</g>
+<path d="M24 168 L324 168" stroke="#0f766e" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text x="334" y="172" font-size="11" fill="#0f766e">每 10 tick 一次，误差不累积</text>
+</svg>
+<figcaption>图 4-1　相对延时把执行时间算进周期；绝对延时保持固定节拍。</figcaption>
+</figure>
+
+<h3 id="ch04-s3"><span class="n">4.3</span>vTaskDelayUntil：固定周期</h3>
+<div class="code"><div class="code-bar"><span class="file">periodic.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+
+static void sample_task(void *arg)
+{
+    (void)arg;
+    TickType_t last = xTaskGetTickCount();
+    const TickType_t period = pdMS_TO_TICKS(10);
+
+    for (;;) {
+        do_sample();                        /* 必须短于 period */
+        vTaskDelayUntil(&amp;last, period);     /* 按绝对时间安排下一次唤醒 */
+    }
+}</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th><code>vTaskDelay</code></th><th><code>vTaskDelayUntil</code></th></tr></thead>
+<tbody>
+<tr><td>计时起点</td><td>调用时刻（相对）</td><td>上一次唤醒时刻（绝对）</td></tr>
+<tr><td>周期</td><td>执行时间 + 延时</td><td>固定 period</td></tr>
+<tr><td>漂移</td><td>累积</td><td>不累积</td></tr>
+<tr><td>适用</td><td>一次性等待、非周期任务</td><td>固定采样率、控制周期</td></tr>
+<tr><td>超时</td><td>—</td><td>如果执行超过 period，会立刻返回并落后，需要检测</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">vTaskDelayUntil</code> 不会“追赶”错过的周期。如果某次执行超过 period，下一次会立刻返回，<code class="i">last</code> 仍然按 period 递增，于是任务持续落后。需要检测这种情况（比较当前 tick 与 last），并决定是跳过错过的周期还是报警。</p>
+</div>
+
+<h3 id="ch04-s4"><span class="n">4.4</span>抖动、漂移与精度</h3>
+<ul>
+<li><strong>抖动</strong>：单次唤醒相对理想时刻的偏差，通常由中断延迟、调度延迟、临界区造成。</li>
+<li><strong>漂移</strong>：长期平均周期偏离目标，通常由相对延时或时钟源误差造成。</li>
+<li><strong>分辨率</strong>：最小可表达的时间是 1 tick；小于 1 tick 的延时可能被换算成 0，需要自己加 1 或提高 tick 频率。</li>
+</ul>
+<p>需要微秒级精度时，不要指望 RTOS 的 tick：用硬件定时器 + 输入捕获/比较，或者用高分辨率定时器做时间戳，RTOS 只负责任务调度。</p>
+
+<h3 id="ch04-s5"><span class="n">4.5</span>低功耗：tickless idle</h3>
+<p>默认配置下，即使没有任务要运行，tick 中断也会每 1 ms 唤醒 CPU。对电池设备，这很浪费。FreeRTOS 提供 tickless 模式（<code class="i">configUSE_TICKLESS_IDLE</code>），在空闲时关闭 tick 中断，直到下一个任务需要唤醒。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>tickless 模式需要移植层实现“进入低功耗、按到期时间唤醒”，并且会引入额外的唤醒误差。先用默认模式把功能跑通，再评估功耗优化；不要一上来就开 tickless，否则调试会变复杂。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 4 讲</div>
+<div class="pb">
+<ol>
+<li><code class="i">configTICK_RATE_HZ = 200</code> 时，<code class="i">vTaskDelay(15)</code> 实际延时多少毫秒？</li>
+<li>把 4.2 节的相对延时改成 <code class="i">vTaskDelayUntil</code>，周期设为 10 ms。</li>
+<li>解释为什么“延时 1 tick”在 100 Hz 配置下可能是 10 ms，也可能略多。</li>
+<li>一个任务执行时间偶尔超过周期，<code class="i">vTaskDelayUntil</code> 会怎样？如何检测？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 15 × 5 ms = 75 ms（1 tick = 1000/200 = 5 ms）。</p>
+<p><b>2.</b> 初始化 <code class="i">last = xTaskGetTickCount()</code>，循环里 <code class="i">vTaskDelayUntil(&amp;last, pdMS_TO_TICKS(10))</code>。</p>
+<p><b>3.</b> tick 中断本身有响应延迟，任务被唤醒后还要等调度器切换；所以实际间隔 ≥ 1 tick。</p>
+<p><b>4.</b> 下一次会立刻返回（因为目标时刻已过），任务持续落后。可以在循环开头比较 <code class="i">xTaskGetTickCount() - last</code> 与 period，超过就记录一次 overrun。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">configTICK_RATE_HZ = 1000</code>，<code class="i">vTaskDelay(50)</code> 大约延时多久？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>50 微秒</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>5 毫秒</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>50 毫秒</span></button>
+</div>
+<div class="fb" data-fb>1 kHz 时 1 tick = 1 ms，所以 50 tick = 50 ms。参数单位是 tick，只有在 1 kHz 配置下才“恰好”等于毫秒。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch04-s6">本讲小结</h3>
+<ul>
+<li>tick 是内核时基，1 tick 不一定等于 1 ms。</li>
+<li>相对延时会累积执行时间，导致周期漂移。</li>
+<li>周期任务用 <code>vTaskDelayUntil</code>，并按 period 检查 overrun。</li>
+<li>抖动来自中断与调度延迟，分辨率受 tick 限制。</li>
+<li>微秒级精度要靠硬件定时器，不是 RTOS tick。</li>
+</ul>
+<ul class="checklist">
+<li>我能换算 tick 与毫秒</li>
+<li>我能写出不漂移的周期任务</li>
+<li>我知道 tickless 模式解决什么问题</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 04 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch03">← 第 03 讲</a> <a href="#ch05">第 05 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch05" aria-labelledby="ch05-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">05</div>
+  <div class="ch-title">
+    <p class="ch-kicker">通信 · 55 分钟 · ★★★</p>
+    <h2 id="ch05-h">队列：有界的数据传送带</h2>
+    <p class="ch-lede">队列不是共享内存，也不是无限缓存。它按值复制、有固定长度，满了要等待或放弃。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>创建队列并处理满/空/超时</li><li>解释队列的拷贝语义与内存成本</li><li>正确使用 FromISR 版本</li><li>在丢弃与阻塞之间做出策略选择</li></ul></div>
+<h3 id="ch05-s1"><span class="n">5.1</span>队列不是共享变量</h3>
+<p>队列是一段<strong>固定长度</strong>的缓冲区，每个元素大小固定。发送时按值复制进去，接收时按值复制出来。它解决的是“有界传递 + 阻塞等待”，不是“共享内存”。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>特性</th><th>含义</th><th>后果</th></tr></thead>
+<tbody>
+<tr><td>按值复制</td><td>发送的是数据的副本</td><td>发送方可以立刻复用原缓冲区；但大结构体复制开销大</td></tr>
+<tr><td>固定长度</td><td>创建时确定，不能动态扩容</td><td>满了必须等待或丢弃，策略要显式设计</td></tr>
+<tr><td>FIFO</td><td>默认先进先出</td><td>也有 <code>xQueueSendToFront</code> 用于插队</td></tr>
+<tr><td>线程安全</td><td>内部已处理临界区</td><td>不需要额外加锁</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch05-s2"><span class="n">5.2</span>创建、发送、接收</h3>
+<div class="code"><div class="code-bar"><span class="file">queue_basic.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "queue.h"
+
+typedef struct {
+    uint16_t id;
+    int32_t  value;
+} sample_t;
+
+static QueueHandle_t g_samples;
+
+void app_init(void)
+{
+    /* 长度 8，每个元素 sizeof(sample_t) */
+    g_samples = xQueueCreate(8, sizeof(sample_t));
+    configASSERT(g_samples != NULL);
+}
+
+/* 生产者任务 */
+static void producer(void *arg)
+{
+    (void)arg;
+    uint16_t id = 0;
+    for (;;) {
+        sample_t s = { .id = id++, .value = read_adc() };
+
+        /* 最多等 10 ms；队列满则返回 errQUEUE_FULL */
+        if (xQueueSend(g_samples, &amp;s, pdMS_TO_TICKS(10)) != pdPASS) {
+            g_drop_count++;              /* 丢弃并计数，不要静默 */
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+/* 消费者任务 */
+static void consumer(void *arg)
+{
+    (void)arg;
+    sample_t s;
+    for (;;) {
+        /* 最多等 100 ms；超时返回 pdFALSE */
+        if (xQueueReceive(g_samples, &amp;s, pdMS_TO_TICKS(100)) == pdPASS) {
+            process(&amp;s);
+        } else {
+            /* 超时：可以做健康检查、心跳、低功耗 */
+        }
+    }
+}</code></pre></div>
+<div class="note impl">
+<b>实现细节</b>
+<p>队列满时，<code class="i">xQueueSend</code> 会把当前任务放入“等待发送”的阻塞列表；一旦有空间，最高优先级的等待者被唤醒。等待时间以 tick 为单位，<code class="i">0</code> 表示不等待，<code class="i">portMAX_DELAY</code> 表示无限等待（需要 <code class="i">INCLUDE_vTaskSuspend = 1</code>）。</p>
+</div>
+
+<div class="lab" id="lab-queue">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>队列满/空时，返回值是什么</h4>
+    <p>容量 4。连续放入看它变满，连续取出看它变空。注意“满时不是覆盖，空时不是崩溃”。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" data-q="send">xQueueSend</button>
+      <button class="lab-btn" type="button" data-q="recv">xQueueReceive</button>
+      <button class="lab-btn" type="button" data-q="reset">重置</button>
+    </div>
+    <div class="lab-canvas" id="queueCanvas"></div>
+    <div class="lab-read" id="queueOut" aria-live="polite"></div>
+    <p class="lab-note">真实调用还会带超时参数：等待期间任务处于 Blocked，超时后返回 <code class="i">errQUEUE_FULL</code> 或 <code class="i">pdFALSE</code>。</p>
+  </div>
+</div>
+
+<h3 id="ch05-s3"><span class="n">5.3</span>队列长度怎么定</h3>
+<p>队列长度的本质是<strong>“允许积压多少”</strong>。它由三个量决定：</p>
+<div class="steps">
+<div><b>生产速率</b>　每秒产生多少元素（突发时可能是平均值的数倍）。</div>
+<div><b>消费速率</b>　每秒处理多少元素，最坏情况下的处理时间。</div>
+<div><b>可容忍延迟</b>　从产生到处理，最多能等多久。</div>
+</div>
+<p>一个粗略公式：<code class="i">长度 ≥ (生产速率 - 消费速率) × 最大阻塞时间</code>。如果生产长期快于消费，队列再大也会满——那不是队列长度问题，是系统过载。</p>
+<div class="note bad">
+<b>易错</b>
+<p>把指针放进队列来“避免复制大结构体”，但指针指向的是发送方的栈或会被复用的缓冲区。接收方拿到指针时，内容可能已经变了。要么复制数据，要么用内存池 + 明确的所有权转移。</p>
+</div>
+
+<h3 id="ch05-s4"><span class="n">5.4</span>中断里怎么发送</h3>
+<div class="code"><div class="code-bar"><span class="file">queue_isr.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>static void UART_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;
+    uint8_t byte = uart_read();
+
+    /* 中断里必须用 FromISR 版本，且不能阻塞（超时为 0） */
+    xQueueSendFromISR(g_rx_queue, &amp;byte, &amp;woken);
+
+    /* 如果唤醒了更高优先级任务，退出中断时立刻切换 */
+    portYIELD_FROM_ISR(woken);
+}</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>场景</th><th>用哪个</th><th>超时</th></tr></thead>
+<tbody>
+<tr><td>任务上下文</td><td><code>xQueueSend</code> / <code>xQueueReceive</code></td><td>可用 tick 超时</td></tr>
+<tr><td>中断上下文</td><td><code>xQueueSendFromISR</code> / <code>xQueueReceiveFromISR</code></td><td>不能阻塞，只能 0</td></tr>
+<tr><td>需要唤醒高优先级任务</td><td>FromISR + <code>portYIELD_FROM_ISR</code></td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch05-s5"><span class="n">5.5</span>队列、邮箱与流缓冲区</h3>
+<p>FreeRTOS 还有两种“像队列”的东西，容易混：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>机制</th><th>传什么</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td>队列</td><td>固定大小的元素，按值复制</td><td>结构体、命令、样本</td></tr>
+<tr><td>流缓冲区 / 消息缓冲区</td><td>字节流，可变长度</td><td>串口数据、连续字节流</td></tr>
+<tr><td>任务通知</td><td>一个 32 位值（或计数）</td><td>轻量事件、一对一唤醒</td></tr>
+</tbody>
+</table>
+</div>
+<p>流缓冲区适合“字节流”，但它不保留消息边界；需要边界时用消息缓冲区，或者自己在字节流上做帧解析。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 5 讲</div>
+<div class="pb">
+<ol>
+<li>创建一个传递 <code class="i">sample_t</code> 的队列，长度 8，写出生产者和消费者。</li>
+<li>如果生产者每 10 ms 产生一个，消费者每 30 ms 处理一个，队列至少多长才能撑过 1 秒的突发？</li>
+<li>为什么中断里不能调用 <code class="i">xQueueSend</code>（不带 FromISR）？</li>
+<li>解释“按值复制”对发送方和接收方各自意味着什么。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 每秒生产 100 个、消费约 33 个，积压约 67 个/秒；要撑 1 秒至少 67，实际还要留余量，取 80–100 更稳。</p>
+<p><b>3.</b> 普通版本可能阻塞、会调用非中断安全的内部函数，且不处理“唤醒更高优先级任务”的上下文切换请求，行为未定义。</p>
+<p><b>4.</b> 发送方：数据被复制后可以立刻修改原变量；接收方：拿到的是独立副本，生命周期与队列元素相同（出队后由接收方负责）。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：队列长度 4、已满，任务调用 <code class="i">xQueueSend(q, &amp;x, 0)</code>，结果是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>覆盖最旧的元素</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>立即返回 <code>errQUEUE_FULL</code>，不放入</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>永久阻塞直到有空间</span></button>
+</div>
+<div class="fb" data-fb>超时为 0 表示不等待，队列满时立刻返回失败。要等待就传一个非 0 的 tick 超时；要覆盖旧数据，需要自己先接收再发送，或者改用流缓冲区/环形缓冲。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch05-s6">本讲小结</h3>
+<ul>
+<li>队列按值复制、长度固定、线程安全。</li>
+<li>满/空/超时都必须显式处理，不能假设成功。</li>
+<li>队列长度由生产/消费速率与可容忍延迟决定。</li>
+<li>中断里只能用 FromISR 版本，并处理 yield。</li>
+<li>大对象考虑内存池与所有权，而不是裸指针。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出生产/消费两个任务</li>
+<li>我能解释超时参数的含义</li>
+<li>我知道队列满时该丢弃还是等待</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 05 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch04">← 第 04 讲</a> <a href="#ch06">第 06 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch06" aria-labelledby="ch06-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">06</div>
+  <div class="ch-title">
+    <p class="ch-kicker">同步 · 50 分钟 · ★★★</p>
+    <h2 id="ch06-h">二值信号量与计数信号量</h2>
+    <p class="ch-lede">信号量回答的是“发生了没有 / 还有几个”，不是“数据是什么”。把它当队列用，迟早出问题。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>区分二值信号量与计数信号量</li><li>用信号量实现中断到任务的同步</li><li>解释信号量不携带数据</li><li>避免在 ISR 中使用错误 API</li></ul></div>
+<h3 id="ch06-s1"><span class="n">6.1</span>信号量回答的是“有没有 / 有几个”</h3>
+<p>信号量不携带数据。它只有一个计数值，任务通过“取”和“给”来同步。二值信号量的值只有 0 和 1，计数信号量可以是 0 到最大值。</p>
+<div class="grid2">
+<div class="card"><span class="tag">二值</span><h4>事件是否发生</h4><p>中断发生 → 任务处理。给一次、取一次，之后回到 0。适合“一次性事件通知”。</p></div>
+<div class="card"><span class="tag">计数</span><h4>还剩几个资源 / 发生了几次</h4><p>初值为 N，取一次减一，给一次加一。适合“缓冲区槽位”“事件累计次数”。</p></div>
+</div>
+<div class="code"><div class="code-bar"><span class="file">sem_basic.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "semphr.h"
+
+static SemaphoreHandle_t g_btn_sem;      /* 二值 */
+static SemaphoreHandle_t g_slot_sem;     /* 计数：3 个槽位 */
+
+void app_init(void)
+{
+    g_btn_sem  = xSemaphoreCreateBinary();
+    g_slot_sem = xSemaphoreCreateCounting(3, 3);
+    configASSERT(g_btn_sem != NULL &amp;&amp; g_slot_sem != NULL);
+}
+
+/* 中断：只给信号 */
+void EXTI_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR(g_btn_sem, &amp;woken);
+    portYIELD_FROM_ISR(woken);
+}
+
+/* 任务：等待事件 */
+static void button_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        if (xSemaphoreTake(g_btn_sem, portMAX_DELAY) == pdTRUE) {
+            handle_button();
+        }
+    }
+}</code></pre></div>
+<div class="note bad">
+<b>易错</b>
+<p>二值信号量<strong>不计数</strong>。中断连续给两次、任务只取一次，第二次“给”会被丢弃（因为值已经是 1）。如果需要累计事件次数，用计数信号量；如果需要保留每一次的数据，用队列。</p>
+</div>
+
+<h3 id="ch06-s2"><span class="n">6.2</span>信号量不是队列</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>队列</th><th>二值信号量</th><th>计数信号量</th></tr></thead>
+<tbody>
+<tr><td>携带数据</td><td>是</td><td>否</td><td>否</td></tr>
+<tr><td>容量</td><td>N 个元素</td><td>1</td><td>N</td></tr>
+<tr><td>重复给</td><td>排队，直到满</td><td>丢弃（已为 1）</td><td>累加，直到最大值</td></tr>
+<tr><td>典型用途</td><td>传样本、命令</td><td>中断→任务同步</td><td>资源计数、事件累计</td></tr>
+</tbody>
+</table>
+</div>
+<p>如果发现自己“给信号量之后再去读一个全局变量”，那多半应该用队列：把数据一起传过去，避免额外的共享状态。</p>
+
+<h3 id="ch06-s3"><span class="n">6.3</span>计数信号量：资源池</h3>
+<div class="code"><div class="code-bar"><span class="file">pool.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 3 个缓冲区，用计数信号量表示可用数量 */
+static uint8_t g_pool[3][64];
+static SemaphoreHandle_t g_free_slots;
+
+uint8_t *buf_acquire(TickType_t timeout)
+{
+    if (xSemaphoreTake(g_free_slots, timeout) != pdTRUE) {
+        return NULL;                     /* 超时：没有可用缓冲区 */
+    }
+    /* 这里需要一个“哪个槽位空了”的映射，简化起见用原子索引 */
+    return next_free_buffer();
+}
+
+void buf_release(uint8_t *buf)
+{
+    (void)buf;
+    xSemaphoreGive(g_free_slots);        /* 归还一个槽位 */
+}</code></pre></div>
+<div class="note impl">
+<b>实现细节</b>
+<p>上面的简化版有一个坑：信号量只表示“有几个空位”，不表示“哪一个空”。多任务同时获取时，还需要一个受保护的分配索引。更完整的做法是用队列存“空闲缓冲区指针”，取到即独占，用完再放回队列。</p>
+</div>
+
+<h3 id="ch06-s4"><span class="n">6.4</span>什么时候不该用信号量</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>需求</th><th>不该用信号量</th><th>应该用</th></tr></thead>
+<tbody>
+<tr><td>传递数据</td><td>二值/计数信号量</td><td>队列、流缓冲区</td></tr>
+<tr><td>保护共享资源</td><td>二值信号量</td><td>互斥量（支持优先级继承）</td></tr>
+<tr><td>等待多个条件</td><td>多个信号量轮询</td><td>事件组</td></tr>
+<tr><td>一对一轻量唤醒</td><td>队列/信号量</td><td>任务通知（更省）</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 6 讲</div>
+<div class="pb">
+<ol>
+<li>用二值信号量实现“按键中断唤醒处理任务”，写出 ISR 与任务。</li>
+<li>用计数信号量实现“最多 3 个任务同时使用某个外设”。</li>
+<li>解释为什么二值信号量不适合保护共享资源。</li>
+<li>如果中断每秒触发 1000 次，任务每秒只处理 100 次，用二值信号量会怎样？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>3.</b> 它没有所有者概念，也不支持优先级继承；低优先级任务持有时，高优先级任务只能干等，容易出现优先级反转。</p>
+<p><b>4.</b> 大量事件被合并/丢弃：信号量最多为 1，任务处理不过来时，后续“给”操作无效。应该用计数信号量记录丢失次数，或改用队列并设计丢弃策略。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：二值信号量已经被“给”过一次（值为 1），再“给”一次会怎样？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>值仍为 1，第二次给被丢弃</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>值变成 2</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>返回错误并阻塞</span></button>
+</div>
+<div class="fb" data-fb>二值信号量最大就是 1，重复给不会累加。要累计次数，用计数信号量；要保留每次事件的数据，用队列。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch06-s5">本讲小结</h3>
+<ul>
+<li>信号量只传递“事件/计数”，不传递数据。</li>
+<li>二值用于一次性同步，计数用于资源或事件累计。</li>
+<li>中断里用 <code>FromISR</code> 版本并处理 yield。</li>
+<li>保护共享资源用互斥量，不用二值信号量。</li>
+<li>需要数据就用队列，不要“信号量 + 全局变量”。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出 ISR 给、任务取的同步</li>
+<li>我能区分二值与计数信号量的语义</li>
+<li>我知道信号量会丢事件</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 06 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch05">← 第 05 讲</a> <a href="#ch07">第 07 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch07" aria-labelledby="ch07-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">07</div>
+  <div class="ch-title">
+    <p class="ch-kicker">同步 · 60 分钟 · ★★★</p>
+    <h2 id="ch07-h">互斥量、优先级继承与共享资源</h2>
+    <p class="ch-lede">互斥量不是“二值信号量换了个名字”。它有所有者、支持优先级继承，也不能在中断里使用。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>说清互斥量与二值信号量的三点差异</li><li>解释优先级反转与继承的作用</li><li>用互斥量保护共享外设</li><li>识别死锁的四个必要条件</li></ul></div>
+<h3 id="ch07-s1"><span class="n">7.1</span>互斥量不是“二值信号量换名字”</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>二值信号量</th><th>互斥量（mutex）</th></tr></thead>
+<tbody>
+<tr><td>所有者</td><td>无</td><td>有：谁取到，谁负责给</td></tr>
+<tr><td>优先级继承</td><td>不支持</td><td>支持（可配置）</td></tr>
+<tr><td>中断中使用</td><td>可以（FromISR 给）</td><td>不可以</td></tr>
+<tr><td>递归获取</td><td>不支持</td><td>可用递归互斥量</td></tr>
+<tr><td>典型用途</td><td>事件通知</td><td>保护共享资源</td></tr>
+</tbody>
+</table>
+</div>
+<div class="code"><div class="code-bar"><span class="file">mutex_basic.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "semphr.h"
+
+static SemaphoreHandle_t g_i2c_mutex;
+
+void app_init(void)
+{
+    g_i2c_mutex = xSemaphoreCreateMutex();
+    configASSERT(g_i2c_mutex != NULL);
+}
+
+int read_sensor(uint8_t addr, uint8_t *out, size_t n)
+{
+    if (xSemaphoreTake(g_i2c_mutex, pdMS_TO_TICKS(50)) != pdTRUE) {
+        return -1;                       /* 等不到锁：返回错误，不要死等 */
+    }
+
+    int ret = i2c_transfer(addr, out, n);
+
+    xSemaphoreGive(g_i2c_mutex);         /* 必须由持有者释放 */
+    return ret;
+}</code></pre></div>
+<div class="note bad">
+<b>易错</b>
+<p>在中断里调用 <code class="i">xSemaphoreTake</code> 取互斥量是未定义行为：中断没有任务上下文，也不存在“所有者”。中断要保护数据，用临界区；要通知任务，用 FromISR 的信号量或队列。</p>
+</div>
+
+<h3 id="ch07-s2"><span class="n">7.2</span>优先级反转：高优先级被低优先级“拖住”</h3>
+<p>场景：低优先级任务 L 持有互斥量，高优先级任务 H 需要同一把锁，于是 H 阻塞。此时中优先级任务 M 就绪——M 的优先级高于 L，于是 M 抢占 L，L 无法继续执行，也就无法释放锁。<strong>结果：H 在等 M 跑完。</strong></p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 240" role="img" aria-labelledby="fig7t fig7d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig7t">优先级反转与优先级继承</title>
+<desc id="fig7d">无继承时中优先级任务抢占持锁的低优先级任务，导致高优先级任务被间接阻塞；有继承时低优先级任务临时提升到高优先级，尽快释放锁。</desc>
+<rect width="820" height="240" fill="#fbfdff"/>
+<text x="24" y="24" font-size="12" font-weight="700" fill="#334155">无优先级继承</text>
+<g font-size="10.5">
+<rect x="24" y="34" width="90" height="26" fill="#dcfce7" stroke="#4ade80"/><text x="69" y="51" text-anchor="middle" fill="#166534">L 持锁</text>
+<rect x="114" y="34" width="120" height="26" fill="#fef3c7" stroke="#fbbf24"/><text x="174" y="51" text-anchor="middle" fill="#92400e">M 抢占 L</text>
+<rect x="234" y="34" width="90" height="26" fill="#dcfce7" stroke="#4ade80"/><text x="279" y="51" text-anchor="middle" fill="#166534">L 继续</text>
+<rect x="324" y="34" width="120" height="26" fill="#e0e7ff" stroke="#818cf8"/><text x="384" y="51" text-anchor="middle" fill="#26348f">H 才拿到锁</text>
+</g>
+<text x="24" y="80" font-size="11" fill="#b91c1c">H 被 M 间接阻塞，阻塞时间取决于 M 的执行时间——不可控。</text>
+
+<text x="24" y="116" font-size="12" font-weight="700" fill="#334155">有优先级继承</text>
+<g font-size="10.5">
+<rect x="24" y="126" width="90" height="26" fill="#dcfce7" stroke="#4ade80"/><text x="69" y="143" text-anchor="middle" fill="#166534">L 持锁</text>
+<rect x="114" y="126" width="180" height="26" fill="#ddd6fe" stroke="#a78bfa"/><text x="204" y="143" text-anchor="middle" fill="#5b21b6">L 继承 H 的优先级</text>
+<rect x="294" y="126" width="90" height="26" fill="#e0e7ff" stroke="#818cf8"/><text x="339" y="143" text-anchor="middle" fill="#26348f">H 运行</text>
+<rect x="384" y="126" width="90" height="26" fill="#f1f5f9" stroke="#cbd5e1"/><text x="429" y="143" text-anchor="middle" fill="#475569">M 稍后</text>
+</g>
+<text x="24" y="172" font-size="11" fill="#0f766e">L 临时提升到 H 的优先级，M 无法抢占；L 释放锁后恢复原优先级。</text>
+<text x="24" y="204" font-size="11" fill="#64748b">优先级继承只缓解“持锁期间被中优先级抢占”，不能解决死锁，也不能让持锁时间变短。</text>
+</svg>
+<figcaption>图 7-1　优先级反转的成因与优先级继承的作用。</figcaption>
+</figure>
+
+<div class="lab" id="lab-invert">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>三种优先级，一次反转</h4>
+    <p>切换“无继承 / 有继承”，单步看 CPU 被谁占用，以及 L 的优先级如何变化。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" data-inv="off">无优先级继承</button>
+      <button class="lab-btn" type="button" data-inv="on">有优先级继承</button>
+      <button class="lab-btn" type="button" id="invStep">单步</button>
+      <button class="lab-btn" type="button" id="invReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="invCanvas"></div>
+    <div class="lab-read" id="invOut" aria-live="polite"></div>
+    <p class="lab-note">现实中反转往往表现为“偶尔卡顿几百毫秒”，很难复现；一旦出现，先查持锁任务是否被中优先级任务抢占。</p>
+  </div>
+</div>
+
+<h3 id="ch07-s3"><span class="n">7.3</span>死锁：互相等对方的锁</h3>
+<div class="code"><div class="code-bar"><span class="file">deadlock.c · 错误示范</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 任务 A */
+xSemaphoreTake(m1, portMAX_DELAY);
+xSemaphoreTake(m2, portMAX_DELAY);   /* 等 B 释放 m2 */
+
+/* 任务 B */
+xSemaphoreTake(m2, portMAX_DELAY);
+xSemaphoreTake(m1, portMAX_DELAY);   /* 等 A 释放 m1 */</code></pre></div>
+<p>死锁需要四个条件同时成立：互斥、持有并等待、不可剥夺、循环等待。破坏任意一个就能避免：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>条件</th><th>怎么破坏</th></tr></thead>
+<tbody>
+<tr><td>循环等待</td><td>全局约定加锁顺序（例如永远先 m1 后 m2）</td></tr>
+<tr><td>持有并等待</td><td>一次性申请所有锁，或申请失败就释放已持有的</td></tr>
+<tr><td>不可剥夺</td><td>用带超时的 <code>xSemaphoreTake</code>，超时后释放重试</td></tr>
+<tr><td>互斥</td><td>尽量用无锁设计（单生产者单消费者队列）</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>带超时的加锁不是“万能解”，但它能把“永久卡死”变成“可恢复的错误”。超时后要记录日志、释放已持有的锁、按退避策略重试，否则只是换一种方式失败。</p>
+</div>
+
+<h3 id="ch07-s4"><span class="n">7.4</span>递归互斥量</h3>
+<div class="code"><div class="code-bar"><span class="file">recursive.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>static SemaphoreHandle_t g_lock;
+
+void init(void)
+{
+    g_lock = xSemaphoreCreateRecursiveMutex();
+}
+
+void outer(void)
+{
+    xSemaphoreTakeRecursive(g_lock, portMAX_DELAY);
+    inner();                                  /* inner 里还会再取一次 */
+    xSemaphoreGiveRecursive(g_lock);
+}
+
+void inner(void)
+{
+    xSemaphoreTakeRecursive(g_lock, portMAX_DELAY);
+    /* ... */
+    xSemaphoreGiveRecursive(g_lock);
+}</code></pre></div>
+<p>普通互斥量在同一任务里重复获取会死锁（任务等自己释放）。递归互斥量用计数解决这个问题，但<strong>获取和释放必须成对</strong>，且不能跨任务使用。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 7 讲</div>
+<div class="pb">
+<ol>
+<li>用互斥量保护一个 I2C 总线，写出带超时的读写函数。</li>
+<li>解释优先级继承为什么不能解决死锁。</li>
+<li>两个任务分别以 A→B 和 B→A 的顺序加锁，如何修改？</li>
+<li>什么情况下应该用递归互斥量？给出一个真实场景。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 继承只提升持锁者的优先级，让它可以尽快运行；但死锁是“双方都在等对方释放”，提升优先级也不会让任何一方释放。</p>
+<p><b>3.</b> 统一加锁顺序（都先 A 后 B），或者用一次性申请/超时回退。</p>
+<p><b>4.</b> 一个公共函数可能被“已经持锁”的调用者再次调用，例如日志模块的 <code class="i">log_write</code> 内部又调用了 <code class="i">log_flush</code>，两者都加同一把锁。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：优先级继承的作用是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>让高优先级任务永远不阻塞</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>防止死锁</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>让持锁的低优先级任务临时提升，尽快释放锁</span></button>
+</div>
+<div class="fb" data-fb>继承只提升“持锁者”的优先级，缩短高优先级任务的间接阻塞时间；它不消除阻塞，也不防止死锁。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch07-s5">本讲小结</h3>
+<ul>
+<li>互斥量有所有者、支持优先级继承、不能在 ISR 使用。</li>
+<li>优先级反转：中优先级任务间接阻塞高优先级任务。</li>
+<li>继承缓解反转，但不解决死锁与长临界区。</li>
+<li>死锁靠加锁顺序、超时与无锁设计来避免。</li>
+<li>递归互斥量解决同任务重复加锁，但必须成对。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出互斥量与二值信号量的三点差异</li>
+<li>我能画出优先级反转的时序</li>
+<li>我知道如何避免死锁</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 07 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch06">← 第 06 讲</a> <a href="#ch08">第 08 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch08" aria-labelledby="ch08-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">08</div>
+  <div class="ch-title">
+    <p class="ch-kicker">通信 · 50 分钟 · ★★★</p>
+    <h2 id="ch08-h">事件组与任务通知</h2>
+    <p class="ch-lede">事件组适合“多个条件都满足才继续”；任务通知更快更省，但只能一对一。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>用事件组等待多个位条件</li><li>区分 wait-for-all 与 wait-for-any</li><li>用任务通知替代轻量信号量</li><li>说明任务通知的局限性</li></ul></div>
+<h3 id="ch08-s1"><span class="n">8.1</span>事件组：等“多个条件同时满足”</h3>
+<p>事件组是一组二进制位，每个位代表一个事件。任务可以等待“任意一位置位”或“所有指定位置位”。它适合“传感器就绪 + 网络连接 + 配置加载完成，三者都好了才开始采集”这类条件。</p>
+<div class="code"><div class="code-bar"><span class="file">event_group.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "event_groups.h"
+
+#define BIT_SENSOR_READY  (1u &lt;&lt; 0)
+#define BIT_NET_READY     (1u &lt;&lt; 1)
+#define BIT_CONFIG_LOADED (1u &lt;&lt; 2)
+
+static EventGroupHandle_t g_events;
+
+void app_init(void)
+{
+    g_events = xEventGroupCreate();
+    configASSERT(g_events != NULL);
+}
+
+static void startup_task(void *arg)
+{
+    (void)arg;
+    const EventBits_t need = BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED;
+
+    EventBits_t got = xEventGroupWaitBits(
+        g_events,
+        need,
+        pdTRUE,        /* 退出时清除这些位 */
+        pdTRUE,        /* 等待所有位都置位 */
+        pdMS_TO_TICKS(5000));
+
+    if ((got &amp; need) == need) {
+        start_normal_operation();
+    } else {
+        handle_startup_timeout(got);     /* 超时：能知道还差哪一位 */
+    }
+}
+
+/* 任意上下文（含 ISR）都可以置位 */
+void sensor_isr(void)
+{
+    BaseType_t woken = pdFALSE;
+    xEventGroupSetBitsFromISR(g_events, BIT_SENSOR_READY, &amp;woken);
+    portYIELD_FROM_ISR(woken);
+}</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>参数</th><th>含义</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>uxBitsToWaitFor</code></td><td>关心哪些位</td><td>至少一位</td></tr>
+<tr><td><code>xClearOnExit</code></td><td>满足后是否清零</td><td>清零适合“一次性启动条件”；不清零适合“持续状态”</td></tr>
+<tr><td><code>xWaitForAllBits</code></td><td>全部满足还是任一满足</td><td><code>pdTRUE</code> = AND，<code>pdFALSE</code> = OR</td></tr>
+<tr><td><code>xTicksToWait</code></td><td>最长等待</td><td>0 表示立即返回</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>事件组的可用位数取决于 <code class="i">configUSE_16_BIT_TICKS</code>：为 1 时只有 8 位可用，为 0 时有 24 位。高位被内核保留。不要假设一定有 32 位。</p>
+</div>
+
+<h3 id="ch08-s2"><span class="n">8.2</span>任务通知：更轻的一对一唤醒</h3>
+<p>每个任务都有一个 32 位通知值（或计数）。发送方直接“敲这个任务的门”，不需要创建任何内核对象。它比队列/信号量更快、更省 RAM。</p>
+<div class="code"><div class="code-bar"><span class="file">notify.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 方式一：当作计数信号量用 */
+static void worker(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        uint32_t count = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        /* count 是累积的通知次数（pdTRUE 表示取出后清零） */
+        for (uint32_t i = 0; i &lt; count; i++) {
+            handle_one_event();
+        }
+    }
+}
+
+void give_from_task(TaskHandle_t h) { xTaskNotifyGive(h); }
+
+void give_from_isr(TaskHandle_t h)
+{
+    BaseType_t woken = pdFALSE;
+    vTaskNotifyGiveFromISR(h, &amp;woken);
+    portYIELD_FROM_ISR(woken);
+}</code></pre></div>
+<div class="code"><div class="code-bar"><span class="file">notify_value.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 方式二：传一个 32 位值 */
+static void worker2(void *arg)
+{
+    (void)arg;
+    uint32_t value = 0;
+    for (;;) {
+        if (xTaskNotifyWait(0, 0, &amp;value, portMAX_DELAY) == pdTRUE) {
+            handle_value(value);
+        }
+    }
+}
+
+void send_value(TaskHandle_t h, uint32_t v)
+{
+    xTaskNotify(h, v, eSetValueWithOverwrite);   /* 覆盖旧值 */
+}</code></pre></div>
+
+<h3 id="ch08-s3"><span class="n">8.3</span>怎么选：事件组、通知还是队列</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>需求</th><th>首选</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td>传结构体/多条数据</td><td>队列</td><td>有缓冲区，能排队</td></tr>
+<tr><td>等多个条件全部满足</td><td>事件组</td><td>位掩码天然表达“与/或”</td></tr>
+<tr><td>一对一唤醒，只要事件</td><td>任务通知</td><td>最快、最省 RAM</td></tr>
+<tr><td>多个任务等同一个事件</td><td>事件组或信号量</td><td>通知只能发给一个任务</td></tr>
+<tr><td>中断通知任务且要传数据</td><td>队列（FromISR）</td><td>通知只能带一个 32 位值</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>任务通知是<strong>一对一</strong>的：通知值存在目标任务的控制块里。如果多个生产者都向同一个任务发通知，它们会互相覆盖（除非用计数模式）。需要多对一时，用队列或事件组。</p>
+</div>
+
+<h3 id="ch08-s4"><span class="n">8.4</span>一个常见的启动同步写法</h3>
+<div class="code"><div class="code-bar"><span class="file">startup_sync.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 三个初始化任务各自完成后置位；主任务等齐了再继续 */
+void init_sensor_task(void *arg)
+{
+    (void)arg;
+    sensor_init();
+    xEventGroupSetBits(g_events, BIT_SENSOR_READY);
+    vTaskDelete(NULL);
+}
+
+/* 主任务 */
+void supervisor_task(void *arg)
+{
+    (void)arg;
+    EventBits_t got = xEventGroupWaitBits(g_events,
+        BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED,
+        pdFALSE, pdTRUE, pdMS_TO_TICKS(3000));
+
+    if ((got &amp; (BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED)) !=
+        (BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED)) {
+        enter_safe_mode();
+    }
+}</code></pre></div>
+<p>这里用 <code class="i">pdFALSE</code> 不清除位，因为“已就绪”是一个持续状态，其他任务也可能想查询它。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 8 讲</div>
+<div class="pb">
+<ol>
+<li>用事件组实现“按键按下且网络已连接”才发送数据。</li>
+<li>用任务通知实现“ISR 唤醒采样任务”，并统计通知次数。</li>
+<li>为什么任务通知不适合多个生产者向同一任务发送？</li>
+<li>事件组的位不够用时怎么办？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 两个位分别置位，<code class="i">xEventGroupWaitBits(..., pdTRUE, pdTRUE, timeout)</code> 等两位都满足。</p>
+<p><b>2.</b> ISR 调 <code class="i">vTaskNotifyGiveFromISR</code>；任务用 <code class="i">ulTaskNotifyTake(pdFALSE, ...)</code> 取累计值（不清零则继续累加）。</p>
+<p><b>3.</b> 通知值只有一个存储位置，后到的会覆盖先到的；计数模式也只能计数，不能区分来源。</p>
+<p><b>4.</b> 用多个事件组，或者改用队列/信号量组合；不要试图用位域硬塞超过 24 个事件。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：多个任务都要等“网络就绪”这一个事件，应该用？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>任务通知，逐个通知</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>事件组（或信号量广播）</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>每个任务各建一个队列</span></button>
+</div>
+<div class="fb" data-fb>任务通知是一对一的，无法广播给多个等待者。事件组的一个位可以被多个任务同时等待，适合“广播状态”。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch08-s5">本讲小结</h3>
+<ul>
+<li>事件组用位表达多个条件，支持 AND/OR 等待。</li>
+<li>事件组位宽受配置限制，不是永远 32 位。</li>
+<li>任务通知最快最省，但只能一对一、只带一个 32 位值。</li>
+<li>传数据用队列，等条件用事件组，轻量唤醒用通知。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出事件组的 AND/OR 等待</li>
+<li>我能用通知实现 ISR 唤醒</li>
+<li>我知道通知的覆盖问题</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 08 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch07">← 第 07 讲</a> <a href="#ch09">第 09 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch09" aria-labelledby="ch09-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">09</div>
+  <div class="ch-title">
+    <p class="ch-kicker">难点 · 55 分钟 · ★★★</p>
+    <h2 id="ch09-h">中断与任务的通信</h2>
+    <p class="ch-lede">在中断里调用普通 API 可能直接崩溃。FromISR 版本、优先级阈值和 yield 三者必须配合。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>正确使用 FromISR API 与 pxHigherPriorityTaskWoken</li><li>解释 configMAX_SYSCALL_INTERRUPT_PRIORITY</li><li>设计延迟中断处理</li><li>避免在 ISR 中阻塞或打印</li></ul></div>
+<h3 id="ch09-s1"><span class="n">9.1</span>中断里能调用哪些 API</h3>
+<p>FreeRTOS 的 API 分成两套：任务上下文用的，和中断上下文用的（后缀 <code class="i">FromISR</code>）。在中断里调用任务版 API，轻则返回错误，重则破坏内核数据结构。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>任务上下文</th><th>中断上下文</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>xQueueSend</code></td><td><code>xQueueSendFromISR</code></td><td>ISR 版本不能阻塞</td></tr>
+<tr><td><code>xSemaphoreGive</code></td><td><code>xSemaphoreGiveFromISR</code></td><td>互斥量没有 FromISR 版本</td></tr>
+<tr><td><code>xEventGroupSetBits</code></td><td><code>xEventGroupSetBitsFromISR</code></td><td>实际是发给定时器守护任务</td></tr>
+<tr><td><code>xTaskNotifyGive</code></td><td><code>vTaskNotifyGiveFromISR</code></td><td>常用且高效</td></tr>
+<tr><td><code>vTaskDelay</code></td><td>无</td><td>中断不能延时/阻塞</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch09-s2"><span class="n">9.2</span>pxHigherPriorityTaskWoken 与 yield</h3>
+<div class="code"><div class="code-bar"><span class="file">isr_queue.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>static void UART_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;          /* 必须先初始化为 pdFALSE */
+    uint8_t byte = uart_read();
+
+    xQueueSendFromISR(g_rx_q, &amp;byte, &amp;woken);
+
+    /* 如果刚才的发送唤醒了更高优先级任务，退出中断时立刻切换 */
+    portYIELD_FROM_ISR(woken);
+}</code></pre></div>
+<p>为什么需要这个参数？中断结束时，硬件会恢复被中断的任务。如果刚才的操作让一个更高优先级任务就绪，内核需要“改主意”，在中断退出时切换到它。这个参数就是告诉移植层“要不要切”。</p>
+<div class="note bad">
+<b>易错</b>
+<p>忘记初始化 <code class="i">woken = pdFALSE</code>，或者多个 FromISR 调用共用一个变量却在中途重置，都会导致“该切换时没切换”，表现为高优先级任务延迟运行，甚至偶尔卡死。</p>
+</div>
+
+<h3 id="ch09-s3"><span class="n">9.3</span>Cortex-M 的中断优先级陷阱</h3>
+<p>FreeRTOS 在 Cortex-M 上要求：<strong>调用 FreeRTOS API 的中断，其硬件优先级数值必须 ≥ <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code></strong>（数值越大，优先级越低）。</p>
+<div class="code"><div class="code-bar"><span class="file">FreeRTOSConfig.h · 片段</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 典型配置：优先级 5–15 允许调用 FreeRTOS API，0–4 留给极高优先级中断 */
+#define configPRIO_BITS                       4
+#define configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY  5
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY  (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY &lt;&lt; (8 - configPRIO_BITS))
+#define configKERNEL_INTERRUPT_PRIORITY       (15 &lt;&lt; (8 - configPRIO_BITS))</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>中断优先级（数值）</th><th>能否调用 FreeRTOS API</th><th>典型用途</th></tr></thead>
+<tbody>
+<tr><td>0–4（最高）</td><td>不能</td><td>电机急停、故障保护，必须立刻响应</td></tr>
+<tr><td>5–14</td><td>可以</td><td>串口、SPI、定时器，使用 FromISR API</td></tr>
+<tr><td>15（最低）</td><td>可以</td><td>PendSV / SysTick（内核占用）</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>还有两个常见坑：NVIC 的优先级分组必须设置为“全部位用于抢占优先级”（Cortex-M 上通常 <code class="i">NVIC_SetPriorityGrouping(0)</code>）；并且中断优先级要在 <code class="i">NVIC_EnableIRQ</code> 之前设置。否则 FreeRTOS 的临界区无法正确屏蔽中断。</p>
+</div>
+
+<h3 id="ch09-s4"><span class="n">9.4</span>延迟中断处理：ISR 只做最少的事</h3>
+<div class="code"><div class="code-bar"><span class="file">deferred.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 中断：读硬件、清标志、发通知，立刻返回 */
+void ADC_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;
+    uint16_t raw = adc_read_result();
+    xQueueSendFromISR(g_adc_q, &amp;raw, &amp;woken);
+    portYIELD_FROM_ISR(woken);
+}
+
+/* 任务：做滤波、换算、上报（这些都可能耗时） */
+static void adc_task(void *arg)
+{
+    (void)arg;
+    uint16_t raw;
+    for (;;) {
+        if (xQueueReceive(g_adc_q, &amp;raw, portMAX_DELAY) == pdPASS) {
+            float v = raw_to_voltage(raw);
+            filter_update(v);
+        }
+    }
+}</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>ISR 里可以做</th><th>不应该做</th></tr></thead>
+<tbody>
+<tr><td>读/写寄存器、清中断标志</td><td><code>printf</code>、浮点运算、复杂数学</td></tr>
+<tr><td>把数据放进队列/缓冲区</td><td>等待信号量、延时、阻塞</td></tr>
+<tr><td>置事件位、发任务通知</td><td>动态分配内存（<code>malloc</code>）</td></tr>
+<tr><td>触发 DMA / 启动下一次传输</td><td>调用任务版 FreeRTOS API</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch09-s5"><span class="n">9.5</span>中断嵌套与临界区</h3>
+<p>如果允许中断嵌套，高优先级中断可以打断低优先级 ISR。这时共享数据的保护更复杂：低优先级 ISR 持有的数据，可能被高优先级 ISR 修改。</p>
+<p>实践建议：<strong>尽量不嵌套</strong>，或者只让“绝对不能延迟”的故障中断拥有高于 <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code> 的优先级，并且这类中断不碰任何共享数据。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 9 讲</div>
+<div class="pb">
+<ol>
+<li>写一个串口接收中断，把字节送入队列，并正确触发切换。</li>
+<li>解释 <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code> 的作用。</li>
+<li>为什么 ISR 里不能调用 <code class="i">xSemaphoreTake</code>？</li>
+<li>一个中断每 10 µs 触发一次，处理需要 5 µs。直接处理还是延迟到任务？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 它是“允许调用 FreeRTOS API 的最高中断优先级阈值”。高于它的中断不会被内核临界区屏蔽，因此不能调用任何 FreeRTOS API，否则会破坏内核状态。</p>
+<p><b>3.</b> 它会阻塞，而中断上下文不能阻塞；互斥量还需要“任务所有者”，中断没有任务上下文。</p>
+<p><b>4.</b> 5 µs 的处理占用了 50% CPU，且不能让出；应尽量缩短 ISR（只搬运数据），把处理放到任务，或改用 DMA。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：ISR 中调用 <code class="i">xQueueSendFromISR</code> 后，为什么要调用 <code class="i">portYIELD_FROM_ISR(woken)</code>？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>为了清中断标志</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>为了释放队列内存</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>为了在唤醒了更高优先级任务时立刻切换</span></button>
+</div>
+<div class="fb" data-fb>如果发送操作让更高优先级任务就绪，应该中断退出时直接切过去，而不是等下一个 tick。这个宏根据 <code class="i">woken</code> 决定是否触发 PendSV。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch09-s6">本讲小结</h3>
+<ul>
+<li>中断里只能用 FromISR 版本，不能阻塞。</li>
+<li><code>pxHigherPriorityTaskWoken</code> 决定退出中断时是否切换。</li>
+<li>Cortex-M 上调 API 的中断优先级必须低于阈值。</li>
+<li>ISR 只做搬运，处理放到任务里。</li>
+<li>中断嵌套会增加共享数据的复杂度，慎用。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出正确的 ISR 收数据流程</li>
+<li>我知道中断优先级的数值方向</li>
+<li>我能解释延迟中断处理</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 09 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch08">← 第 08 讲</a> <a href="#ch10">第 10 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch10" aria-labelledby="ch10-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">10</div>
+  <div class="ch-title">
+    <p class="ch-kicker">难点 · 55 分钟 · ★★★</p>
+    <h2 id="ch10-h">临界区、竞争条件与线程安全</h2>
+    <p class="ch-lede">counter++ 不是原子操作。临界区、调度器挂起和原子指令，各自解决不同层面的问题。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>识别任务间的竞争条件</li><li>正确使用 taskENTER_CRITICAL</li><li>区分关中断与挂起调度器</li><li>判断一个函数是否可重入</li></ul></div>
+<h3 id="ch10-s1"><span class="n">10.1</span>一行 C 不是原子操作</h3>
+<p><code class="i">g_counter++</code> 编译后是“读 → 加 → 写”。两个任务交替执行时，可能都读到 5，各自写回 6，最终少加一次。这类问题叫<strong>竞争条件</strong>（race condition）。</p>
+<div class="code"><div class="code-bar"><span class="file">race.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>static uint32_t g_counter;
+
+void task_a(void *arg) { (void)arg; for (;;) { g_counter++; vTaskDelay(1); } }
+void task_b(void *arg) { (void)arg; for (;;) { g_counter++; vTaskDelay(1); } }</code></pre></div>
+<div class="note bad">
+<b>易错</b>
+<p>加 <code class="i">volatile</code> 不能解决竞争。它只保证“每次都去内存读”，不保证“读和写之间不被打断”。竞争需要<strong>互斥</strong>或<strong>原子操作</strong>。</p>
+</div>
+
+<h3 id="ch10-s2"><span class="n">10.2</span>临界区：短暂关闭调度与中断</h3>
+<div class="code"><div class="code-bar"><span class="file">critical.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+
+void update_counter(void)
+{
+    taskENTER_CRITICAL();
+    g_counter++;                 /* 这期间不会被任务切换或受管中断打断 */
+    taskEXIT_CRITICAL();
+}</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>API</th><th>作用范围</th><th>能否嵌套</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td><code>taskENTER_CRITICAL</code></td><td>屏蔽受管中断 + 禁止调度</td><td>是（计数）</td><td>几行代码的原子更新</td></tr>
+<tr><td><code>vTaskSuspendAll</code></td><td>只禁止任务切换，中断仍运行</td><td>是</td><td>较长的只读遍历、避免中断延迟</td></tr>
+<tr><td><code>portENTER_CRITICAL</code></td><td>更底层，移植相关</td><td>视端口</td><td>内核/驱动内部</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>在 Cortex-M 端口上，<code class="i">taskENTER_CRITICAL()</code> 会把 <code class="i">BASEPRI</code> 设为 <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code>，从而屏蔽“允许调用 FreeRTOS API 的中断”，但<strong>不屏蔽更高优先级的中断</strong>。所以临界区并不能防止所有中断修改数据——那些高优先级中断本来就不该碰共享数据。</p>
+</div>
+
+<h3 id="ch10-s3"><span class="n">10.3</span>关中断 vs 挂起调度器</h3>
+<div class="grid2">
+<div class="card"><span class="tag">taskENTER_CRITICAL</span><h4>更“硬”的保护</h4><p>连中断都挡在外面。适合几行代码的读改写、链表插入。时间必须极短，否则中断延迟变大。</p></div>
+<div class="card"><span class="tag">vTaskSuspendAll</span><h4>只挡任务切换</h4><p>中断照常运行，所以中断仍可能修改数据。适合“遍历一个不会被中断修改的结构”，或避免长时间关中断。</p></div>
+</div>
+<div class="code"><div class="code-bar"><span class="file">suspend_all.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 遍历一个只被任务修改的链表：不需要关中断 */
+vTaskSuspendAll();
+for (node_t *p = g_list; p != NULL; p = p-&gt;next) {
+    inspect(p);
+}
+xTaskResumeAll();</code></pre></div>
+
+<h3 id="ch10-s4"><span class="n">10.4</span>可重入与线程安全</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>含义</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>可重入</td><td>同一函数被多个上下文同时调用仍正确</td><td>只用参数和局部变量的函数</td></tr>
+<tr><td>线程安全</td><td>多任务调用不会破坏共享状态</td><td>内部加锁，或使用原子操作</td></tr>
+<tr><td>不可重入</td><td>依赖静态缓冲区/全局状态</td><td><code>strtok</code>、部分 <code>printf</code> 实现</td></tr>
+</tbody>
+</table>
+</div>
+<div class="code"><div class="code-bar"><span class="file">reentrant.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 不可重入：静态缓冲区被共享 */
+char *bad_itoa(int v)
+{
+    static char buf[12];
+    snprintf(buf, sizeof buf, "%d", v);
+    return buf;
+}
+
+/* 可重入：由调用者提供缓冲区 */
+void good_itoa(int v, char *out, size_t n)
+{
+    snprintf(out, n, "%d", v);
+}</code></pre></div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>标准库的 <code class="i">printf</code>、<code class="i">malloc</code>、<code class="i">strtok</code> 在嵌入式里经常不可重入或实现很重。要么用可重入版本（<code class="i">strtok_r</code>、<code class="i">snprintf</code> 到调用者缓冲区），要么在接口层面约定“只在某个任务里调用”。</p>
+</div>
+
+<h3 id="ch10-s5"><span class="n">10.5</span>临界区该有多长</h3>
+<p>临界区的长度直接决定<strong>最坏中断延迟</strong>。经验值：几微秒到几十微秒；超过 100 µs 就要重新设计。</p>
+<ul>
+<li>把计算、拷贝、判断尽量移到临界区外。</li>
+<li>只保护“必须原子”的那几行。</li>
+<li>不要在临界区里调用 <code class="i">printf</code>、<code class="i">malloc</code>、可能阻塞的 API。</li>
+<li>用示波器/GPIO 翻转测量临界区时长，不要凭感觉。</li>
+</ul>
+<div class="code"><div class="code-bar"><span class="file">measure.c · 平台相关</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>gpio_set(DEBUG_PIN);
+taskENTER_CRITICAL();
+/* 被测代码 */
+taskEXIT_CRITICAL();
+gpio_clear(DEBUG_PIN);</code></pre></div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 10 讲</div>
+<div class="pb">
+<ol>
+<li>两个任务各自对 <code class="i">g_counter</code> 加 10000 次，不用临界区，结果是多少？为什么？</li>
+<li>用 <code class="i">taskENTER_CRITICAL</code> 修复，并说明临界区应该包住哪些行。</li>
+<li>什么时候该用 <code class="i">vTaskSuspendAll</code> 而不是关中断？</li>
+<li>判断 <code class="i">strtok</code> 是否可重入，给出替代方案。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 通常小于 20000，具体值不确定；两个任务读到相同旧值后互相覆盖。</p>
+<p><b>2.</b> 只包住 <code class="i">g_counter++</code> 这一行；如果还有“读-判断-写”的逻辑，要一起包住。</p>
+<p><b>3.</b> 遍历一个只被任务修改的结构，且不想拉长中断关闭时间时。</p>
+<p><b>4.</b> 不可重入（内部保存静态状态）。用 <code class="i">strtok_r</code>，或自己写基于指针的切分函数。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：临界区里最不应该做的是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>给整型变量赋值</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>调用 <code>printf</code> 打印日志</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>修改一个链表指针</span></button>
+</div>
+<div class="fb" data-fb><code class="i">printf</code> 可能阻塞、可能很长，还会调用不可重入的内部函数；放在临界区里会显著拉长中断关闭时间。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch10-s6">本讲小结</h3>
+<ul>
+<li>竞争条件来自非原子的读改写，volatile 解决不了。</li>
+<li>临界区屏蔽受管中断，适合极短的原子操作。</li>
+<li><code>vTaskSuspendAll</code> 只禁止任务切换，不挡中断。</li>
+<li>可重入函数不依赖共享状态，线程安全靠同步保证。</li>
+<li>临界区长度要用测量说话，不能凭感觉。</li>
+</ul>
+<ul class="checklist">
+<li>我能识别竞争条件</li>
+<li>我能选择合适的保护手段</li>
+<li>我知道临界区里不能做什么</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 10 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch09">← 第 09 讲</a> <a href="#ch11">第 11 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch11" aria-labelledby="ch11-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">11</div>
+  <div class="ch-title">
+    <p class="ch-kicker">时间 · 45 分钟 · ★★☆</p>
+    <h2 id="ch11-h">软件定时器</h2>
+    <p class="ch-lede">软件定时器不是硬件定时器，它的回调运行在一个普通任务里——所以不能阻塞，也不精确。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>创建一次性与周期定时器</li><li>说明定时器守护任务的调度影响</li><li>在回调里只做轻量工作</li><li>判断何时该用硬件定时器</li></ul></div>
+<h3 id="ch11-s1"><span class="n">11.1</span>软件定时器不是硬件定时器</h3>
+<p>FreeRTOS 的软件定时器由<strong>定时器守护任务</strong>（timer service task）统一管理。定时器到期时，守护任务调用你的回调。<strong>回调运行在任务上下文</strong>，不是中断上下文。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>软件定时器</th><th>硬件定时器</th></tr></thead>
+<tbody>
+<tr><td>精度</td><td>受 tick 与守护任务调度影响</td><td>可达纳秒级</td></tr>
+<tr><td>数量</td><td>几乎不限（受 RAM 限制）</td><td>受外设数量限制</td></tr>
+<tr><td>回调上下文</td><td>守护任务</td><td>中断</td></tr>
+<tr><td>适用</td><td>超时、心跳、周期性业务</td><td>PWM、输入捕获、精确采样</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch11-s2"><span class="n">11.2</span>创建与启动</h3>
+<div class="code"><div class="code-bar"><span class="file">timer_basic.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "timers.h"
+
+static TimerHandle_t g_heartbeat;
+static TimerHandle_t g_timeout;
+
+static void heartbeat_cb(TimerHandle_t t)
+{
+    (void)t;
+    gpio_toggle(LED_PIN);            /* 只做轻量工作 */
+}
+
+static void timeout_cb(TimerHandle_t t)
+{
+    /* 通过定时器 ID 区分是哪个实例 */
+    int conn_id = (int)(intptr_t)pvTimerGetTimerID(t);
+    connection_mark_timeout(conn_id);
+}
+
+void app_init(void)
+{
+    /* 周期 500 ms，自动重载 */
+    g_heartbeat = xTimerCreate("hb", pdMS_TO_TICKS(500), pdTRUE, NULL, heartbeat_cb);
+
+    /* 一次性 3 s 超时 */
+    g_timeout = xTimerCreate("to", pdMS_TO_TICKS(3000), pdFALSE,
+                             (void *)(intptr_t)1, timeout_cb);
+
+    configASSERT(g_heartbeat != NULL &amp;&amp; g_timeout != NULL);
+
+    xTimerStart(g_heartbeat, 0);     /* 0：不等待命令队列 */
+    xTimerStart(g_timeout, 0);
+}</code></pre></div>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">xTimerStart</code> 本身是把“启动命令”发到定时器命令队列，由守护任务执行。第二个参数是等待队列空位的超时。如果在调度器启动前调用，命令会排队，等守护任务运行后处理。</p>
+</div>
+
+<h3 id="ch11-s3"><span class="n">11.3</span>回调里不能做什么</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>不要做</th><th>原因</th><th>替代</th></tr></thead>
+<tbody>
+<tr><td>阻塞（延时、等信号量）</td><td>会卡住整个守护任务，所有定时器都延迟</td><td>置标志、发队列、发通知</td></tr>
+<tr><td>长时间计算</td><td>同上</td><td>把工作交给专用任务</td></tr>
+<tr><td>删除/修改正在执行的定时器</td><td>可能死锁或行为未定义</td><td>发命令给其他任务处理</td></tr>
+<tr><td>调用 <code>vTaskDelay</code></td><td>守护任务被阻塞</td><td>用状态机 + 下次到期</td></tr>
+</tbody>
+</table>
+</div>
+<div class="code"><div class="code-bar"><span class="file">timer_cb.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 正确：回调运行在守护任务上下文，用任务版 API；只发通知，处理在任务里 */
+static void sample_timer_cb(TimerHandle_t t)
+{
+    (void)t;
+    xTaskNotifyGive(g_sample_task);
+}</code></pre></div>
+<div class="note bad">
+<b>易错</b>
+<p>在定时器回调里用非 0 阻塞时间调用 <code class="i">xTimerStop</code> 停自己，会让守护任务等待自己处理完命令，形成死锁。要停止自己，应使用阻塞时间为 0 的调用，或发一个命令给其他任务，由它来停。</p>
+</div>
+
+<h3 id="ch11-s4"><span class="n">11.4</span>精度与漂移</h3>
+<p>周期定时器的“周期”是两次到期之间的 tick 数，但回调执行时间、守护任务被更高优先级任务抢占，都会让实际间隔变长。它<strong>不累积</strong>相对误差（内核按绝对到期时间排队），但会有抖动。</p>
+<ul>
+<li>需要毫秒级稳定周期：用硬件定时器中断 + 任务通知。</li>
+<li>需要“几秒后提醒”：软件定时器足够。</li>
+<li>需要大量定时器：软件定时器比硬件定时器更省外设。</li>
+</ul>
+
+<h3 id="ch11-s5"><span class="n">11.5</span>配置项</h3>
+<div class="code"><div class="code-bar"><span class="file">FreeRTOSConfig.h · 片段</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#define configUSE_TIMERS              1
+#define configTIMER_TASK_PRIORITY     3      /* 守护任务优先级 */
+#define configTIMER_QUEUE_LENGTH      10     /* 命令队列长度 */
+#define configTIMER_TASK_STACK_DEPTH  256    /* 守护任务栈（字） */</code></pre></div>
+<p>守护任务优先级要高于使用定时器的普通任务，否则命令和回调都会被延迟；但也不要比硬实时任务高，否则会抢占关键控制。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 11 讲</div>
+<div class="pb">
+<ol>
+<li>创建一个 1 s 周期定时器翻转 LED，再创建一个 5 s 一次性定时器打印提示。</li>
+<li>解释为什么定时器回调里不能调用 <code class="i">vTaskDelay</code>。</li>
+<li>定时器回调要处理 200 ms 的计算，应该怎么做？</li>
+<li>软件定时器的周期为什么会有抖动？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 回调运行在守护任务里，阻塞会让所有软件定时器一起延迟。</p>
+<p><b>3.</b> 回调只发通知/队列，把计算放到专用任务；或者拆成多个短步骤，用状态机推进。</p>
+<p><b>4.</b> tick 中断响应、守护任务被抢占、回调执行时间都会让实际到期时刻偏离理想时刻。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：软件定时器的回调运行在哪个上下文？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>定时器守护任务</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>SysTick 中断</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>调用 xTimerStart 的任务</span></button>
+</div>
+<div class="fb" data-fb>所有软件定时器共享一个守护任务，回调在其中依次执行。这也是“回调不能阻塞”的根本原因。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch11-s6">本讲小结</h3>
+<ul>
+<li>软件定时器由守护任务统一调度，精度受 tick 影响。</li>
+<li>回调运行在任务上下文，不能阻塞、不能长时间计算。</li>
+<li>启动/停止都是向命令队列发送请求。</li>
+<li>大量低精度定时用软件定时器，精确时序用硬件定时器。</li>
+</ul>
+<ul class="checklist">
+<li>我能创建周期与一次性定时器</li>
+<li>我知道回调里不能做什么</li>
+<li>我能解释守护任务优先级的影响</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 11 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch10">← 第 10 讲</a> <a href="#ch12">第 12 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch12" aria-labelledby="ch12-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">12</div>
+  <div class="ch-title">
+    <p class="ch-kicker">资源 · 55 分钟 · ★★★</p>
+    <h2 id="ch12-h">内存管理、堆方案与任务栈</h2>
+    <p class="ch-lede">heap_1 到 heap_5 有什么区别？任务栈为什么总是最先溢出？高水位怎么测？</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>区分五种堆方案</li><li>计算任务栈的实际字节数</li><li>用高水位与溢出钩子排查栈问题</li><li>理解碎片与确定性分配</li></ul></div>
+<h3 id="ch12-s1"><span class="n">12.1</span>五种堆方案</h3>
+<p>FreeRTOS 把 <code class="i">pvPortMalloc</code> / <code class="i">vPortFree</code> 的实现放在 <code class="i">heap_x.c</code> 里，由你选择其中一个加入工程。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>方案</th><th>能释放吗</th><th>碎片</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td>heap_1</td><td>不能</td><td>无</td><td>只在启动时创建任务/队列，之后不释放</td></tr>
+<tr><td>heap_2</td><td>能</td><td>不会合并相邻块</td><td>旧项目；新项目不建议</td></tr>
+<tr><td>heap_3</td><td>能</td><td>取决于 libc malloc</td><td>使用编译器自带 malloc，需实现线程安全</td></tr>
+<tr><td>heap_4</td><td>能</td><td>会合并相邻空闲块</td><td>通用首选</td></tr>
+<tr><td>heap_5</td><td>能</td><td>同 heap_4，多区域</td><td>RAM 不连续（如内部 + 外部 SRAM）</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>长期运行的设备优先 heap_4（合并碎片）或静态分配（完全不依赖堆）。heap_2 不合并相邻空闲块，反复分配/释放后很容易“总量够但最大块不够”。</p>
+</div>
+
+<h3 id="ch12-s2"><span class="n">12.2</span>堆有多大，谁在用</h3>
+<div class="code"><div class="code-bar"><span class="file">heap_use.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+
+void report_heap(void)
+{
+    size_t free_now = xPortGetFreeHeapSize();
+    size_t min_ever = xPortGetMinimumEverFreeHeapSize();   /* 需要 heap_4/5 */
+    printf("heap free=%u, min ever=%u\n", (unsigned)free_now, (unsigned)min_ever);
+}</code></pre></div>
+<p><code class="i">configTOTAL_HEAP_SIZE</code> 是堆的总大小。任务栈、TCB、队列、信号量、事件组、定时器都从这里分配（动态创建时）。</p>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">xPortGetMinimumEverFreeHeapSize</code> 只有 heap_4 和 heap_5 提供。它记录历史最低空闲量，是判断“堆是否够用”的关键指标——当前空闲很多，不代表高峰时没接近耗尽。</p>
+</div>
+
+<h3 id="ch12-s3"><span class="n">12.3</span>任务栈：每个任务都在花 RAM</h3>
+<p>任务栈要容纳：局部变量、函数调用返回地址、保存的寄存器、中断嵌套时的上下文。栈太小会踩坏相邻内存，表现为“变量莫名其妙变了”或 HardFault。</p>
+<div class="code"><div class="code-bar"><span class="file">stack_check.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 需要 configUSE_TRACE_FACILITY = 1 或 INCLUDE_uxTaskGetStackHighWaterMark = 1 */
+UBaseType_t hw = uxTaskGetStackHighWaterMark(g_worker);
+/* hw 是“历史最小剩余量”，单位是字。越小越危险。 */
+if (hw &lt; 32) {
+    /* 余量不足 32 字（Cortex-M 上 128 字节），应该增大栈 */
+}</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>检查手段</th><th>配置</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td>高水位</td><td><code>INCLUDE_uxTaskGetStackHighWaterMark</code></td><td>运行时看剩余栈量</td></tr>
+<tr><td>栈溢出检测</td><td><code>configCHECK_FOR_STACK_OVERFLOW</code> = 1/2</td><td>切换时检查栈指针/魔术字</td></tr>
+<tr><td>溢出钩子</td><td><code>vApplicationStackOverflowHook</code></td><td>记录任务名并停机/复位</td></tr>
+<tr><td>填充模式</td><td>调试器查看栈底</td><td>看未被使用的栈区域</td></tr>
+</tbody>
+</table>
+</div>
+<div class="code"><div class="code-bar"><span class="file">overflow_hook.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>void vApplicationStackOverflowHook(TaskHandle_t task, char *name)
+{
+    (void)task;
+    /* 不要在这里 printf（可能栈已经坏了），点灯/记录到保留 RAM */
+    fault_led_on();
+    for (;;) { }
+}</code></pre></div>
+
+<h3 id="ch12-s4"><span class="n">12.4</span>栈大小怎么估</h3>
+<div class="steps">
+<div><b>先给足</b>　按经验给一个偏大的值（例如 256–512 字），先让功能跑起来。</div>
+<div><b>测高水位</b>　跑遍所有分支、最坏输入、中断嵌套场景，读 <code>uxTaskGetStackHighWaterMark</code>。</div>
+<div><b>留余量</b>　保留至少 25%–30% 余量，再把栈调小；不要压到“刚好不溢出”。</div>
+<div><b>回归</b>　每次加功能后重新测，尤其是增加了深层调用或大局部数组。</div>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>只在“正常路径”测高水位是不够的。错误处理、异常输入、通信断开重连这些路径往往调用更深、局部变量更多，才是栈的真正峰值。</p>
+</div>
+
+<h3 id="ch12-s5"><span class="n">12.5</span>碎片：为什么“总量够却分配失败”</h3>
+<p>假设堆里有 3 个 100 字节的空闲块，但你要分配 250 字节——总量 300 够，却没有连续的 250 字节。这就是<strong>外部碎片</strong>。</p>
+<ul>
+<li>heap_4 会合并相邻空闲块，能缓解但不能消除碎片。</li>
+<li>反复创建/删除不同大小的任务和队列，最容易产生碎片。</li>
+<li>长期运行的系统，优先“启动时一次性分配，运行期不再分配”。</li>
+</ul>
+<div class="note good">
+<b>正确做法</b>
+<p>把 <code class="i">xPortGetMinimumEverFreeHeapSize</code> 和分配失败计数一起上报。如果最小值持续下降，说明有泄漏；如果最小值稳定但分配仍失败，说明碎片严重。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 12 讲</div>
+<div class="pb">
+<ol>
+<li>一个任务栈设为 256 字，Cortex-M 上占多少字节？</li>
+<li>高水位显示 8 字，说明什么？该怎么办？</li>
+<li>heap_1 和 heap_4 的核心区别是什么？各自适合什么项目？</li>
+<li>为什么“启动时分配、运行期不分配”能显著降低碎片风险？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 256 × 4 = 1024 字节，另加 TCB。</p>
+<p><b>2.</b> 历史最小剩余只有 8 字（32 字节），几乎贴底，随时可能溢出；应立即增大栈并检查是否有大局部数组/深调用。</p>
+<p><b>3.</b> heap_1 只能分配不能释放，完全没有碎片，适合“启动后固定”的系统；heap_4 可分配可释放并合并相邻块，适合需要动态创建/删除的场景。</p>
+<p><b>4.</b> 碎片来自“不同大小块的反复分配释放”；如果所有块在启动时一次性分配、大小固定，运行期不再切割堆，就不会产生外部碎片。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">uxTaskGetStackHighWaterMark</code> 返回 20，含义是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>栈总共 20 字节</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>已经溢出了 20 字节</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>历史最小剩余 20 字（约 80 字节，Cortex-M）</span></button>
+</div>
+<div class="fb" data-fb>它返回的是“从任务启动到现在，栈最多被用到离栈底还剩多少”，单位是字。数值越小越危险，不是越大越危险。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch12-s6">本讲小结</h3>
+<ul>
+<li>heap_1 不可释放，heap_4 通用，heap_5 支持多区域。</li>
+<li>堆的总量、历史最低空闲量都要监控。</li>
+<li>栈深度单位是字，栈溢出往往表现为“莫名其妙的数据损坏”。</li>
+<li>高水位要在最坏路径上测，并留 25% 以上余量。</li>
+<li>长期运行系统尽量在启动时完成分配。</li>
+</ul>
+<ul class="checklist">
+<li>我能选择合适的堆方案</li>
+<li>我会读高水位并判断余量</li>
+<li>我能解释碎片产生的原因</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 12 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch11">← 第 11 讲</a> <a href="#ch13">第 13 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch13" aria-labelledby="ch13-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">13</div>
+  <div class="ch-title">
+    <p class="ch-kicker">排障 · 60 分钟 · ★★★</p>
+    <h2 id="ch13-h">死锁、优先级反转、饥饿与溢出</h2>
+    <p class="ch-lede">系统不响应，可能是死锁、反转、饥饿或栈溢出。它们的现象相似，根因完全不同。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>区分四类故障的典型现象</li><li>用超时与加锁顺序避免死锁</li><li>用优先级继承缓解反转</li><li>用运行时统计定位饥饿与栈问题</li></ul></div>
+<h3 id="ch13-s1"><span class="n">13.1</span>四种“卡住”，四种根因</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>故障</th><th>典型现象</th><th>根因</th><th>先查什么</th></tr></thead>
+<tbody>
+<tr><td>死锁</td><td>相关任务全部停住，CPU 可能空闲</td><td>互相等对方持有的锁</td><td>加锁顺序、是否有超时</td></tr>
+<tr><td>优先级反转</td><td>高优先级任务偶尔延迟很久</td><td>中优先级任务抢占持锁的低优先级任务</td><td>持锁时间、是否用互斥量</td></tr>
+<tr><td>饥饿</td><td>低优先级任务长期不运行</td><td>高优先级任务一直就绪</td><td>CPU 利用率、优先级设计</td></tr>
+<tr><td>栈溢出</td><td>随机崩溃、变量被改、HardFault</td><td>任务栈太小或调用太深</td><td>高水位、溢出钩子</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch13-s2"><span class="n">13.2</span>死锁的排查</h3>
+<p>死锁时系统往往“安静地停住”：没有崩溃，没有日志，只是什么都不发生。排查步骤：</p>
+<div class="steps">
+<div><b>确认是否死锁</b>　用调试器暂停，看各任务卡在哪个函数；如果都卡在 <code>xSemaphoreTake</code>，高度怀疑。</div>
+<div><b>找锁的持有者</b>　FreeRTOS 的互斥量有所有者；检查是谁拿了锁却没释放。</div>
+<div><b>看加锁顺序</b>　两个任务是否以相反顺序获取两把锁。</div>
+<div><b>加超时与日志</b>　把 <code>portMAX_DELAY</code> 改成有限超时，记录失败点。</div>
+</div>
+<div class="code"><div class="code-bar"><span class="file">deadlock_fix.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 统一顺序：永远先 m1 后 m2 */
+if (xSemaphoreTake(m1, pdMS_TO_TICKS(50)) != pdTRUE) {
+    return ERR_BUSY;
+}
+if (xSemaphoreTake(m2, pdMS_TO_TICKS(50)) != pdTRUE) {
+    xSemaphoreGive(m1);                 /* 拿不到第二把，释放第一把 */
+    return ERR_BUSY;
+}
+/* ... */
+xSemaphoreGive(m2);
+xSemaphoreGive(m1);</code></pre></div>
+
+<h3 id="ch13-s3"><span class="n">13.3</span>饥饿与 CPU 利用率</h3>
+<p>如果高优先级任务永远就绪（例如一个没有阻塞的 <code class="i">for(;;)</code> 循环），低优先级任务永远得不到 CPU。这不是 bug，是设计问题。</p>
+<ul>
+<li>每个任务都必须有阻塞点（延时、等队列、等信号量）。</li>
+<li>计算密集型任务要主动让出，或放到最低优先级。</li>
+<li>用运行时统计看每个任务占了多少 CPU。</li>
+</ul>
+<div class="code"><div class="code-bar"><span class="file">stats.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 需要 configGENERATE_RUN_TIME_STATS = 1，并提供高精度计时 */
+char buf[512];
+vTaskGetRunTimeStats(buf);      /* 每个任务的运行时间与占比 */
+printf("%s\n", buf);
+
+vTaskList(buf);                 /* 任务状态、优先级、剩余栈、序号 */
+printf("%s\n", buf);</code></pre></div>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">vTaskGetRunTimeStats</code> 需要一个比 tick 更细的计时源（通常是另一个定时器），通过 <code class="i">portCONFIGURE_TIMER_FOR_RUN_TIME_STATS</code> 和 <code class="i">portGET_RUN_TIME_COUNTER_VALUE</code> 接入。只有 tick 计时的话，分辨率太粗。</p>
+</div>
+
+<h3 id="ch13-s4"><span class="n">13.4</span>栈溢出的现象与定位</h3>
+<p>栈溢出最迷惑人的地方是<strong>它不一定立刻崩溃</strong>：溢出的数据可能踩到相邻任务的栈或 TCB，表现为“某个无关变量变了”“任务突然不跑了”。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>配置</th><th>行为</th><th>优缺点</th></tr></thead>
+<tbody>
+<tr><td><code>configCHECK_FOR_STACK_OVERFLOW = 1</code></td><td>切换时检查栈指针是否越界</td><td>开销小，但只能发现“已经越界”</td></tr>
+<tr><td><code>= 2</code></td><td> additionally 检查栈末尾的魔术字</td><td>更可靠，需要预填模式</td></tr>
+<tr><td>高水位</td><td>运行后查看剩余量</td><td>不能发现瞬时峰值</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>发布版本也保留栈溢出钩子，但钩子里不要 <code class="i">printf</code>（栈可能已经坏了）。最稳的做法是：点亮故障灯、把任务名写入保留 RAM（不掉电区域）、触发看门狗复位。</p>
+</div>
+
+<h3 id="ch13-s5"><span class="n">13.5</span>configASSERT 与看门狗</h3>
+<div class="code"><div class="code-bar"><span class="file">assert.c</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>/* 在 FreeRTOSConfig.h 中定义，参数非法时立刻停机 */
+#define configASSERT(x)  do { if (!(x)) { taskDISABLE_INTERRUPTS(); \
+                                           fault_handler(__FILE__, __LINE__); } } while (0)</code></pre></div>
+<p><code class="i">configASSERT</code> 能抓住大量“参数非法、优先级越界、队列句柄为空”的问题。开发阶段一定打开；发布版本可以保留（停机 + 记录），也可以改成复位。</p>
+<p>看门狗是最后一道防线：监控任务定期“喂狗”，如果某个关键任务卡死，系统自动复位。注意喂狗应该在<strong>所有关键任务都健康</strong>时进行，而不是随便找个最低优先级任务喂。</p>
+
+<h3 id="ch13-s6"><span class="n">13.6</span>五个常见误区</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>误区</th><th>事实</th></tr></thead>
+<tbody>
+<tr><td>“优先级越高，系统越实时”</td><td>优先级只决定谁先运行；实时性取决于最坏执行时间与阻塞时间</td></tr>
+<tr><td>“加了互斥量就不会有并发问题”</td><td>还要考虑死锁、持锁时间、ISR 访问</td></tr>
+<tr><td>“volatile 能替代锁”</td><td>它不保证原子性，也不保证顺序</td></tr>
+<tr><td>“队列越长越安全”</td><td>长队列增加延迟和 RAM；过载时照样满</td></tr>
+<tr><td>“RTOS 会自动保证实时”</td><td>它只提供机制，分析和设计仍要自己做</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 13 讲</div>
+<div class="pb">
+<ol>
+<li>系统运行几分钟后“整体卡住”，如何判断是死锁还是饥饿？</li>
+<li>高优先级任务偶发延迟 200 ms，可能是什么原因？</li>
+<li>如何用运行时统计证明某个任务占用了 95% CPU？</li>
+<li>设计一个“关键任务都健康才喂狗”的方案。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 暂停看各任务栈：都卡在等锁 → 死锁；高优先级任务一直 Running、低优先级从未运行 → 饥饿。</p>
+<p><b>2.</b> 优先级反转（持锁任务被中优先级抢占）、临界区过长、中断关闭过久、队列/内存分配阻塞。</p>
+<p><b>3.</b> 开 <code class="i">configGENERATE_RUN_TIME_STATS</code>，调用 <code class="i">vTaskGetRunTimeStats</code>，看该任务的百分比与绝对时间。</p>
+<p><b>4.</b> 每个关键任务定期置一个事件位；监控任务等齐所有位后喂狗并清位；任何一个任务超时未置位，就不喂狗，让系统复位。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：低优先级任务长期得不到运行，最可能的原因是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>它的栈太小</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>高优先级任务一直就绪，CPU 没有空隙</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>它没有调用 vTaskDelay</span></button>
+</div>
+<div class="fb" data-fb>这是典型的饥饿：高优先级任务没有阻塞点，调度器永远选它。解决办法是给高优先级任务加阻塞点，或重新评估优先级与任务划分。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch13-s7">本讲小结</h3>
+<ul>
+<li>死锁、反转、饥饿、栈溢出都会表现成“卡住”，但根因不同。</li>
+<li>死锁靠加锁顺序、超时与日志定位。</li>
+<li>饥饿靠运行时统计与“每个任务都要阻塞”来避免。</li>
+<li>栈溢出要用高水位 + 溢出钩子 + 最坏路径测试。</li>
+<li>configASSERT 与看门狗是最后两道防线。</li>
+</ul>
+<ul class="checklist">
+<li>我能区分四类故障</li>
+<li>我会用运行时统计看 CPU 占用</li>
+<li>我知道栈溢出为什么不立刻崩溃</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 13 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch12">← 第 12 讲</a> <a href="#ch14">第 14 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch14" aria-labelledby="ch14-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">14</div>
+  <div class="ch-title">
+    <p class="ch-kicker">项目 · 90 分钟 · ★★★</p>
+    <h2 id="ch14-h">综合项目：多任务数据链</h2>
+    <p class="ch-lede">把 13 讲拼成一条完整数据链：采样任务 → 队列 → 处理任务 → 队列 → 通信任务，再加一个监控任务看住全局。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>从需求推导任务划分与优先级</li><li>设计队列长度、超时与丢弃策略</li><li>处理错误传播与看门狗</li><li>用运行时统计验证设计</li></ul></div>
+<h3 id="ch14-s1"><span class="n">14.1</span>需求与任务划分</h3>
+<p>目标：每 10 ms 采一次传感器，做滑动平均，打包后通过串口/网络发出；同时监控系统健康（队列丢弃、栈余量、堆余量），异常时进入安全状态。</p>
+<div class="table-wrap">
+<table>
+<caption>任务划分（优先级数值越大越高）</caption>
+<thead><tr><th>任务</th><th>优先级</th><th>周期/触发</th><th>最坏执行</th><th>职责</th></tr></thead>
+<tbody>
+<tr><td>sensor</td><td>4</td><td>10 ms 周期</td><td>1.5 ms</td><td>读 ADC，写入原始队列</td></tr>
+<tr><td>process</td><td>3</td><td>队列到达</td><td>2 ms</td><td>滤波、换算、打包</td></tr>
+<tr><td>comm</td><td>2</td><td>队列到达</td><td>8 ms（含阻塞发送）</td><td>发送帧，处理重试</td></tr>
+<tr><td>monitor</td><td>1</td><td>1 s 周期</td><td>0.5 ms</td><td>统计、健康检查、喂狗</td></tr>
+</tbody>
+</table>
+</div>
+<p>优先级按“周期越短越高”分配。comm 的最坏执行最长，所以放在 process 之下；即使它阻塞，也不会拖住采样。</p>
+
+<h3 id="ch14-s2"><span class="n">14.2</span>数据流与队列</h3>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 240" role="img" aria-labelledby="fig14t fig14d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig14t">多任务数据链</title>
+<desc id="fig14d">采样任务把原始样本放入队列，处理任务取出滤波后放入发送队列，通信任务发送；监控任务读取统计并喂狗。</desc>
+<rect width="820" height="240" fill="#fbfdff"/>
+<g font-size="11.5" text-anchor="middle">
+<rect x="20" y="60" width="120" height="52" rx="8" fill="#e0e7ff" stroke="#818cf8"/><text x="80" y="82" fill="#26348f" font-weight="700">sensor</text><text x="80" y="100" fill="#475569">prio 4 · 10 ms</text>
+<rect x="170" y="60" width="110" height="52" rx="8" fill="#fef3c7" stroke="#fbbf24"/><text x="225" y="82" fill="#92400e" font-weight="700">q_raw</text><text x="225" y="100" fill="#78350f">长度 8</text>
+<rect x="310" y="60" width="120" height="52" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="370" y="82" fill="#166534" font-weight="700">process</text><text x="370" y="100" fill="#475569">prio 3</text>
+<rect x="460" y="60" width="110" height="52" rx="8" fill="#fef3c7" stroke="#fbbf24"/><text x="515" y="82" fill="#92400e" font-weight="700">q_tx</text><text x="515" y="100" fill="#78350f">长度 4</text>
+<rect x="600" y="60" width="120" height="52" rx="8" fill="#ede9fe" stroke="#c4b5fd"/><text x="660" y="82" fill="#5b21b6" font-weight="700">comm</text><text x="660" y="100" fill="#475569">prio 2</text>
+</g>
+<g stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#a14)">
+<path d="M140 86 L166 86"/><path d="M280 86 L306 86"/><path d="M430 86 L456 86"/><path d="M570 86 L596 86"/>
+</g>
+<defs><marker id="a14" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+<rect x="20" y="150" width="700" height="58" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="36" y="172" font-size="11.5" font-weight="700" fill="#334155">monitor（prio 1，1 s）</text>
+<text x="36" y="194" font-size="11" fill="#475569">读取 q_raw/q_tx 的丢弃计数、各任务高水位、堆最小值；全部健康才喂狗。</text>
+</svg>
+<figcaption>图 14-1　采样 → 处理 → 发送，监控任务旁路观察，不参与主数据流。</figcaption>
+</figure>
+
+<h3 id="ch14-s3"><span class="n">14.3</span>核心代码骨架</h3>
+<div class="note eng">
+<b>工程习惯</b>
+<p>下面的代码是<strong>目标板结构示例</strong>，依赖 FreeRTOS 与具体硬件接口，未在主机上编译验证。它展示的是任务划分、队列策略与错误处理方式，不是可直接烧录的完整工程。</p>
+</div>
+<div class="code"><div class="code-bar"><span class="file">app.c · 目标板示例（未在主机验证）</span><span class="lang">C11</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>#include "FreeRTOS.h"
+#include "task.h"
+#include "queue.h"
+#include "event_groups.h"
+
+#define Q_RAW_LEN   8
+#define Q_TX_LEN    4
+
+typedef struct { uint16_t raw; uint32_t t_ms; } sample_t;
+typedef struct { int16_t value; uint32_t t_ms; uint8_t seq; } frame_t;
+
+static QueueHandle_t g_q_raw, g_q_tx;
+static EventGroupHandle_t g_health;
+static volatile uint32_t g_drop_raw, g_drop_tx;
+
+#define HEALTH_SENSOR  (1u &lt;&lt; 0)
+#define HEALTH_PROC    (1u &lt;&lt; 1)
+#define HEALTH_COMM    (1u &lt;&lt; 2)
+
+static void sensor_task(void *arg)
+{
+    (void)arg;
+    TickType_t last = xTaskGetTickCount();
+    for (;;) {
+        sample_t s = { .raw = adc_read(), .t_ms = (uint32_t)xTaskGetTickCount() };
+
+        /* 采样不能被阻塞太久：最多等 2 ms，满则丢弃并计数 */
+        if (xQueueSend(g_q_raw, &amp;s, pdMS_TO_TICKS(2)) != pdPASS) {
+            g_drop_raw++;
+        }
+
+        xEventGroupSetBits(g_health, HEALTH_SENSOR);
+        vTaskDelayUntil(&amp;last, pdMS_TO_TICKS(10));
+    }
+}
+
+static void process_task(void *arg)
+{
+    (void)arg;
+    static int32_t window[8];
+    static size_t idx;
+    sample_t s;
+
+    for (;;) {
+        if (xQueueReceive(g_q_raw, &amp;s, portMAX_DELAY) != pdPASS) {
+            continue;
+        }
+
+        window[idx++ % 8] = s.raw;
+        int32_t sum = 0;
+        for (size_t i = 0; i &lt; 8; i++) {
+            sum += window[i];
+        }
+
+        frame_t f = { .value = (int16_t)(sum / 8), .t_ms = s.t_ms, .seq = (uint8_t)idx };
+        if (xQueueSend(g_q_tx, &amp;f, pdMS_TO_TICKS(5)) != pdPASS) {
+            g_drop_tx++;
+        }
+        xEventGroupSetBits(g_health, HEALTH_PROC);
+    }
+}
+
+static void comm_task(void *arg)
+{
+    (void)arg;
+    frame_t f;
+    for (;;) {
+        if (xQueueReceive(g_q_tx, &amp;f, portMAX_DELAY) != pdPASS) {
+            continue;
+        }
+
+        /* 发送可能阻塞：允许 50 ms，失败则重试一次 */
+        if (link_send(&amp;f, sizeof f, pdMS_TO_TICKS(50)) != 0) {
+            (void)link_send(&amp;f, sizeof f, pdMS_TO_TICKS(50));
+        }
+        xEventGroupSetBits(g_health, HEALTH_COMM);
+    }
+}
+
+static void monitor_task(void *arg)
+{
+    (void)arg;
+    const EventBits_t all = HEALTH_SENSOR | HEALTH_PROC | HEALTH_COMM;
+
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+
+        EventBits_t bits = xEventGroupClearBits(g_health, all);
+        size_t heap_min = xPortGetMinimumEverFreeHeapSize();
+
+        if ((bits &amp; all) == all &amp;&amp; heap_min &gt; 1024) {
+            watchdog_feed();                 /* 全部健康才喂狗 */
+        } else {
+            enter_safe_mode(bits, heap_min); /* 记录哪一项不健康 */
+        }
+    }
+}</code></pre></div>
+
+<h3 id="ch14-s4"><span class="n">14.4</span>队列长度与丢弃策略</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>队列</th><th>长度</th><th>满时策略</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>q_raw</td><td>8</td><td>丢弃新样本，计数</td><td>采样是周期性的，旧数据比新数据更没价值；不能阻塞采样</td></tr>
+<tr><td>q_tx</td><td>4</td><td>丢弃新帧，计数</td><td>通信拥塞时保留最近的几帧，避免无限积压</td></tr>
+</tbody>
+</table>
+</div>
+<p>两个队列都<strong>不阻塞生产者太久</strong>：采样任务最多等 2 ms，处理任务最多等 5 ms。超过就丢弃并计数，由监控任务上报。这比“无限等待”更可控。</p>
+
+<h3 id="ch14-s5"><span class="n">14.5</span>时序与可调度性检查</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>任务</th><th>周期</th><th>最坏执行</th><th>CPU 占比</th></tr></thead>
+<tbody>
+<tr><td>sensor</td><td>10 ms</td><td>1.5 ms</td><td>15%</td></tr>
+<tr><td>process</td><td>10 ms（跟随采样）</td><td>2.0 ms</td><td>20%</td></tr>
+<tr><td>comm</td><td>约 10 ms</td><td>8.0 ms（含阻塞）</td><td>取决于链路</td></tr>
+<tr><td>monitor</td><td>1000 ms</td><td>0.5 ms</td><td>&lt;1%</td></tr>
+<tr><td>idle</td><td>—</td><td>—</td><td>剩余</td></tr>
+</tbody>
+</table>
+</div>
+<p>注意 comm 的 8 ms 里大部分是“阻塞等待发送完成”，并不占 CPU。真正要算的是<strong>CPU 占用</strong>，不是墙上时间。如果 comm 的发送是忙等，就会把 CPU 吃光——这也是为什么驱动要提供阻塞式/中断式发送。</p>
+<div class="note bad">
+<b>易错</b>
+<p>把所有任务都设成高优先级，等于没有优先级。优先级的意义是“在冲突时谁先运行”，如果每个任务都“很重要”，系统就无法在过载时保住关键任务。</p>
+</div>
+
+<h3 id="ch14-s6"><span class="n">14.6</span>测试与验收</h3>
+<ul class="checklist">
+<li>空载：4 个任务都运行，CPU 占用 &lt; 30%</li>
+<li>满负载：采样 10 ms 不丢帧，队列丢弃计数为 0</li>
+<li>通信断开：q_tx 满后按策略丢弃，系统不卡死，恢复后能继续</li>
+<li>注入错误：传感器返回非法值，process 不崩溃</li>
+<li>连续运行 24 h：堆最小值不持续下降，无栈溢出</li>
+<li>看门狗：人为挂起 comm 任务，系统应在超时后复位</li>
+</ul>
+
+<div class="practice">
+<div class="ph">项目练习 · 第 14 讲</div>
+<div class="pb">
+<ol>
+<li>把 q_raw 长度改成 2，重新分析丢弃率与延迟。</li>
+<li>给 comm 任务加“指数退避重试”，最多 3 次。</li>
+<li>设计一个“配置更新”命令：通过队列发给 process，要求不阻塞采样。</li>
+<li>用 <code>vTaskGetRunTimeStats</code> 验证 CPU 占用是否符合预期。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 长度 2 只能吸收 20 ms 的抖动；只要 process 偶尔超过 20 ms，就会开始丢弃。适合“允许丢帧、但要低延迟”的场景。</p>
+<p><b>2.</b> 保存 <code class="i">backoff</code>，失败后 <code class="i">vTaskDelay(backoff)</code>，<code class="i">backoff = min(backoff*2, MAX)</code>；成功则复位。注意 comm 阻塞期间 q_tx 会积压，要配合丢弃策略。</p>
+<p><b>3.</b> 单独建一个配置队列，process 在每次循环里非阻塞地检查配置队列；或者用事件组置位 + 共享配置结构（加互斥量）。</p>
+<p><b>4.</b> 开 <code class="i">configGENERATE_RUN_TIME_STATS</code>，运行典型负载后打印统计，和 14.5 的估算对比。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：采样任务在队列满时应该？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>无限等待，直到有空间</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>短超时后丢弃并计数，保证采样周期</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>直接覆盖队列里的旧数据</span></button>
+</div>
+<div class="fb" data-fb>采样任务的第一职责是“按时采样”。无限等待会破坏周期；队列本身不支持覆盖。正确做法是短超时 + 丢弃 + 计数，由监控任务上报。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch14-s7">本讲小结</h3>
+<ul>
+<li>任务划分按“周期 + 职责”，优先级按截止期分配。</li>
+<li>队列长度与丢弃策略要显式设计，不能无限等待。</li>
+<li>监控任务旁路观察，全部健康才喂狗。</li>
+<li>CPU 占用要按“实际执行时间”算，不是墙上时间。</li>
+<li>测试要覆盖空载、满载、断链、错误注入与长时间运行。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出这条数据链</li>
+<li>我能解释每个队列的长度与策略</li>
+<li>我能设计健康检查与看门狗</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 14 讲 · 共 14 讲</span><span class="ch-nav"><a href="#ch13">← 第 13 讲</a> <a href="#appendix">附录 →</a></span></footer>
+</section>
+<section class="ch appendix" id="appendix" aria-labelledby="appendix-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">附</div>
+  <div class="ch-title">
+    <p class="ch-kicker">附录 · 随时查阅</p>
+    <h2 id="appendix-h">API 速查、配置项与排障清单</h2>
+    <p class="ch-lede">常用 API 的上下文与阻塞语义、config 宏、栈与堆速查、故障对照表和术语。</p>
+  </div>
+</header>
+<h3 id="appendix-s1"><span class="n">A.1</span>常用 API 速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>API</th><th>上下文</th><th>阻塞</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>xTaskCreate</code></td><td>任务/调度前</td><td>否</td><td>栈深度单位是字</td></tr>
+<tr><td><code>vTaskDelete</code></td><td>任务</td><td>否</td><td>删除自己传 NULL</td></tr>
+<tr><td><code>vTaskDelay</code></td><td>任务</td><td>是</td><td>单位 tick</td></tr>
+<tr><td><code>vTaskDelayUntil</code></td><td>任务</td><td>是</td><td>固定周期，不累积漂移</td></tr>
+<tr><td><code>xTaskGetTickCount</code></td><td>任务/ISR</td><td>否</td><td>ISR 用 <code>xTaskGetTickCountFromISR</code></td></tr>
+<tr><td><code>xQueueCreate</code></td><td>任务/调度前</td><td>否</td><td>长度 × 元素大小</td></tr>
+<tr><td><code>xQueueSend</code> / <code>Receive</code></td><td>任务</td><td>是</td><td>带 tick 超时</td></tr>
+<tr><td><code>xQueueSendFromISR</code></td><td>ISR</td><td>否</td><td>带 <code>pxHigherPriorityTaskWoken</code></td></tr>
+<tr><td><code>xSemaphoreCreateBinary</code></td><td>任务/调度前</td><td>否</td><td>初值 0</td></tr>
+<tr><td><code>xSemaphoreCreateCounting</code></td><td>任务/调度前</td><td>否</td><td>最大计数、初值</td></tr>
+<tr><td><code>xSemaphoreCreateMutex</code></td><td>任务/调度前</td><td>否</td><td>有所有者、优先级继承</td></tr>
+<tr><td><code>xSemaphoreTake</code> / <code>Give</code></td><td>任务</td><td>Take 可阻塞</td><td>Give 不阻塞</td></tr>
+<tr><td><code>xSemaphoreGiveFromISR</code></td><td>ISR</td><td>否</td><td>互斥量不能用</td></tr>
+<tr><td><code>xEventGroupWaitBits</code></td><td>任务</td><td>是</td><td>AND/OR 等待</td></tr>
+<tr><td><code>xEventGroupSetBits</code></td><td>任务</td><td>否</td><td>ISR 用 FromISR</td></tr>
+<tr><td><code>ulTaskNotifyTake</code></td><td>任务</td><td>是</td><td>计数式通知</td></tr>
+<tr><td><code>xTaskNotifyWait</code></td><td>任务</td><td>是</td><td>取值式通知</td></tr>
+<tr><td><code>vTaskNotifyGiveFromISR</code></td><td>ISR</td><td>否</td><td>最常用的 ISR→任务唤醒</td></tr>
+<tr><td><code>xTimerCreate</code></td><td>任务/调度前</td><td>否</td><td>周期 + 自动重载</td></tr>
+<tr><td><code>xTimerStart</code> / <code>Stop</code></td><td>任务</td><td>可短等</td><td>通过命令队列</td></tr>
+<tr><td><code>taskENTER_CRITICAL</code></td><td>任务</td><td>否</td><td>屏蔽受管中断</td></tr>
+<tr><td><code>vTaskSuspendAll</code></td><td>任务</td><td>否</td><td>只禁止任务切换</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s2"><span class="n">A.2</span>关键配置项</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>宏</th><th>作用</th><th>常见值</th></tr></thead>
+<tbody>
+<tr><td><code>configTICK_RATE_HZ</code></td><td>tick 频率</td><td>1000</td></tr>
+<tr><td><code>configMAX_PRIORITIES</code></td><td>优先级层数</td><td>5–8</td></tr>
+<tr><td><code>configTOTAL_HEAP_SIZE</code></td><td>堆总大小</td><td>8–32 KB</td></tr>
+<tr><td><code>configMINIMAL_STACK_SIZE</code></td><td>空闲任务栈</td><td>128 字</td></tr>
+<tr><td><code>configUSE_PREEMPTION</code></td><td>抢占式调度</td><td>1</td></tr>
+<tr><td><code>configUSE_TIME_SLICING</code></td><td>同优先级轮转</td><td>1</td></tr>
+<tr><td><code>configUSE_MUTEXES</code></td><td>启用互斥量</td><td>1</td></tr>
+<tr><td><code>configUSE_RECURSIVE_MUTEXES</code></td><td>递归互斥量</td><td>按需</td></tr>
+<tr><td><code>configUSE_COUNTING_SEMAPHORES</code></td><td>计数信号量</td><td>1</td></tr>
+<tr><td><code>configUSE_TIMERS</code></td><td>软件定时器</td><td>1</td></tr>
+<tr><td><code>configCHECK_FOR_STACK_OVERFLOW</code></td><td>栈溢出检测</td><td>2</td></tr>
+<tr><td><code>configUSE_TRACE_FACILITY</code></td><td>任务列表/统计</td><td>1（调试）</td></tr>
+<tr><td><code>configGENERATE_RUN_TIME_STATS</code></td><td>CPU 占用统计</td><td>1（调试）</td></tr>
+<tr><td><code>configASSERT</code></td><td>参数断言</td><td>开发期必开</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s3"><span class="n">A.3</span>故障对照表</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>现象</th><th>优先排查</th><th>验证手段</th></tr></thead>
+<tbody>
+<tr><td>创建任务失败</td><td>堆大小、栈大小、heap_1</td><td>打印剩余堆、看返回值</td></tr>
+<tr><td>任务不运行</td><td>优先级、是否被挂起、是否卡在等锁</td><td>调试器看任务状态、<code>vTaskList</code></td></tr>
+<tr><td>偶发 HardFault</td><td>栈溢出、空指针、数组越界</td><td>溢出钩子、高水位、栈回溯</td></tr>
+<tr><td>高优先级延迟大</td><td>临界区过长、优先级反转、关中断</td><td>GPIO 翻转测时长、运行时统计</td></tr>
+<tr><td>系统整体停住</td><td>死锁、看门狗未喂</td><td>暂停看各任务栈、检查锁顺序</td></tr>
+<tr><td>内存持续减少</td><td>任务/队列反复创建删除、泄漏</td><td>堆最小值曲线、分配计数</td></tr>
+<tr><td>定时器不准</td><td>守护任务优先级、tick 率</td><td>比较时间戳、测抖动</td></tr>
+<tr><td>中断里崩溃</td><td>用了非 FromISR API、优先级高于阈值</td><td>检查 ISR 代码与 NVIC 配置</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s4"><span class="n">A.4</span>术语表</h3>
+<div class="term-grid">
+<div class="term"><b>TCB</b><span>任务控制块，保存任务状态、栈指针、优先级等。</span></div>
+<div class="term"><b>tick</b><span>内核时基单位，由 SysTick 或外设定时器产生。</span></div>
+<div class="term"><b>抢占</b><span>更高优先级任务就绪时立刻夺走 CPU。</span></div>
+<div class="term"><b>时间片</b><span>同优先级任务按 tick 轮流运行。</span></div>
+<div class="term"><b>阻塞</b><span>任务主动等待事件/超时，不占 CPU。</span></div>
+<div class="term"><b>挂起</b><span>任务被显式暂停，无超时，必须恢复。</span></div>
+<div class="term"><b>优先级反转</b><span>高优先级任务被中优先级任务间接阻塞。</span></div>
+<div class="term"><b>优先级继承</b><span>持锁者临时提升到等待者的优先级。</span></div>
+<div class="term"><b>高水位</b><span>任务栈历史最小剩余量。</span></div>
+<div class="term"><b>碎片</b><span>空闲内存总量够，但没有足够大的连续块。</span></div>
+<div class="term"><b>守护任务</b><span>软件定时器的回调执行者。</span></div>
+<div class="term"><b>临界区</b><span>屏蔽中断/调度的代码段，保证原子性。</span></div>
+</div>
+
+<h3 id="appendix-s5"><span class="n">A.5</span>上线前检查清单</h3>
+<ul class="checklist">
+<li>每个任务都有阻塞点，没有纯忙等</li>
+<li>所有 <code>xTaskCreate</code> / 队列创建都检查了返回值</li>
+<li>栈高水位在最坏路径上测过，余量 ≥ 25%</li>
+<li>堆最小值稳定，没有持续下降</li>
+<li>中断里只用 FromISR API，优先级配置正确</li>
+<li>临界区都短，且没有阻塞调用</li>
+<li>互斥量加锁顺序统一，关键加锁带超时</li>
+<li>看门狗由“全部关键任务健康”驱动</li>
+<li>开 <code>configASSERT</code> 跑过完整测试</li>
+<li>断链、掉电、错误注入都验证过</li>
+</ul>
+
+<footer class="ch-foot"><span>附录 · API 速查</span><a href="#map">回到课程地图 ↑</a></footer>
+</section>
+  </main>
+
+  <aside class="rail" id="rail" aria-label="本讲目录">
+    <p class="rail-kicker">本讲目录</p>
+    <p class="rail-title" id="railTitle">课程地图</p>
+    <ol class="rail-list" id="railList"></ol>
+    <div class="rail-progress">
+      <b id="railPct">0%</b>
+      <span>本册阅读进度</span>
+    </div>
+  </aside>
+</div>
+
+<footer class="foot">
+  <div class="foot-in">
+    <div><b>FreeRTOS 实时操作系统教程</b> · 嵌入式学习路径 第 3 册 / 共 5 册<br>单文件离线教程，可直接双击打开，无需联网。</div>
+    <div class="foot-links"><a href="#map">课程地图</a><a href="#top">回到顶部</a><span>© <span id="year">2026</span></span></div>
+  </div>
+</footer>
+
+<button class="totop" id="toTop" type="button" aria-label="回到顶部">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<div class="searchbox" id="searchBox" role="dialog" aria-modal="true" aria-label="搜索本册内容">
+  <div class="search-panel">
+    <div class="search-top">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="searchInput" type="search" placeholder="搜索概念、API、错误信息……" autocomplete="off" aria-label="搜索关键词">
+      <kbd>Esc</kbd>
+    </div>
+    <div class="search-res" id="searchRes"></div>
+  </div>
+</div>
+
+<script>
+/* 嵌入式学习路径 · 系列教程共享脚本（无外部依赖） */
+(function () {
+  'use strict';
+  var doc = document, root = doc.documentElement;
+  var $ = function (s, c) { return (c || doc).querySelector(s); };
+  var $$ = function (s, c) { return Array.prototype.slice.call((c || doc).querySelectorAll(s)); };
+
+  /* ---------- 主题 ---------- */
+  var THEME_KEY = 'emb-tut-theme';
+  function readTheme() {
+    try { var v = localStorage.getItem(THEME_KEY); if (v === 'dark' || v === 'light') return v; } catch (e) {}
+    return 'light';
+  }
+  function applyTheme(t) {
+    root.setAttribute('data-theme', t);
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+    var btn = $('#themeBtn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', t === 'dark' ? 'true' : 'false');
+      btn.setAttribute('aria-label', t === 'dark' ? '切换到浅色模式' : '切换到深色模式');
+      btn.title = btn.getAttribute('aria-label');
+      var sun = $('.ic-sun', btn), moon = $('.ic-moon', btn);
+      if (sun && moon) { sun.style.display = t === 'dark' ? 'none' : ''; moon.style.display = t === 'dark' ? '' : 'none'; }
+    }
+  }
+  applyTheme(readTheme());
+  var themeBtn = $('#themeBtn');
+  if (themeBtn) themeBtn.addEventListener('click', function () {
+    applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  /* ---------- 侧栏抽屉 ---------- */
+  var sidebar = $('#sidebar'), scrim = $('#scrim'), menuBtn = $('#menuBtn');
+  function setDrawer(open) {
+    if (!sidebar) return;
+    sidebar.classList.toggle('open', open);
+    if (scrim) scrim.classList.toggle('on', open);
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    doc.body.classList.toggle('no-scroll', open && window.innerWidth <= 1024);
+  }
+  if (menuBtn) menuBtn.addEventListener('click', function () { setDrawer(!sidebar.classList.contains('open')); });
+  if (scrim) scrim.addEventListener('click', function () { setDrawer(false); });
+  window.addEventListener('resize', function () { if (window.innerWidth > 1024) setDrawer(false); });
+  $$('#sidebar a').forEach(function (a) { a.addEventListener('click', function () { if (window.innerWidth <= 1024) setDrawer(false); }); });
+
+  /* ---------- 阅读进度 + 回到顶部 ---------- */
+  var bar = $('#progressBar'), toTop = $('#toTop');
+  function onScroll() {
+    var h = doc.documentElement.scrollHeight - window.innerHeight;
+    var y = window.pageYOffset || doc.documentElement.scrollTop;
+    if (bar) bar.style.width = (h > 0 ? Math.min(100, (y / h) * 100) : 0) + '%';
+    if (toTop) toTop.classList.toggle('on', y > 700);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  onScroll();
+  if (toTop) toTop.addEventListener('click', function () {
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  });
+
+  /* ---------- 目录高亮 + 右栏本讲目录 ---------- */
+  var links = $$('.toc a');
+  var chapters = $$('.ch');
+  var railTitle = $('#railTitle'), railList = $('#railList'), railPct = $('#railPct');
+  var railCh = null;
+
+  function buildRail(ch) {
+    if (!railList || !railTitle) return;
+    var h2 = ch.querySelector('h2');
+    railTitle.textContent = h2 ? h2.textContent.trim() : '';
+    var hs = $$('h3', ch);
+    if (!hs.length) { railList.innerHTML = '<li><a href="#' + ch.id + '">本讲内容</a></li>'; return; }
+    railList.innerHTML = hs.map(function (h) {
+      var num = h.querySelector('.n');
+      var label = h.textContent.replace(/\s+/g, ' ').trim();
+      if (num) { label = num.textContent.trim() + '\u3000' + label.replace(num.textContent.trim(), '').trim(); }
+      return '<li><a href="#' + h.id + '">' + label + '</a></li>';
+    }).join('');
+  }
+
+  function updateNav() {
+    if (!links.length || !chapters.length) return;
+    var y = (window.pageYOffset || doc.documentElement.scrollTop) + 150;
+    var cur = null;
+    chapters.forEach(function (c) { if (c.offsetTop <= y) cur = c; });
+
+    if (cur) {
+      links.forEach(function (a) {
+        var on = a.getAttribute('href') === '#' + cur.id;
+        a.classList.toggle('active', on);
+        if (on) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
+      });
+      if (railList && cur.id !== railCh) { buildRail(cur); railCh = cur.id; }
+      var active = null;
+      var hs = $$('h3', cur);
+      hs.forEach(function (h) { if (h.getBoundingClientRect().top <= 150) active = h; });
+      if (!active && hs.length) active = hs[0];
+      $$('.rail-list a').forEach(function (a) {
+        a.classList.toggle('active', !!active && a.getAttribute('href') === '#' + active.id);
+      });
+    } else if (railTitle && railList) {
+      railTitle.textContent = '课程地图';
+      railList.innerHTML = '<li><a href="#ch01">从第 01 讲开始</a></li>';
+      links.forEach(function (a) { a.classList.remove('active'); });
+    }
+
+    if (railPct) {
+      var h = doc.documentElement.scrollHeight - window.innerHeight;
+      var top = window.pageYOffset || doc.documentElement.scrollTop;
+      railPct.textContent = (h > 0 ? Math.min(100, Math.round(top / h * 100)) : 0) + '%';
+    }
+  }
+
+  var navTick = false;
+  function onNavScroll() {
+    if (navTick) return;
+    navTick = true;
+    requestAnimationFrame(function () { updateNav(); navTick = false; });
+  }
+  window.addEventListener('scroll', onNavScroll, { passive: true });
+  window.addEventListener('resize', onNavScroll);
+  updateNav();
+
+  /* 直接带 #锚点 打开时，等布局（含右栏）稳定后再对齐一次 */
+  if (location.hash && location.hash.length > 1) {
+    setTimeout(function () {
+      var el = doc.getElementById(location.hash.slice(1));
+      if (el) { el.scrollIntoView({ block: 'start' }); updateNav(); }
+    }, 60);
+  }
+
+  /* ---------- 复制代码 ---------- */
+  function copyText(text, btn) {
+    function ok() {
+      var old = btn.textContent;
+      btn.textContent = '已复制';
+      btn.classList.add('ok');
+      setTimeout(function () { btn.textContent = old; btn.classList.remove('ok'); }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, function () { fallback(); });
+    } else { fallback(); }
+    function fallback() {
+      var ta = doc.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      doc.body.appendChild(ta);
+      ta.select();
+      var done = false;
+      try { done = doc.execCommand('copy'); } catch (e) { done = false; }
+      doc.body.removeChild(ta);
+      if (done) ok(); else { btn.textContent = '请手动选择'; setTimeout(function () { btn.textContent = '复制'; }, 1600); }
+    }
+  }
+  doc.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('.copy') : null;
+    if (!btn) return;
+    var box = btn.closest('.code');
+    var code = box && box.querySelector('pre code');
+    if (code) copyText((code.textContent || '').replace(/\n$/, ''), btn);
+  });
+
+  /* ---------- 测验 ---------- */
+  doc.addEventListener('click', function (e) {
+    var opt = e.target.closest ? e.target.closest('.quiz .opt') : null;
+    if (!opt) return;
+    var quiz = opt.closest('.quiz');
+    if (quiz.dataset.done === '1') return;          /* 已答对，忽略后续点击 */
+    var ans = parseInt(quiz.getAttribute('data-answer'), 10);
+    var idx = parseInt(opt.getAttribute('data-i'), 10);
+    var fb = quiz.querySelector('[data-fb]');
+    $$('.opt', quiz).forEach(function (o) { o.classList.remove('wrong'); });
+    if (idx === ans) {
+      opt.classList.add('right');
+      quiz.dataset.done = '1';
+      if (fb) { fb.classList.add('show'); fb.innerHTML = '<b>回答正确。</b> ' + fb.innerHTML; }
+    } else {
+      opt.classList.add('wrong');
+      if (fb) { fb.classList.add('show'); }
+    }
+  });
+
+  /* ---------- 搜索 ---------- */
+  var index = null;
+  function buildIndex() {
+    index = [];
+    chapters.forEach(function (ch) {
+      var h2 = ch.querySelector('h2');
+      var chTitle = h2 ? h2.textContent.trim() : ch.id;
+      var heads = $$('h3, h4', ch);
+      heads.forEach(function (h) {
+        var text = '', n = h.nextElementSibling, guard = 0;
+        while (n && guard < 6 && !/^H[234]$/.test(n.tagName)) {
+          text += ' ' + n.textContent.replace(/\s+/g, ' ').trim();
+          n = n.nextElementSibling; guard++;
+        }
+        index.push({ id: h.id, title: h.textContent.replace(/\s+/g, ' ').trim(), ch: chTitle, text: text.slice(0, 700) });
+      });
+      if (!heads.length) {
+        index.push({ id: ch.id, title: chTitle, ch: chTitle, text: ch.textContent.replace(/\s+/g, ' ').slice(0, 700) });
+      }
+    });
+  }
+  var sbox = $('#searchBox'), sInput = $('#searchInput'), sRes = $('#searchRes');
+  var sel = -1, results = [];
+  function openSearch() {
+    if (!sbox) return;
+    if (!index) buildIndex();
+    sbox.classList.add('on');
+    doc.body.classList.add('no-scroll');
+    setTimeout(function () { sInput.focus(); sInput.select(); }, 30);
+    render('');
+  }
+  function closeSearch() {
+    if (!sbox) return;
+    sbox.classList.remove('on');
+    doc.body.classList.remove('no-scroll');
+    sel = -1;
+  }
+  function esc(s) { return s.replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function render(q) {
+    if (!sRes) return;
+    q = q.trim().toLowerCase();
+    results = !q ? index.slice(0, 8) : index.filter(function (it) {
+      return (it.title + ' ' + it.text + ' ' + it.ch).toLowerCase().indexOf(q) >= 0;
+    }).slice(0, 20);
+    sel = results.length ? 0 : -1;
+    if (!results.length) { sRes.innerHTML = '<div class="sr-empty">没有找到匹配的章节。试试更短的关键词，例如“指针”“队列”“CRC”。</div>'; return; }
+    sRes.innerHTML = results.map(function (it, i) {
+      var snippet = it.text.replace(/\s+/g, ' ').trim().slice(0, 78);
+      return '<button class="sr-item' + (i === 0 ? ' sel' : '') + '" data-id="' + esc(it.id) + '"><b>' + esc(it.title) +
+        '</b><span>' + esc(it.ch) + (snippet ? ' · ' + esc(snippet) : '') + '</span></button>';
+    }).join('');
+  }
+  function go(id) {
+    var el = doc.getElementById(id);
+    if (el) { closeSearch(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+  }
+  if (sInput) {
+    sInput.addEventListener('input', function () { render(sInput.value); });
+    sInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { closeSearch(); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!results.length) return;
+        sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length;
+        $$('.sr-item', sRes).forEach(function (b, i) { b.classList.toggle('sel', i === sel); });
+        var cur = $$('.sr-item', sRes)[sel]; if (cur) cur.scrollIntoView({ block: 'nearest' });
+      }
+      if (e.key === 'Enter' && sel >= 0 && results[sel]) { go(results[sel].id); }
+    });
+  }
+  if (sRes) sRes.addEventListener('click', function (e) {
+    var b = e.target.closest('.sr-item'); if (b) go(b.getAttribute('data-id'));
+  });
+  if (sbox) sbox.addEventListener('click', function (e) { if (e.target === sbox) closeSearch(); });
+  var sBtn = $('#searchBtn');
+  if (sBtn) sBtn.addEventListener('click', openSearch);
+  doc.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
+    else if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(doc.activeElement.tagName)) { e.preventDefault(); openSearch(); }
+    else if (e.key === 'Escape') { closeSearch(); setDrawer(false); }
+  });
+
+  /* ---------- 年份 ---------- */
+  var y = $('#year'); if (y) y.textContent = new Date().getFullYear();
+})();
+
+/* 第 3 册交互实验 */
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- 调度时间轴 ---------- */
+  (function () {
+    var canvas = $('schedCanvas'), out = $('schedOut'), tickEl = $('schedTick');
+    if (!canvas || !out) return;
+    var TICKS = 16;
+    var tasks = [
+      { name: 'H', prio: 3, color: '#7c3aed', light: '#ede9fe', releases: [0, 4, 8, 12], exec: 1 },
+      { name: 'M', prio: 2, color: '#0f766e', light: '#ecfdf5', releases: [0, 8], exec: 2 },
+      { name: 'L', prio: 1, color: '#b45309', light: '#fffbeb', releases: null, exec: 1 }
+    ];
+    var state = [], t = 0, timer = null;
+    function reset() {
+      if (timer) { clearInterval(timer); timer = null; }
+      state = tasks.map(function (x) { return { remain: 0 }; });
+      t = 0;
+      $('schedPlay').textContent = '播放';
+      render();
+    }
+    function step() {
+      if (t >= TICKS) return false;
+      /* 释放 */
+      tasks.forEach(function (task, i) {
+        if (task.releases === null) { state[i].remain = 1; return; }
+        if (task.releases.indexOf(t) >= 0) state[i].remain = task.exec;
+      });
+      /* 选最高优先级且剩余执行 > 0 */
+      var pick = -1;
+      for (var i = 0; i < tasks.length; i++) {
+        if (state[i].remain > 0 && (pick < 0 || tasks[i].prio > tasks[pick].prio)) pick = i;
+      }
+      state.forEach(function (s, i) { s.lastRun = (i === pick); });
+      if (pick >= 0) state[pick].remain--;
+      state.ranAt = state.ranAt || [];
+      state.ranAt[t] = pick;
+      t++;
+      render();
+      return t < TICKS;
+    }
+    function render() {
+      var h = '<div style="overflow-x:auto"><div style="display:grid;grid-template-columns:44px repeat(' + TICKS + ',1fr);gap:2px;min-width:520px;font-size:10px">';
+      h += '<div></div>';
+      for (var k = 0; k < TICKS; k++) h += '<div style="text-align:center;color:#94a3b8">' + k + '</div>';
+      tasks.forEach(function (task, i) {
+        h += '<div style="font-family:Consolas,monospace;color:' + task.color + ';font-weight:700;display:flex;align-items:center">' + task.name + '</div>';
+        for (var k = 0; k < TICKS; k++) {
+          var run = state.ranAt && state.ranAt[k] === i;
+          var cur = k === t - 1;
+          h += '<div title="t=' + k + '" style="height:24px;border-radius:3px;background:' + (run ? task.color : task.light) +
+            ';border:1px solid ' + (cur ? '#0f172a' : 'transparent') + '"></div>';
+        }
+      });
+      h += '<div style="color:#64748b;display:flex;align-items:center">idle</div>';
+      for (var k2 = 0; k2 < TICKS; k2++) {
+        var idle = state.ranAt && state.ranAt[k2] === -1;
+        h += '<div style="height:24px;border-radius:3px;background:' + (idle ? '#cbd5e1' : '#f1f5f9') + '"></div>';
+      }
+      h += '</div></div>';
+      canvas.innerHTML = h;
+      if (tickEl) tickEl.textContent = 't = ' + t;
+      var last = t > 0 && state.ranAt ? state.ranAt[t - 1] : -2;
+      out.textContent = t === 0 ? '尚未开始。H 和 M 在 t=0 同时释放，H 优先级更高，先运行。' :
+        (last >= 0 ? 't=' + (t - 1) + ' 运行的是 ' + tasks[last].name + '（优先级 ' + tasks[last].prio + '）。' :
+          't=' + (t - 1) + ' 没有就绪任务，运行 idle。') +
+        (t >= TICKS ? '\n16 个 tick 结束：H 每 4 tick 占 1 tick，M 被 H 抢占，L 只在空隙运行。' : '');
+    }
+    $('schedStep').addEventListener('click', function () {
+      if (timer) { clearInterval(timer); timer = null; $('schedPlay').textContent = '播放'; }
+      step();
+    });
+    $('schedReset').addEventListener('click', reset);
+    $('schedPlay').addEventListener('click', function () {
+      if (timer) { clearInterval(timer); timer = null; this.textContent = '播放'; return; }
+      if (t >= TICKS) reset();
+      this.textContent = '暂停';
+      timer = setInterval(function () {
+        if (!step()) { clearInterval(timer); timer = null; $('schedPlay').textContent = '播放'; }
+      }, 700);
+    });
+    reset();
+  })();
+
+  /* ---------- 队列 ---------- */
+  (function () {
+    var canvas = $('queueCanvas'), out = $('queueOut');
+    if (!canvas || !out) return;
+    var CAP = 4, q = [], seq = 0, msg = '队列为空。点 xQueueSend 放入一个元素。';
+    function render() {
+      var h = '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+      for (var i = 0; i < CAP; i++) {
+        var has = i < q.length;
+        h += '<div style="text-align:center"><div style="font-size:9.5px;color:#94a3b8;margin-bottom:3px">slot ' + i + '</div>' +
+          '<div style="width:56px;height:42px;display:grid;place-items:center;border-radius:6px;font-family:Consolas,monospace;font-size:12px;border:1.5px solid ' +
+          (has ? '#7c3aed' : '#cbd5e1') + ';background:' + (has ? '#f5f3ff' : '#fff') + ';color:#1e293b">' +
+          (has ? q[i] : '·') + '</div></div>';
+      }
+      h += '</div><div style="font-size:11px;color:#64748b;margin-top:6px">count = ' + q.length + ' / ' + CAP + '</div>';
+      canvas.innerHTML = h;
+      out.textContent = msg;
+    }
+    document.querySelectorAll('[data-q]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var act = b.getAttribute('data-q');
+        if (act === 'send') {
+          if (q.length >= CAP) { msg = 'xQueueSend(..., 0) 返回 errQUEUE_FULL：队列已满，元素没有放入。'; }
+          else { q.push(++seq); msg = 'xQueueSend 成功，元素 ' + seq + ' 已复制进队列。'; }
+        } else if (act === 'recv') {
+          if (!q.length) { msg = 'xQueueReceive(..., 0) 返回 pdFALSE：队列为空，没有取到数据。'; }
+          else { msg = 'xQueueReceive 取出元素 ' + q.shift() + '，队列长度减一。'; }
+        } else { q = []; seq = 0; msg = '已重置。'; }
+        render();
+      });
+    });
+    render();
+  })();
+
+  /* ---------- 优先级反转 ---------- */
+  (function () {
+    var canvas = $('invCanvas'), out = $('invOut');
+    if (!canvas || !out) return;
+    var mode = 'off', idx = 0;
+    var scripts = {
+      off: [
+        ['t0', 'L（优先级 1）运行，取到互斥量'],
+        ['t1', 'H（优先级 3）就绪，抢占 L'],
+        ['t2', 'H 需要同一把锁，阻塞；L 回到就绪'],
+        ['t3', 'M（优先级 2）就绪，抢占 L —— 反转发生'],
+        ['t4', 'M 运行很久，H 只能等'],
+        ['t5', 'M 结束，L 继续，释放锁'],
+        ['t6', 'H 终于拿到锁。H 被 M 间接阻塞了整个 t3–t5']
+      ],
+      on: [
+        ['t0', 'L（优先级 1）运行，取到互斥量'],
+        ['t1', 'H（优先级 3）就绪，抢占 L'],
+        ['t2', 'H 等锁阻塞；L 继承 H 的优先级，变成 3'],
+        ['t3', 'M（优先级 2）就绪，但优先级低于 L，无法抢占'],
+        ['t4', 'L 以优先级 3 继续运行，尽快释放锁'],
+        ['t5', 'L 释放锁，恢复优先级 1；H 拿到锁'],
+        ['t6', 'H 运行，M 稍后才运行。H 的等待时间显著缩短']
+      ]
+    };
+    function render() {
+      var sc = scripts[mode];
+      var running = mode === 'off'
+        ? ['L', 'H', 'L', 'M', 'M', 'L', 'H'][idx]
+        : ['L', 'H', 'L', 'L', 'L', 'H', 'H'][idx];
+      var lprio = mode === 'on' && idx >= 2 && idx <= 4 ? '3（继承）' : '1';
+      var h = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">';
+      [['L', '1'], ['M', '2'], ['H', '3']].forEach(function (x) {
+        var on = running === x[0];
+        h += '<div style="flex:1 1 80px;text-align:center;padding:7px;border-radius:7px;border:1.5px solid ' +
+          (on ? '#7c3aed' : '#cbd5e1') + ';background:' + (on ? '#f5f3ff' : '#fff') + ';font-family:Consolas,monospace;font-size:11px;color:' +
+          (on ? '#5b21b6' : '#64748b') + '">' + x[0] + '（prio ' + (x[0] === 'L' ? lprio : x[1]) + '）' + (on ? ' ▶' : '') + '</div>';
+      });
+      h += '</div><div style="display:grid;gap:3px;font-family:Consolas,monospace;font-size:11px">';
+      sc.forEach(function (row, i) {
+        var on = i === idx;
+        h += '<div style="display:flex;gap:8px;padding:3px 6px;border-radius:4px;background:' + (on ? '#f5f3ff' : 'transparent') +
+          ';color:' + (on ? '#5b21b6' : i > idx ? '#94a3b8' : '#334155') + '"><span style="min-width:24px;font-weight:700">' + row[0] + '</span><span>' + row[1] + '</span></div>';
+      });
+      h += '</div>';
+      canvas.innerHTML = h;
+      out.textContent = '模式：' + (mode === 'on' ? '有优先级继承' : '无优先级继承') + '　步骤 ' + idx + '/' + (sc.length - 1);
+    }
+    document.querySelectorAll('[data-inv]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        mode = b.getAttribute('data-inv'); idx = 0;
+        document.querySelectorAll('[data-inv]').forEach(function (x) { x.classList.toggle('pri', x === b); });
+        render();
+      });
+    });
+    $('invStep').addEventListener('click', function () { if (idx < scripts[mode].length - 1) idx++; render(); });
+    $('invReset').addEventListener('click', function () { idx = 0; render(); });
+    render();
+  })();
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<h3><span class="n">4.1</span>知道 IP，为什么还要 MAC</h3>
+<p>IP 是“最终目的地”，MAC 是“这一跳交给谁”。数据包从主机到路由器、从路由器到下一跳，每一跳的源/目的 MAC 都会变，但源/目的 IP 不变（NAT 除外）。</p>
+<p>ARP（地址解析协议）负责在<strong>同一局域网内</strong>把 IP 解析成 MAC。</p>
+<div class="steps">
+<div><b>查缓存</b>　先看 ARP 表里有没有对应项。</div>
+<div><b>广播请求</b>　没有就发广播：“谁有 192.168.1.1？请告诉 192.168.1.10”。</div>
+<div><b>单播应答</b>　目标主机回复自己的 MAC。</div>
+<div><b>写入缓存</b>　缓存几分钟，避免每次都广播。</div>
+</div>
+<codeblock lang="bash" file="查看与清理 ARP 表">
+arp -a                       # Windows / Linux 都可看
+ip neigh                     # Linux 更现代
+sudo ip neigh flush all      # Linux 清空（需要权限）
+arp -d 192.168.1.1           # Windows 删除单条
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>ARP 没有认证，任何人都可以伪造应答（ARP 欺骗），把流量引到自己这里。所以“同一个局域网”默认是互相信任的；跨网段隔离、动态 ARP 检测（DAI）是常见的防护手段。</p>
+</div>
+
+<h3><span class="n">4.2</span>路由表：下一跳交给谁</h3>
+<p>主机和路由器都维护路由表。每条路由包含：目的网络、掩码、下一跳、出接口、度量值。</p>
+<codeblock lang="text" file="路由表示例（简化）">
+目的网络        掩码              下一跳          接口
+0.0.0.0         0.0.0.0           192.168.1.1     eth0     ← 默认路由
+192.168.1.0     255.255.255.0     直连            eth0
+192.168.2.0     255.255.255.0     192.168.1.2     eth0
+</codeblock>
+<p>转发时按<strong>最长前缀匹配</strong>：在所有匹配的路由里，选前缀最长（最具体）的那条。默认路由 <code class="i">0.0.0.0/0</code> 前缀长度为 0，是最后的兜底。</p>
+<div class="note impl">
+<b>实现细节</b>
+<p>最长前缀匹配不是“按顺序查表”，硬件路由器用 TCAM 并行比较。主机上的路由表通常很小，线性查找也够快。</p>
+</div>
+
+<h3><span class="n">4.3</span>一个包从 A 到 B 的完整过程</h3>
+<div class="steps">
+<div><b>应用发数据</b>　写入套接字，传输层加上 TCP/UDP 头。</div>
+<div><b>查路由</b>　目的 IP 不在本子网 → 走默认网关。</div>
+<div><b>ARP 网关</b>　拿到网关 MAC，封装成以太网帧。</div>
+<div><b>交换机转发</b>　按目的 MAC 送到路由器端口。</div>
+<div><b>路由器转发</b>　查路由表，TTL 减 1，改 MAC，发往下一跳。</div>
+<div><b>重复</b>　直到到达目的子网的路由器。</div>
+<div><b>最后一跳</b>　ARP 目标主机，交付帧。</div>
+<div><b>解封装</b>　逐层剥离，数据交给应用。</div>
+</div>
+
+<div class="lab" id="lab-route">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>一个包怎么跳过三个网络</h4>
+    <p>点击“下一跳”，看源/目的 IP 与 MAC 在每一跳如何变化。注意：IP 不变，MAC 每跳都换。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="routeStep">下一跳</button>
+      <button class="lab-btn" type="button" id="routeReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="routeCanvas"></div>
+    <div class="lab-read" id="routeOut" aria-live="polite"></div>
+    <p class="lab-note">TTL 每经一个路由器减 1；减到 0 就丢弃并返回 ICMP 超时——traceroute 就是利用这一点。</p>
+  </div>
+</div>
+
+<h3><span class="n">4.4</span>TTL 与分片</h3>
+<ul>
+<li><strong>TTL</strong>：防止包在环路里永远转。每经路由器减 1，到 0 丢弃并回 ICMP Time Exceeded。</li>
+<li><strong>分片</strong>：IP 包大于链路 MTU 时，路由器可以分片（DF=0），接收方按标识/偏移重组。分片会增加丢失概率（丢一片整包重传），所以现代协议倾向用 Path MTU Discovery 避免分片。</li>
+<li><strong>ICMP</strong>：网络层的“控制消息”，ping 用 Echo Request/Reply，traceroute 用 TTL 超时。</li>
+</ul>
+<codeblock lang="bash" file="观察路径与 MTU">
+tracert example.com            # Windows
+traceroute example.com         # Linux / macOS
+ping -f -l 1472 192.168.1.1    # Windows：探测 MTU（1472+28=1500）
+ping -M do -s 1472 192.168.1.1 # Linux：禁止分片
+</codeblock>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 4 讲</div>
+<div class="pb">
+<ol>
+<li>同一子网内两台主机通信，需要经过路由器吗？</li>
+<li>路由表里同时有 0.0.0.0/0 和 10.0.0.0/8，去 10.1.2.3 走哪条？</li>
+<li>TTL 的作用是什么？traceroute 怎么利用它？</li>
+<li>为什么分片会降低可靠性？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 不需要，直接 ARP 对方 MAC，经交换机转发。</p>
+<p><b>2.</b> 10.0.0.0/8，因为前缀更长（更具体），最长前缀匹配优先。</p>
+<p><b>3.</b> 防止环路；traceroute 逐次增大 TTL，让路径上的路由器依次返回超时消息，从而得到路径。</p>
+<p><b>4.</b> 任意一片丢失都要重传整个包，且重组占用资源；路径 MTU 不一致时更容易丢。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：数据包经过路由器时，哪个地址会改变？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>源 IP 和目的 IP</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>只有目的 IP</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>链路层的源/目的 MAC（NAT 场景除外）</span></button>
+</div>
+<div class="fb" data-fb>路由器每跳重新封装链路层帧，MAC 会变；IP 在普通路由中保持不变（NAT 会改写 IP 和端口，那是另一回事）。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>ARP 在同一局域网内把 IP 解析成 MAC。</li>
+<li>路由表按最长前缀匹配选择下一跳。</li>
+<li>每经一跳，MAC 改变、TTL 减 1，IP 通常不变。</li>
+<li>TTL 防环，traceroute 利用 TTL 超时。</li>
+<li>分片增加丢失与重组成本，能避免就避免。</li>
+</ul>
+<ul class="checklist">
+<li>我能描述 ARP 的请求与应答</li>
+<li>我能读懂路由表并判断下一跳</li>
+<li>我知道 TTL 与 traceroute 的关系</li>
+</ul>
+</div>

@@ -1,0 +1,100 @@
+<h3><span class="n">A.1</span>常用 API 速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>API</th><th>上下文</th><th>阻塞</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>xTaskCreate</code></td><td>任务/调度前</td><td>否</td><td>栈深度单位是字</td></tr>
+<tr><td><code>vTaskDelete</code></td><td>任务</td><td>否</td><td>删除自己传 NULL</td></tr>
+<tr><td><code>vTaskDelay</code></td><td>任务</td><td>是</td><td>单位 tick</td></tr>
+<tr><td><code>vTaskDelayUntil</code></td><td>任务</td><td>是</td><td>固定周期，不累积漂移</td></tr>
+<tr><td><code>xTaskGetTickCount</code></td><td>任务/ISR</td><td>否</td><td>ISR 用 <code>xTaskGetTickCountFromISR</code></td></tr>
+<tr><td><code>xQueueCreate</code></td><td>任务/调度前</td><td>否</td><td>长度 × 元素大小</td></tr>
+<tr><td><code>xQueueSend</code> / <code>Receive</code></td><td>任务</td><td>是</td><td>带 tick 超时</td></tr>
+<tr><td><code>xQueueSendFromISR</code></td><td>ISR</td><td>否</td><td>带 <code>pxHigherPriorityTaskWoken</code></td></tr>
+<tr><td><code>xSemaphoreCreateBinary</code></td><td>任务/调度前</td><td>否</td><td>初值 0</td></tr>
+<tr><td><code>xSemaphoreCreateCounting</code></td><td>任务/调度前</td><td>否</td><td>最大计数、初值</td></tr>
+<tr><td><code>xSemaphoreCreateMutex</code></td><td>任务/调度前</td><td>否</td><td>有所有者、优先级继承</td></tr>
+<tr><td><code>xSemaphoreTake</code> / <code>Give</code></td><td>任务</td><td>Take 可阻塞</td><td>Give 不阻塞</td></tr>
+<tr><td><code>xSemaphoreGiveFromISR</code></td><td>ISR</td><td>否</td><td>互斥量不能用</td></tr>
+<tr><td><code>xEventGroupWaitBits</code></td><td>任务</td><td>是</td><td>AND/OR 等待</td></tr>
+<tr><td><code>xEventGroupSetBits</code></td><td>任务</td><td>否</td><td>ISR 用 FromISR</td></tr>
+<tr><td><code>ulTaskNotifyTake</code></td><td>任务</td><td>是</td><td>计数式通知</td></tr>
+<tr><td><code>xTaskNotifyWait</code></td><td>任务</td><td>是</td><td>取值式通知</td></tr>
+<tr><td><code>vTaskNotifyGiveFromISR</code></td><td>ISR</td><td>否</td><td>最常用的 ISR→任务唤醒</td></tr>
+<tr><td><code>xTimerCreate</code></td><td>任务/调度前</td><td>否</td><td>周期 + 自动重载</td></tr>
+<tr><td><code>xTimerStart</code> / <code>Stop</code></td><td>任务</td><td>可短等</td><td>通过命令队列</td></tr>
+<tr><td><code>taskENTER_CRITICAL</code></td><td>任务</td><td>否</td><td>屏蔽受管中断</td></tr>
+<tr><td><code>vTaskSuspendAll</code></td><td>任务</td><td>否</td><td>只禁止任务切换</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.2</span>关键配置项</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>宏</th><th>作用</th><th>常见值</th></tr></thead>
+<tbody>
+<tr><td><code>configTICK_RATE_HZ</code></td><td>tick 频率</td><td>1000</td></tr>
+<tr><td><code>configMAX_PRIORITIES</code></td><td>优先级层数</td><td>5–8</td></tr>
+<tr><td><code>configTOTAL_HEAP_SIZE</code></td><td>堆总大小</td><td>8–32 KB</td></tr>
+<tr><td><code>configMINIMAL_STACK_SIZE</code></td><td>空闲任务栈</td><td>128 字</td></tr>
+<tr><td><code>configUSE_PREEMPTION</code></td><td>抢占式调度</td><td>1</td></tr>
+<tr><td><code>configUSE_TIME_SLICING</code></td><td>同优先级轮转</td><td>1</td></tr>
+<tr><td><code>configUSE_MUTEXES</code></td><td>启用互斥量</td><td>1</td></tr>
+<tr><td><code>configUSE_RECURSIVE_MUTEXES</code></td><td>递归互斥量</td><td>按需</td></tr>
+<tr><td><code>configUSE_COUNTING_SEMAPHORES</code></td><td>计数信号量</td><td>1</td></tr>
+<tr><td><code>configUSE_TIMERS</code></td><td>软件定时器</td><td>1</td></tr>
+<tr><td><code>configCHECK_FOR_STACK_OVERFLOW</code></td><td>栈溢出检测</td><td>2</td></tr>
+<tr><td><code>configUSE_TRACE_FACILITY</code></td><td>任务列表/统计</td><td>1（调试）</td></tr>
+<tr><td><code>configGENERATE_RUN_TIME_STATS</code></td><td>CPU 占用统计</td><td>1（调试）</td></tr>
+<tr><td><code>configASSERT</code></td><td>参数断言</td><td>开发期必开</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.3</span>故障对照表</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>现象</th><th>优先排查</th><th>验证手段</th></tr></thead>
+<tbody>
+<tr><td>创建任务失败</td><td>堆大小、栈大小、heap_1</td><td>打印剩余堆、看返回值</td></tr>
+<tr><td>任务不运行</td><td>优先级、是否被挂起、是否卡在等锁</td><td>调试器看任务状态、<code>vTaskList</code></td></tr>
+<tr><td>偶发 HardFault</td><td>栈溢出、空指针、数组越界</td><td>溢出钩子、高水位、栈回溯</td></tr>
+<tr><td>高优先级延迟大</td><td>临界区过长、优先级反转、关中断</td><td>GPIO 翻转测时长、运行时统计</td></tr>
+<tr><td>系统整体停住</td><td>死锁、看门狗未喂</td><td>暂停看各任务栈、检查锁顺序</td></tr>
+<tr><td>内存持续减少</td><td>任务/队列反复创建删除、泄漏</td><td>堆最小值曲线、分配计数</td></tr>
+<tr><td>定时器不准</td><td>守护任务优先级、tick 率</td><td>比较时间戳、测抖动</td></tr>
+<tr><td>中断里崩溃</td><td>用了非 FromISR API、优先级高于阈值</td><td>检查 ISR 代码与 NVIC 配置</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.4</span>术语表</h3>
+<div class="term-grid">
+<div class="term"><b>TCB</b><span>任务控制块，保存任务状态、栈指针、优先级等。</span></div>
+<div class="term"><b>tick</b><span>内核时基单位，由 SysTick 或外设定时器产生。</span></div>
+<div class="term"><b>抢占</b><span>更高优先级任务就绪时立刻夺走 CPU。</span></div>
+<div class="term"><b>时间片</b><span>同优先级任务按 tick 轮流运行。</span></div>
+<div class="term"><b>阻塞</b><span>任务主动等待事件/超时，不占 CPU。</span></div>
+<div class="term"><b>挂起</b><span>任务被显式暂停，无超时，必须恢复。</span></div>
+<div class="term"><b>优先级反转</b><span>高优先级任务被中优先级任务间接阻塞。</span></div>
+<div class="term"><b>优先级继承</b><span>持锁者临时提升到等待者的优先级。</span></div>
+<div class="term"><b>高水位</b><span>任务栈历史最小剩余量。</span></div>
+<div class="term"><b>碎片</b><span>空闲内存总量够，但没有足够大的连续块。</span></div>
+<div class="term"><b>守护任务</b><span>软件定时器的回调执行者。</span></div>
+<div class="term"><b>临界区</b><span>屏蔽中断/调度的代码段，保证原子性。</span></div>
+</div>
+
+<h3><span class="n">A.5</span>上线前检查清单</h3>
+<ul class="checklist">
+<li>每个任务都有阻塞点，没有纯忙等</li>
+<li>所有 <code>xTaskCreate</code> / 队列创建都检查了返回值</li>
+<li>栈高水位在最坏路径上测过，余量 ≥ 25%</li>
+<li>堆最小值稳定，没有持续下降</li>
+<li>中断里只用 FromISR API，优先级配置正确</li>
+<li>临界区都短，且没有阻塞调用</li>
+<li>互斥量加锁顺序统一，关键加锁带超时</li>
+<li>看门狗由“全部关键任务健康”驱动</li>
+<li>开 <code>configASSERT</code> 跑过完整测试</li>
+<li>断链、掉电、错误注入都验证过</li>
+</ul>

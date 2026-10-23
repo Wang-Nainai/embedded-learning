@@ -1,0 +1,144 @@
+<h3><span class="n">10.1</span>一行 C 不是原子操作</h3>
+<p><code class="i">g_counter++</code> 编译后是“读 → 加 → 写”。两个任务交替执行时，可能都读到 5，各自写回 6，最终少加一次。这类问题叫<strong>竞争条件</strong>（race condition）。</p>
+<codeblock lang="C11" file="race.c">
+static uint32_t g_counter;
+
+void task_a(void *arg) { (void)arg; for (;;) { g_counter++; vTaskDelay(1); } }
+void task_b(void *arg) { (void)arg; for (;;) { g_counter++; vTaskDelay(1); } }
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>加 <code class="i">volatile</code> 不能解决竞争。它只保证“每次都去内存读”，不保证“读和写之间不被打断”。竞争需要<strong>互斥</strong>或<strong>原子操作</strong>。</p>
+</div>
+
+<h3><span class="n">10.2</span>临界区：短暂关闭调度与中断</h3>
+<codeblock lang="C11" file="critical.c">
+#include "FreeRTOS.h"
+#include "task.h"
+
+void update_counter(void)
+{
+    taskENTER_CRITICAL();
+    g_counter++;                 /* 这期间不会被任务切换或受管中断打断 */
+    taskEXIT_CRITICAL();
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>API</th><th>作用范围</th><th>能否嵌套</th><th>适用</th></tr></thead>
+<tbody>
+<tr><td><code>taskENTER_CRITICAL</code></td><td>屏蔽受管中断 + 禁止调度</td><td>是（计数）</td><td>几行代码的原子更新</td></tr>
+<tr><td><code>vTaskSuspendAll</code></td><td>只禁止任务切换，中断仍运行</td><td>是</td><td>较长的只读遍历、避免中断延迟</td></tr>
+<tr><td><code>portENTER_CRITICAL</code></td><td>更底层，移植相关</td><td>视端口</td><td>内核/驱动内部</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>在 Cortex-M 端口上，<code class="i">taskENTER_CRITICAL()</code> 会把 <code class="i">BASEPRI</code> 设为 <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code>，从而屏蔽“允许调用 FreeRTOS API 的中断”，但<strong>不屏蔽更高优先级的中断</strong>。所以临界区并不能防止所有中断修改数据——那些高优先级中断本来就不该碰共享数据。</p>
+</div>
+
+<h3><span class="n">10.3</span>关中断 vs 挂起调度器</h3>
+<div class="grid2">
+<div class="card"><span class="tag">taskENTER_CRITICAL</span><h4>更“硬”的保护</h4><p>连中断都挡在外面。适合几行代码的读改写、链表插入。时间必须极短，否则中断延迟变大。</p></div>
+<div class="card"><span class="tag">vTaskSuspendAll</span><h4>只挡任务切换</h4><p>中断照常运行，所以中断仍可能修改数据。适合“遍历一个不会被中断修改的结构”，或避免长时间关中断。</p></div>
+</div>
+<codeblock lang="C11" file="suspend_all.c">
+/* 遍历一个只被任务修改的链表：不需要关中断 */
+vTaskSuspendAll();
+for (node_t *p = g_list; p != NULL; p = p->next) {
+    inspect(p);
+}
+xTaskResumeAll();
+</codeblock>
+
+<h3><span class="n">10.4</span>可重入与线程安全</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>含义</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>可重入</td><td>同一函数被多个上下文同时调用仍正确</td><td>只用参数和局部变量的函数</td></tr>
+<tr><td>线程安全</td><td>多任务调用不会破坏共享状态</td><td>内部加锁，或使用原子操作</td></tr>
+<tr><td>不可重入</td><td>依赖静态缓冲区/全局状态</td><td><code>strtok</code>、部分 <code>printf</code> 实现</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="reentrant.c">
+/* 不可重入：静态缓冲区被共享 */
+char *bad_itoa(int v)
+{
+    static char buf[12];
+    snprintf(buf, sizeof buf, "%d", v);
+    return buf;
+}
+
+/* 可重入：由调用者提供缓冲区 */
+void good_itoa(int v, char *out, size_t n)
+{
+    snprintf(out, n, "%d", v);
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>标准库的 <code class="i">printf</code>、<code class="i">malloc</code>、<code class="i">strtok</code> 在嵌入式里经常不可重入或实现很重。要么用可重入版本（<code class="i">strtok_r</code>、<code class="i">snprintf</code> 到调用者缓冲区），要么在接口层面约定“只在某个任务里调用”。</p>
+</div>
+
+<h3><span class="n">10.5</span>临界区该有多长</h3>
+<p>临界区的长度直接决定<strong>最坏中断延迟</strong>。经验值：几微秒到几十微秒；超过 100 µs 就要重新设计。</p>
+<ul>
+<li>把计算、拷贝、判断尽量移到临界区外。</li>
+<li>只保护“必须原子”的那几行。</li>
+<li>不要在临界区里调用 <code class="i">printf</code>、<code class="i">malloc</code>、可能阻塞的 API。</li>
+<li>用示波器/GPIO 翻转测量临界区时长，不要凭感觉。</li>
+</ul>
+<codeblock lang="C11" file="measure.c · 平台相关">
+gpio_set(DEBUG_PIN);
+taskENTER_CRITICAL();
+/* 被测代码 */
+taskEXIT_CRITICAL();
+gpio_clear(DEBUG_PIN);
+</codeblock>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 10 讲</div>
+<div class="pb">
+<ol>
+<li>两个任务各自对 <code class="i">g_counter</code> 加 10000 次，不用临界区，结果是多少？为什么？</li>
+<li>用 <code class="i">taskENTER_CRITICAL</code> 修复，并说明临界区应该包住哪些行。</li>
+<li>什么时候该用 <code class="i">vTaskSuspendAll</code> 而不是关中断？</li>
+<li>判断 <code class="i">strtok</code> 是否可重入，给出替代方案。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 通常小于 20000，具体值不确定；两个任务读到相同旧值后互相覆盖。</p>
+<p><b>2.</b> 只包住 <code class="i">g_counter++</code> 这一行；如果还有“读-判断-写”的逻辑，要一起包住。</p>
+<p><b>3.</b> 遍历一个只被任务修改的结构，且不想拉长中断关闭时间时。</p>
+<p><b>4.</b> 不可重入（内部保存静态状态）。用 <code class="i">strtok_r</code>，或自己写基于指针的切分函数。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：临界区里最不应该做的是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>给整型变量赋值</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>调用 <code>printf</code> 打印日志</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>修改一个链表指针</span></button>
+</div>
+<div class="fb" data-fb><code class="i">printf</code> 可能阻塞、可能很长，还会调用不可重入的内部函数；放在临界区里会显著拉长中断关闭时间。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>竞争条件来自非原子的读改写，volatile 解决不了。</li>
+<li>临界区屏蔽受管中断，适合极短的原子操作。</li>
+<li><code>vTaskSuspendAll</code> 只禁止任务切换，不挡中断。</li>
+<li>可重入函数不依赖共享状态，线程安全靠同步保证。</li>
+<li>临界区长度要用测量说话，不能凭感觉。</li>
+</ul>
+<ul class="checklist">
+<li>我能识别竞争条件</li>
+<li>我能选择合适的保护手段</li>
+<li>我知道临界区里不能做什么</li>
+</ul>
+</div>

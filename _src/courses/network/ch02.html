@@ -1,0 +1,116 @@
+<h3><span class="n">2.1</span>MAC 地址：网卡的身份证</h3>
+<p>MAC 地址 48 位，通常写成 <code class="i">00:1A:2B:3C:4D:5E</code>。前 24 位是厂商前缀（OUI），后 24 位由厂商分配。它只在<strong>同一个局域网内</strong>有效，路由器不会把 MAC 带到互联网。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类型</th><th>特征</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td>单播</td><td>第一个字节最低位为 0</td><td>发给某一块网卡</td></tr>
+<tr><td>广播</td><td><code>FF:FF:FF:FF:FF:FF</code></td><td>ARP 请求、DHCP 发现</td></tr>
+<tr><td>组播</td><td>第一个字节最低位为 1</td><td>视频流、IPv6 邻居发现</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>每块网卡的 MAC 理论上全球唯一，但很多芯片允许软件修改（MAC 地址克隆/随机化）。虚拟机和容器更是随便配。所以<strong>不能把 MAC 当作安全凭证</strong>。</p>
+</div>
+
+<h3><span class="n">2.2</span>以太网帧</h3>
+<div class="table-wrap">
+<table>
+<caption>Ethernet II 帧</caption>
+<thead><tr><th>字段</th><th>长度</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>前导码 + SFD</td><td>7 + 1 字节</td><td>用于时钟同步，不算帧内容</td></tr>
+<tr><td>目的 MAC</td><td>6 字节</td><td>可以是单播/广播/组播</td></tr>
+<tr><td>源 MAC</td><td>6 字节</td><td>发送方网卡</td></tr>
+<tr><td>类型/长度</td><td>2 字节</td><td>0x0800 = IPv4，0x0806 = ARP，0x86DD = IPv6</td></tr>
+<tr><td>载荷</td><td>46–1500 字节</td><td>IP 包；不足 46 字节要填充</td></tr>
+<tr><td>FCS</td><td>4 字节</td><td>CRC32 校验，错误帧直接丢弃</td></tr>
+</tbody>
+</table>
+</div>
+<p>MTU（最大传输单元）通常是 1500 字节。IP 包超过 MTU 就要分片，或者由上层控制报文大小（TCP 的 MSS 就是据此协商的）。</p>
+
+<h3><span class="n">2.3</span>交换机怎么转发</h3>
+<div class="steps">
+<div><b>学习</b>　收到帧时，把“源 MAC + 入端口”记进 MAC 表。</div>
+<div><b>查找</b>　看目的 MAC 在表里有没有。</div>
+<div><b>转发</b>　有就只从对应端口发出（单播）。</div>
+<div><b>泛洪</b>　没有就从除入端口外的所有端口发出。</div>
+<div><b>老化</b>　表项一段时间不用就删除，适应设备移动。</div>
+</div>
+<codeblock lang="bash" file="查看本机 MAC 与邻居（Linux / Windows）">
+ip link                     # Linux：看网卡与 MAC
+getmac /v                   # Windows：看 MAC
+ip neigh                    # Linux：ARP/邻居表
+arp -a                      # Windows：ARP 表
+</codeblock>
+
+<h3><span class="n">2.4</span>冲突域与广播域</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>含义</th><th>隔离设备</th></tr></thead>
+<tbody>
+<tr><td>冲突域</td><td>同时发送会冲突的范围</td><td>交换机每个端口一个冲突域</td></tr>
+<tr><td>广播域</td><td>广播帧能到达的范围</td><td>路由器 / VLAN</td></tr>
+</tbody>
+</table>
+</div>
+<p>交换机隔离冲突域，但不隔离广播域：一个广播帧会被泛洪到所有端口。广播太多会占用带宽和 CPU，这时就用 <strong>VLAN</strong> 把一个物理交换机切成多个逻辑广播域。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>嵌入式设备如果频繁发广播（例如设备发现协议），要考虑广播风暴的风险。能用量身定制的组播/单播，就不要用广播。</p>
+</div>
+
+<h3><span class="n">2.5</span>VLAN 与 Trunk</h3>
+<p>VLAN 在以太网帧里插入 4 字节标签（802.1Q），用 12 位 VLAN ID 标识所属网络。交换机端口可以配置成：</p>
+<ul>
+<li><strong>Access</strong>：只属于一个 VLAN，接终端设备。</li>
+<li><strong>Trunk</strong>：承载多个 VLAN，接交换机/路由器，帧带标签。</li>
+</ul>
+<p>对嵌入式设备来说，VLAN 通常是“网络管理员的事”；但如果你要接工业交换机、划分控制网与办公网，就需要知道设备该接 Access 口还是 Trunk 口。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 2 讲</div>
+<div class="pb">
+<ol>
+<li>为什么 MAC 地址不能跨路由器传递？</li>
+<li>交换机收到未知目的 MAC 的帧会怎么做？</li>
+<li>广播域和冲突域分别由什么设备隔离？</li>
+<li>MTU 1500 时，一个 3000 字节的 IP 包会怎样？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> MAC 只在链路层本地有效；路由器每跳会重新封装成新的链路层帧，源/目的 MAC 都变成当前链路两端的地址。</p>
+<p><b>2.</b> 泛洪到除入端口外的所有端口，同时学习源 MAC。</p>
+<p><b>3.</b> 冲突域由交换机端口隔离；广播域由路由器或 VLAN 隔离。</p>
+<p><b>4.</b> 若 DF=0 则分成两个片；若 DF=1 则丢弃并返回 ICMP“需要分片”。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：交换机主要根据什么转发帧？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>目的 MAC 地址</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>目的 IP 地址</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>目的端口号</span></button>
+</div>
+<div class="fb" data-fb>普通二层交换机看目的 MAC；路由器才看目的 IP；端口号是传输层概念，交换机不解析。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>MAC 是链路层地址，只在本地链路有效。</li>
+<li>以太网帧包含源/目的 MAC、类型、载荷与 FCS。</li>
+<li>交换机学习源 MAC、按目的 MAC 转发、未知则泛洪。</li>
+<li>交换机隔离冲突域，路由器/VLAN 隔离广播域。</li>
+<li>MTU 决定是否需要分片。</li>
+</ul>
+<ul class="checklist">
+<li>我能读出以太网帧的关键字段</li>
+<li>我能解释交换机的学习与泛洪</li>
+<li>我知道 VLAN 解决什么问题</li>
+</ul>
+</div>

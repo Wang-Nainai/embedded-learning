@@ -1,0 +1,148 @@
+<h3><span class="n">1.1</span>两台机器说话，需要约定什么</h3>
+<p>网络通信的本质是“两台机器上的两个程序交换字节”。要让它可靠发生，至少要约定五件事：</p>
+<div class="steps">
+<div><b>怎么连</b>　物理介质与接口（网线、Wi-Fi、光纤）。</div>
+<div><b>怎么找到对方</b>　地址（MAC、IP、域名）。</div>
+<div><b>数据怎么切分</b>　帧、包、段，各自的边界与校验。</div>
+<div><b>丢了怎么办</b>　确认、重传、超时、顺序。</div>
+<div><b>字节是什么意思</b>　应用层协议（HTTP、MQTT、自定义）。</div>
+</div>
+<p>把这些问题分层处理，就是网络架构的核心思想：<strong>每一层只解决一类问题，并向上提供接口</strong>。</p>
+
+<h3><span class="n">1.2</span>OSI 七层与 TCP/IP 四层</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>TCP/IP 四层</th><th>OSI 对应</th><th>典型协议</th><th>典型设备/概念</th><th>数据单位</th></tr></thead>
+<tbody>
+<tr><td>应用层</td><td>应用 / 表示 / 会话</td><td>HTTP、DNS、MQTT、TLS</td><td>浏览器、客户端、Broker</td><td>消息</td></tr>
+<tr><td>传输层</td><td>传输</td><td>TCP、UDP</td><td>端口、套接字</td><td>段（segment）/ 数据报</td></tr>
+<tr><td>网络层</td><td>网络</td><td>IP、ICMP、ARP*</td><td>路由器</td><td>包（packet）</td></tr>
+<tr><td>链路层</td><td>数据链路 / 物理</td><td>Ethernet、Wi-Fi、PPP</td><td>交换机、网卡</td><td>帧（frame）</td></tr>
+</tbody>
+</table>
+</div>
+<p>* ARP 常被归到链路层与网络层之间，它把 IP 地址解析成 MAC 地址，不承载上层数据。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>排障时先问“问题在哪一层”：网线没插是链路层，IP 配错是网络层，端口没监听是传输层，返回 404 是应用层。分层不是为了考试，是为了让你知道下一步该查什么。</p>
+</div>
+
+<h3><span class="n">1.3</span>封装：一层套一层</h3>
+<p>发送数据时，每一层都会在数据前面加上自己的头部（有时还有尾部）。接收时再逐层剥掉。这个过程叫<strong>封装 / 解封装</strong>。</p>
+
+<div class="lab" id="lab-encap">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>一条消息被套了多少层</h4>
+    <p>点击“发送”，看应用数据如何被 TCP、IP、以太网依次加上头部；再点“接收”，看它如何被逐层剥开。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="encapSend">发送（封装）</button>
+      <button class="lab-btn" type="button" id="encapRecv">接收（解封装）</button>
+      <button class="lab-btn" type="button" id="encapReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="encapCanvas"></div>
+    <div class="lab-read" id="encapOut" aria-live="polite"></div>
+    <p class="lab-note">每层只关心自己的头部，不关心上层载荷的内容——这就是分层的价值。</p>
+  </div>
+</div>
+
+<figure class="fig scroll">
+<svg viewBox="0 0 820 260" role="img" aria-labelledby="fig1t fig1d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig1t">数据封装过程</title>
+<desc id="fig1d">应用数据依次加上 TCP 头、IP 头、以太网头与尾部，形成帧；接收方按相反顺序剥离。</desc>
+<rect width="820" height="260" fill="#fbfdff"/>
+<g font-size="10.5" text-anchor="middle">
+<rect x="40" y="40" width="180" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="130" y="63" fill="#26348f">应用数据 "Hello"</text>
+<rect x="40" y="92" width="80" height="36" fill="#dcfce7" stroke="#4ade80"/><text x="80" y="115" fill="#166534">TCP 头</text>
+<rect x="120" y="92" width="180" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="210" y="115" fill="#26348f">应用数据</text>
+<rect x="40" y="144" width="70" height="36" fill="#fef3c7" stroke="#fbbf24"/><text x="75" y="167" fill="#92400e">IP 头</text>
+<rect x="110" y="144" width="80" height="36" fill="#dcfce7" stroke="#4ade80"/><text x="150" y="167" fill="#166534">TCP 头</text>
+<rect x="190" y="144" width="180" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="280" y="167" fill="#26348f">应用数据</text>
+<rect x="40" y="196" width="90" height="36" fill="#ede9fe" stroke="#c4b5fd"/><text x="85" y="219" fill="#5b21b6">以太网头</text>
+<rect x="130" y="196" width="70" height="36" fill="#fef3c7" stroke="#fbbf24"/><text x="165" y="219" fill="#92400e">IP 头</text>
+<rect x="200" y="196" width="80" height="36" fill="#dcfce7" stroke="#4ade80"/><text x="240" y="219" fill="#166534">TCP 头</text>
+<rect x="280" y="196" width="140" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="350" y="219" fill="#26348f">应用数据</text>
+<rect x="420" y="196" width="50" height="36" fill="#f1f5f9" stroke="#cbd5e1"/><text x="445" y="219" fill="#475569">FCS</text>
+</g>
+<text x="500" y="60" font-size="11.5" fill="#334155">每一层只加自己的头：</text>
+<text x="500" y="84" font-size="11" fill="#475569">TCP 头：端口、序号、确认号、窗口</text>
+<text x="500" y="106" font-size="11" fill="#475569">IP 头：源/目的 IP、TTL、协议号</text>
+<text x="500" y="128" font-size="11" fill="#475569">以太网头：源/目的 MAC、类型</text>
+<text x="500" y="150" font-size="11" fill="#475569">FCS：帧校验（链路层尾部）</text>
+<text x="500" y="180" font-size="11" fill="#0f766e">接收方从外到内逐层剥离，</text>
+<text x="500" y="200" font-size="11" fill="#0f766e">每层只处理自己的头部。</text>
+</svg>
+<figcaption>封装：应用数据 → TCP 段 → IP 包 → 以太网帧。</figcaption>
+</figure>
+
+<h3><span class="n">1.4</span>客户端与服务器</h3>
+<p>“客户端/服务器”不是指硬件，而是指<strong>角色</strong>：主动发起连接的一方是客户端，被动等待连接的一方是服务器。同一个程序可以既是客户端又是服务器。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>角色</th><th>典型行为</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>客户端</td><td>知道服务器地址，主动连接，发请求</td><td>浏览器、手机 App、ESP32 上报程序</td></tr>
+<tr><td>服务器</td><td>监听端口，接受连接，处理请求</td><td>Web 服务器、MQTT Broker</td></tr>
+<tr><td>对等（P2P）</td><td>双方既发又收，角色对等</td><td>局域网文件传输、部分音视频</td></tr>
+</tbody>
+</table>
+</div>
+<p>服务器要同时服务多个客户端，通常用“每连接一个线程/协程”或“事件循环（epoll/kqueue）”。嵌入式设备资源有限，通常只做客户端，或者做轻量服务器（如配置页面）。</p>
+
+<h3><span class="n">1.5</span>一次访问，经过哪些设备</h3>
+<codeblock lang="text" file="一次网页访问的简化路径">
+浏览器 → 本机协议栈 → 网卡 → 交换机 → 路由器 → 运营商网络 → 目标服务器
+   ↑                                                              ↓
+   └──────────────── 响应沿相反路径返回 ─────────────────────────┘
+</codeblock>
+<ul>
+<li><strong>交换机</strong>工作在链路层，按 MAC 转发帧，不改变 IP。</li>
+<li><strong>路由器</strong>工作在网络层，按 IP 前缀转发包，每跳都会改 MAC、减 TTL。</li>
+<li><strong>NAT</strong> 在路由器上改写源/目的 IP 与端口，让多台内网设备共享一个公网地址。</li>
+</ul>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 1 讲</div>
+<div class="pb">
+<ol>
+<li>把 HTTP、TCP、IP、Ethernet 分别放到 TCP/IP 四层中。</li>
+<li>“交换机根据 IP 转发”这句话对吗？为什么？</li>
+<li>封装过程中，哪一层会加校验尾部？</li>
+<li>客户端和服务器的区分依据是什么？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> HTTP 应用层、TCP 传输层、IP 网络层、Ethernet 链路层。</p>
+<p><b>2.</b> 不对。交换机主要按 MAC 地址转发，不解析 IP（三层交换机除外）。</p>
+<p><b>3.</b> 以太网帧有 FCS 尾部；IP 头有校验和（仅头部）；TCP/UDP 有校验和字段。</p>
+<p><b>4.</b> 谁主动发起连接谁是客户端；角色是相对的，不是设备属性。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：IP 地址属于哪一层？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>链路层</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>传输层</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>网络层</span></button>
+</div>
+<div class="fb" data-fb>IP 是网络层地址，负责跨网络寻址与路由；MAC 是链路层地址，负责同一局域网内的交付；端口是传输层概念。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>网络通信要解决连接、寻址、分帧、可靠性、语义五类问题。</li>
+<li>TCP/IP 四层：应用、传输、网络、链路。</li>
+<li>封装是逐层加头，解封装是逐层剥离。</li>
+<li>交换机看 MAC，路由器看 IP，NAT 改写地址与端口。</li>
+<li>客户端/服务器是角色，不是设备。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出四层各自的协议与设备</li>
+<li>我能画出一次访问的封装过程</li>
+<li>我知道排障要先定位层次</li>
+</ul>
+</div>

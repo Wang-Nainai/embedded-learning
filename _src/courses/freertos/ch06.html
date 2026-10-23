@@ -1,0 +1,138 @@
+<h3><span class="n">6.1</span>信号量回答的是“有没有 / 有几个”</h3>
+<p>信号量不携带数据。它只有一个计数值，任务通过“取”和“给”来同步。二值信号量的值只有 0 和 1，计数信号量可以是 0 到最大值。</p>
+<div class="grid2">
+<div class="card"><span class="tag">二值</span><h4>事件是否发生</h4><p>中断发生 → 任务处理。给一次、取一次，之后回到 0。适合“一次性事件通知”。</p></div>
+<div class="card"><span class="tag">计数</span><h4>还剩几个资源 / 发生了几次</h4><p>初值为 N，取一次减一，给一次加一。适合“缓冲区槽位”“事件累计次数”。</p></div>
+</div>
+<codeblock lang="C11" file="sem_basic.c">
+#include "FreeRTOS.h"
+#include "semphr.h"
+
+static SemaphoreHandle_t g_btn_sem;      /* 二值 */
+static SemaphoreHandle_t g_slot_sem;     /* 计数：3 个槽位 */
+
+void app_init(void)
+{
+    g_btn_sem  = xSemaphoreCreateBinary();
+    g_slot_sem = xSemaphoreCreateCounting(3, 3);
+    configASSERT(g_btn_sem != NULL && g_slot_sem != NULL);
+}
+
+/* 中断：只给信号 */
+void EXTI_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;
+    xSemaphoreGiveFromISR(g_btn_sem, &woken);
+    portYIELD_FROM_ISR(woken);
+}
+
+/* 任务：等待事件 */
+static void button_task(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        if (xSemaphoreTake(g_btn_sem, portMAX_DELAY) == pdTRUE) {
+            handle_button();
+        }
+    }
+}
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>二值信号量<strong>不计数</strong>。中断连续给两次、任务只取一次，第二次“给”会被丢弃（因为值已经是 1）。如果需要累计事件次数，用计数信号量；如果需要保留每一次的数据，用队列。</p>
+</div>
+
+<h3><span class="n">6.2</span>信号量不是队列</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>队列</th><th>二值信号量</th><th>计数信号量</th></tr></thead>
+<tbody>
+<tr><td>携带数据</td><td>是</td><td>否</td><td>否</td></tr>
+<tr><td>容量</td><td>N 个元素</td><td>1</td><td>N</td></tr>
+<tr><td>重复给</td><td>排队，直到满</td><td>丢弃（已为 1）</td><td>累加，直到最大值</td></tr>
+<tr><td>典型用途</td><td>传样本、命令</td><td>中断→任务同步</td><td>资源计数、事件累计</td></tr>
+</tbody>
+</table>
+</div>
+<p>如果发现自己“给信号量之后再去读一个全局变量”，那多半应该用队列：把数据一起传过去，避免额外的共享状态。</p>
+
+<h3><span class="n">6.3</span>计数信号量：资源池</h3>
+<codeblock lang="C11" file="pool.c">
+/* 3 个缓冲区，用计数信号量表示可用数量 */
+static uint8_t g_pool[3][64];
+static SemaphoreHandle_t g_free_slots;
+
+uint8_t *buf_acquire(TickType_t timeout)
+{
+    if (xSemaphoreTake(g_free_slots, timeout) != pdTRUE) {
+        return NULL;                     /* 超时：没有可用缓冲区 */
+    }
+    /* 这里需要一个“哪个槽位空了”的映射，简化起见用原子索引 */
+    return next_free_buffer();
+}
+
+void buf_release(uint8_t *buf)
+{
+    (void)buf;
+    xSemaphoreGive(g_free_slots);        /* 归还一个槽位 */
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p>上面的简化版有一个坑：信号量只表示“有几个空位”，不表示“哪一个空”。多任务同时获取时，还需要一个受保护的分配索引。更完整的做法是用队列存“空闲缓冲区指针”，取到即独占，用完再放回队列。</p>
+</div>
+
+<h3><span class="n">6.4</span>什么时候不该用信号量</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>需求</th><th>不该用信号量</th><th>应该用</th></tr></thead>
+<tbody>
+<tr><td>传递数据</td><td>二值/计数信号量</td><td>队列、流缓冲区</td></tr>
+<tr><td>保护共享资源</td><td>二值信号量</td><td>互斥量（支持优先级继承）</td></tr>
+<tr><td>等待多个条件</td><td>多个信号量轮询</td><td>事件组</td></tr>
+<tr><td>一对一轻量唤醒</td><td>队列/信号量</td><td>任务通知（更省）</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 6 讲</div>
+<div class="pb">
+<ol>
+<li>用二值信号量实现“按键中断唤醒处理任务”，写出 ISR 与任务。</li>
+<li>用计数信号量实现“最多 3 个任务同时使用某个外设”。</li>
+<li>解释为什么二值信号量不适合保护共享资源。</li>
+<li>如果中断每秒触发 1000 次，任务每秒只处理 100 次，用二值信号量会怎样？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>3.</b> 它没有所有者概念，也不支持优先级继承；低优先级任务持有时，高优先级任务只能干等，容易出现优先级反转。</p>
+<p><b>4.</b> 大量事件被合并/丢弃：信号量最多为 1，任务处理不过来时，后续“给”操作无效。应该用计数信号量记录丢失次数，或改用队列并设计丢弃策略。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：二值信号量已经被“给”过一次（值为 1），再“给”一次会怎样？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>值仍为 1，第二次给被丢弃</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>值变成 2</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>返回错误并阻塞</span></button>
+</div>
+<div class="fb" data-fb>二值信号量最大就是 1，重复给不会累加。要累计次数，用计数信号量；要保留每次事件的数据，用队列。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>信号量只传递“事件/计数”，不传递数据。</li>
+<li>二值用于一次性同步，计数用于资源或事件累计。</li>
+<li>中断里用 <code>FromISR</code> 版本并处理 yield。</li>
+<li>保护共享资源用互斥量，不用二值信号量。</li>
+<li>需要数据就用队列，不要“信号量 + 全局变量”。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出 ISR 给、任务取的同步</li>
+<li>我能区分二值与计数信号量的语义</li>
+<li>我知道信号量会丢事件</li>
+</ul>
+</div>

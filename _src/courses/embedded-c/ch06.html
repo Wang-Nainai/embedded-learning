@@ -1,0 +1,204 @@
+<h3><span class="n">6.1</span>变量到底落在哪一段</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>写法</th><th>段</th><th>占用</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>int g = 1;</code></td><td><code>.data</code></td><td>Flash 存初值 + RAM 占 4 字节</td><td>已初始化且非 0</td></tr>
+<tr><td><code>int g;</code> 或 <code>int g = 0;</code></td><td><code>.bss</code></td><td>只占 RAM</td><td>启动时清零，不占 Flash 镜像</td></tr>
+<tr><td><code>const int t[] = {...};</code></td><td><code>.rodata</code>（通常）</td><td>Flash</td><td>是否真的不占 RAM 要看链接脚本</td></tr>
+<tr><td><code>void f(void){ int x; }</code></td><td>栈</td><td>RAM</td><td>函数返回即失效</td></tr>
+<tr><td><code>static int s;</code>（函数内）</td><td><code>.bss</code></td><td>RAM</td><td>活到程序结束</td></tr>
+<tr><td><code>malloc(n)</code></td><td>堆</td><td>RAM</td><td>嵌入式里常被禁用或限制大小</td></tr>
+</tbody>
+</table>
+</div>
+<p>在资源紧张的 MCU 上，<strong>“这个变量占不占 RAM”比“它是什么类型”更重要</strong>。一张 1 KB 的 <code class="i">const</code> 表如果被放进 <code class="i">.data</code>，就会白白吃掉 1 KB SRAM。</p>
+
+<h3><span class="n">6.2</span>对齐规则：三条就够</h3>
+<div class="steps">
+<div><b>成员对齐</b>　每个成员的偏移必须是它自身对齐要求的整数倍。例如 <code class="i">int</code> 要求 4 字节对齐，偏移只能是 0、4、8……</div>
+<div><b>结构体对齐</b>　结构体整体的对齐等于所有成员中最大的对齐要求。</div>
+<div><b>末尾补齐</b>　结构体总大小必须是整体对齐的整数倍，以便数组中相邻元素仍然对齐。</div>
+</div>
+<codeblock lang="C11" file="layout.c">
+#include <stdio.h>
+#include <stddef.h>
+
+struct A {
+    char  a;     /* 偏移 0，占 1 字节 */
+                 /* 3 字节填充 */
+    int   b;     /* 偏移 4 */
+    short c;     /* 偏移 8 */
+                 /* 2 字节填充（总大小要是 4 的倍数） */
+};
+
+struct B {
+    int   b;     /* 0 */
+    short c;     /* 4 */
+    char  a;     /* 6 */
+                 /* 1 字节填充 */
+};
+
+int main(void)
+{
+    printf("A: size=%zu  a=%zu b=%zu c=%zu\n",
+           sizeof(struct A), offsetof(struct A, a), offsetof(struct A, b), offsetof(struct A, c));
+    printf("B: size=%zu  b=%zu c=%zu a=%zu\n",
+           sizeof(struct B), offsetof(struct B, b), offsetof(struct B, c), offsetof(struct B, a));
+    return 0;
+}
+</codeblock>
+<outblock>
+A: size=12  a=0 b=4 c=8
+B: size=8  b=0 c=4 a=6
+</outblock>
+<p>同样的三个成员，只是换了顺序，大小从 12 变成 8。<strong>把大的成员放前面，通常能减少填充</strong>——这是嵌入式里很实用的一个小技巧。</p>
+
+<div class="lab" id="lab-align">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>结构体布局计算器</h4>
+    <p>依次添加成员，观察偏移、填充和总大小。再切换“紧凑布局”，看填充消失后会发生什么。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl" id="alignCtl">
+      <button class="lab-btn" type="button" data-add="char">+ char</button>
+      <button class="lab-btn" type="button" data-add="short">+ short</button>
+      <button class="lab-btn" type="button" data-add="int">+ int</button>
+      <button class="lab-btn" type="button" data-add="longlong">+ long long</button>
+      <button class="lab-btn" type="button" data-add="arr3">+ char[3]</button>
+      <button class="lab-btn" type="button" id="alignPack">紧凑布局：关</button>
+      <button class="lab-btn" type="button" id="alignReset">清空</button>
+    </div>
+    <div class="lab-canvas" id="alignCanvas"></div>
+    <div class="lab-read" id="alignOut" aria-live="polite"></div>
+    <p class="lab-note">紧凑布局用 <code class="i">__attribute__((packed))</code> 或 <code class="i">#pragma pack(1)</code> 实现，代价是成员可能落在非对齐地址上。</p>
+  </div>
+</div>
+
+<h3><span class="n">6.3</span>紧凑布局：省了空间，付出了什么</h3>
+<codeblock lang="C11" file="packed.c · 平台相关（GCC/Clang 扩展）">
+struct __attribute__((packed)) Frame {
+    uint8_t  type;      /* 0 */
+    uint32_t value;     /* 1，未对齐 */
+    uint16_t crc;       /* 5，未对齐 */
+};                      /* sizeof = 7 */
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>代价</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>访问变慢</td><td>编译器要把一次 32 位访问拆成多次字节访问再拼起来。</td></tr>
+<tr><td>可能硬件异常</td><td>Cortex-M0、部分 RISC-V 配置不支持非对齐访问，直接 HardFault。</td></tr>
+<tr><td>不能取成员地址当普通指针</td><td><code>&amp;frame.value</code> 是“可能未对齐的指针”，解引用是未定义行为。</td></tr>
+<tr><td>标准之外</td><td><code>packed</code> 是编译器扩展，不是 C 标准语法。</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>解析协议时，推荐“按字节读 + 显式组装”，而不是把接收缓冲区强制转换成 packed 结构体。前者可移植、可测试，也不受对齐影响：</p>
+<codeblock lang="C11" file="parse_safe.c">
+uint32_t value = ((uint32_t)buf[1] << 24) | ((uint32_t)buf[2] << 16) |
+                 ((uint32_t)buf[3] << 8)  |  (uint32_t)buf[4];
+</codeblock>
+</div>
+
+<h3><span class="n">6.4</span>结构体不是字节流</h3>
+<p>下面这段代码在本机可能“能用”，换平台就错：</p>
+<codeblock lang="C11" file="send_struct.c · 错误示范">
+struct Reading { uint16_t id; float value; };
+struct Reading r = {1, 23.5f};
+
+send(fd, &r, sizeof r);      /* 三个问题 */
+</codeblock>
+<ul>
+<li><strong>填充</strong>：<code class="i">id</code> 后可能有 2 字节填充，内容不确定，会一起发出去。</li>
+<li><strong>字节序</strong>：<code class="i">id</code> 和 <code class="i">float</code> 的字节顺序取决于发送方。</li>
+<li><strong>浮点格式</strong>：IEEE 754 是事实标准，但并非所有平台都相同；对齐和大小也可能不同。</li>
+</ul>
+<codeblock lang="C11" file="serialize.c">
+#include <stdint.h>
+#include <string.h>
+
+/* 明确的线格式：大端，id 2 字节 + value 4 字节 IEEE754 */
+void encode_reading(uint8_t out[6], uint16_t id, float value)
+{
+    uint32_t bits;
+    memcpy(&bits, &value, sizeof bits);       /* 取浮点的位模式 */
+
+    out[0] = (uint8_t)(id >> 8);
+    out[1] = (uint8_t)(id);
+    out[2] = (uint8_t)(bits >> 24);
+    out[3] = (uint8_t)(bits >> 16);
+    out[4] = (uint8_t)(bits >> 8);
+    out[5] = (uint8_t)(bits);
+}
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>标准只保证结构体成员的<strong>顺序</strong>与声明一致，不保证没有填充，也不规定填充的内容。把结构体按字节发送，等于把“本平台的布局细节”泄露到协议里。</p>
+</div>
+
+<h3><span class="n">6.5</span>用 offsetof 和断言锁住布局</h3>
+<codeblock lang="C11" file="layout_assert.c">
+#include <stddef.h>
+#include <stdint.h>
+
+struct Header {
+    uint8_t  version;
+    uint8_t  type;
+    uint16_t length;
+    uint32_t seq;
+};
+
+/* 如果编译器插入了意料之外的填充，这里会编译失败 */
+_Static_assert(offsetof(struct Header, length) == 2, "length 必须在偏移 2");
+_Static_assert(offsetof(struct Header, seq) == 4, "seq 必须在偏移 4");
+_Static_assert(sizeof(struct Header) == 8, "Header 必须是 8 字节");
+</codeblock>
+<p>这类断言在跨平台工程里价值极高：它把“我以为的布局”变成“编译器必须接受的布局”。一旦换芯片或换编译器导致布局变化，编译期就会报错，而不是等到通信对不上。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 6 讲</div>
+<div class="pb">
+<ol>
+<li>计算 <code class="i">struct { char a; double b; char c; }</code> 在 8 字节对齐平台上的大小与各成员偏移。</li>
+<li>把上面的成员重新排序，使结构体最小。</li>
+<li>为什么 <code class="i">packed</code> 结构体的成员不能直接取地址传给需要对齐指针的函数？</li>
+<li>设计一个 6 字节的线格式，包含 1 字节类型、1 字节标志、2 字节序号、2 字节校验，写出编码函数。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> a 偏移 0；b 需要 8 对齐，偏移 8；c 偏移 16；总大小补齐到 24。</p>
+<p><b>2.</b> <code class="i">double b; char a; char c;</code> → 偏移 0、8、9，总大小 16。</p>
+<p><b>3.</b> 因为成员可能位于非对齐地址，而很多架构（或编译器的向量化/宽访问）要求指针对齐；通过这种指针访问是未定义行为，可能触发硬件异常。</p>
+<p><b>4.</b> 固定大端：<code class="i">out[0]=type; out[1]=flags; out[2]=seq&gt;&gt;8; out[3]=seq; out[4]=crc&gt;&gt;8; out[5]=crc;</code>。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">struct { char a; int b; }</code> 在 4 字节对齐平台上 <code class="i">sizeof</code> 是多少？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>5</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>6</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>8</span></button>
+</div>
+<div class="fb" data-fb>a 在 0，b 需要 4 对齐所以在 4，占 4–7；总大小 8，正好是 4 的倍数，不需要再补齐。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>变量落在哪个段，决定了它占 Flash 还是 RAM。</li>
+<li>对齐三规则：成员偏移对齐、结构体按最大对齐、末尾补齐。</li>
+<li>调整成员顺序可以减少填充；<code>packed</code> 省空间但可能牺牲速度与可移植性。</li>
+<li>结构体不能直接当字节流传输，必须显式序列化。</li>
+<li>用 <code>offsetof</code> + <code>_Static_assert</code> 锁住布局假设。</li>
+</ul>
+<ul class="checklist">
+<li>我能手算常见结构体的偏移和大小</li>
+<li>我能解释 packed 的代价</li>
+<li>我会写与字节序无关的编码函数</li>
+</ul>
+</div>

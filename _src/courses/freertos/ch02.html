@@ -1,0 +1,167 @@
+<h3><span class="n">2.1</span>任务函数的形状</h3>
+<codeblock lang="C11" file="task_shape.c">
+#include "FreeRTOS.h"
+#include "task.h"
+
+static void my_task(void *arg)
+{
+    /* 初始化：只在任务第一次运行时执行 */
+    int *config = (int *)arg;
+
+    for (;;) {
+        /* 循环体：任务的主体 */
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    /* 永远不要执行到这里 */
+    vTaskDelete(NULL);
+}
+</codeblock>
+<p>三个硬性要求：</p>
+<div class="steps">
+<div><b>签名固定</b>　<code class="i">void (*)(void *)</code>，参数是一个 <code class="i">void *</code>，返回值是 <code class="i">void</code>。</div>
+<div><b>不能返回</b>　返回意味着任务函数退出，但任务没有“调用者”可以返回。必须死循环，或者显式 <code class="i">vTaskDelete(NULL)</code>。</div>
+<div><b>栈上别放大对象</b>　任务栈通常只有几百字节到几 KB，大数组请用静态分配或堆。</div>
+</div>
+
+<h3><span class="n">2.2</span>xTaskCreate 的六个参数</h3>
+<codeblock lang="C11" file="create.c">
+BaseType_t xTaskCreate(
+    TaskFunction_t        pxTaskCode,   /* 任务函数 */
+    const char * const    pcName,       /* 名字，仅用于调试 */
+    configSTACK_DEPTH_TYPE usStackDepth,/* 栈深度，单位是“字” */
+    void * const          pvParameters, /* 传给任务的参数 */
+    UBaseType_t           uxPriority,   /* 优先级，数字越大越高 */
+    TaskHandle_t * const  pxCreatedTask /* 返回句柄，可为 NULL */
+);
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>参数</th><th>注意点</th></tr></thead>
+<tbody>
+<tr><td><code>usStackDepth</code></td><td><strong>单位是 StackType_t 的个数，不是字节</strong>。Cortex-M 上 <code>StackType_t</code> 是 <code>uint32_t</code>，所以 128 表示 512 字节。</td></tr>
+<tr><td><code>pvParameters</code></td><td>只是把指针存起来，不会复制所指对象。传局部变量地址会在任务启动前失效。</td></tr>
+<tr><td><code>uxPriority</code></td><td>范围 0 到 <code>configMAX_PRIORITIES - 1</code>；数值越大优先级越高。</td></tr>
+<tr><td>返回值</td><td><code>pdPASS</code> 成功；<code>errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY</code> 表示堆不够。</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>“栈深度 128”被理解成 128 字节，是最常见的误解之一。实际字节数 = <code class="i">usStackDepth * sizeof(StackType_t)</code>。在 Cortex-M 上是 4 倍关系，在 8 位 AVR 上是 1 倍，在 16 位 MSP430 上是 2 倍。</p>
+</div>
+
+<h3><span class="n">2.3</span>创建、检查、再使用</h3>
+<codeblock lang="C11" file="create_check.c">
+#include "FreeRTOS.h"
+#include "task.h"
+
+#define TASK_STACK_WORDS  256          /* 1024 字节（Cortex-M） */
+#define TASK_PRIO         3
+
+static TaskHandle_t g_worker;
+
+void app_start(void)
+{
+    BaseType_t ok = xTaskCreate(worker_task, "worker", TASK_STACK_WORDS,
+                                NULL, TASK_PRIO, &g_worker);
+    if (ok != pdPASS) {
+        /* 不要静默继续：记录错误、点亮故障灯、复位 */
+        fatal_error(ERR_TASK_CREATE);
+    }
+}
+</codeblock>
+<p>句柄的用途：删除任务、改变优先级、给任务发通知、查询状态。如果不需要，传 <code class="i">NULL</code> 即可。</p>
+
+<h3><span class="n">2.4</span>静态创建：不用堆</h3>
+<codeblock lang="C11" file="create_static.c">
+#include "FreeRTOS.h"
+#include "task.h"
+
+static StaticTask_t g_task_buf;
+static StackType_t  g_task_stack[256];
+
+void app_start_static(void)
+{
+    TaskHandle_t h = xTaskCreateStatic(worker_task, "worker", 256, NULL, 3,
+                                       g_task_stack, &g_task_buf);
+    configASSERT(h != NULL);
+}
+</codeblock>
+<p>静态创建要求 <code class="i">configSUPPORT_STATIC_ALLOCATION = 1</code>，并且需要自己提供空闲任务和定时器任务的内存（如果启用）。好处是<strong>链接期就能确定 RAM 占用</strong>，没有堆分配失败的风险。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>安全关键或长期运行的设备，优先静态创建：内存占用可预测，不会因为碎片在运行几个月后突然创建失败。原型阶段用动态创建更方便，量产前再评估是否切换。</p>
+</div>
+
+<h3><span class="n">2.5</span>删除任务</h3>
+<codeblock lang="C11" file="delete.c">
+/* 任务删除自己：传入 NULL */
+vTaskDelete(NULL);
+
+/* 删除别的任务：需要句柄 */
+if (g_worker != NULL) {
+    vTaskDelete(g_worker);
+    g_worker = NULL;
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p>删除任务时，它占用的栈和 TCB 不会立刻释放，而是由<strong>空闲任务</strong>回收。如果程序不停地创建和删除任务，而空闲任务得不到运行机会，内存就会持续减少。这是“动态创建任务”最常见的隐性泄漏。</p>
+</div>
+
+<h3><span class="n">2.6</span>四个典型错误</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误</th><th>现象</th><th>修正</th></tr></thead>
+<tbody>
+<tr><td>任务函数返回</td><td>HardFault 或行为异常</td><td>死循环，或返回前 <code>vTaskDelete(NULL)</code></td></tr>
+<tr><td>栈太小</td><td>偶发崩溃、变量被改</td><td>增大栈，开栈溢出检测，看高水位</td></tr>
+<tr><td>传局部变量地址</td><td>任务读到随机值</td><td>传静态/全局变量，或把值放进结构体</td></tr>
+<tr><td>优先级超出范围</td><td>创建失败或被截断</td><td>检查 <code>configMAX_PRIORITIES</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 2 讲</div>
+<div class="pb">
+<ol>
+<li>创建一个每 200 ms 翻转 LED 的任务，栈给 128 字，优先级 2。</li>
+<li>如果目标板是 Cortex-M，这个任务栈实际占多少字节？</li>
+<li>解释为什么“把局部变量地址传给任务”会出错。</li>
+<li>把动态创建改成静态创建，需要额外提供哪些东西？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 128 × 4 = 512 字节（还要加上 TCB 和可能的对齐开销）。</p>
+<p><b>3.</b> <code class="i">xTaskCreate</code> 只保存指针；任务真正开始运行时，创建它的函数可能已经返回，栈帧失效，指针悬空。</p>
+<p><b>4.</b> <code class="i">StaticTask_t</code> 和 <code class="i">StackType_t</code> 数组；如果启用定时器/空闲任务，还要提供它们的内存；并打开 <code class="i">configSUPPORT_STATIC_ALLOCATION</code>。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：Cortex-M 上 <code class="i">xTaskCreate(..., 128, ...)</code> 的栈大约是多少字节？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>128</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>256</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>512</span></button>
+</div>
+<div class="fb" data-fb>栈深度单位是 <code class="i">StackType_t</code> 的个数。Cortex-M 上它是 32 位，所以 128 × 4 = 512 字节。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>任务函数签名固定、不能返回、必须有死循环或自删除。</li>
+<li>栈深度单位是“字”，不是字节。</li>
+<li>参数只传指针，不复制对象，注意生命周期。</li>
+<li>创建失败必须处理，不能假设一定成功。</li>
+<li>静态创建内存可预测，适合量产与安全关键场景。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出正确的任务函数</li>
+<li>我能算出任务栈的字节数</li>
+<li>我知道删除任务后内存由谁回收</li>
+</ul>
+</div>

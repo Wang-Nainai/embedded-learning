@@ -1,0 +1,140 @@
+<h3><span class="n">9.1</span>中断里能调用哪些 API</h3>
+<p>FreeRTOS 的 API 分成两套：任务上下文用的，和中断上下文用的（后缀 <code class="i">FromISR</code>）。在中断里调用任务版 API，轻则返回错误，重则破坏内核数据结构。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>任务上下文</th><th>中断上下文</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td><code>xQueueSend</code></td><td><code>xQueueSendFromISR</code></td><td>ISR 版本不能阻塞</td></tr>
+<tr><td><code>xSemaphoreGive</code></td><td><code>xSemaphoreGiveFromISR</code></td><td>互斥量没有 FromISR 版本</td></tr>
+<tr><td><code>xEventGroupSetBits</code></td><td><code>xEventGroupSetBitsFromISR</code></td><td>实际是发给定时器守护任务</td></tr>
+<tr><td><code>xTaskNotifyGive</code></td><td><code>vTaskNotifyGiveFromISR</code></td><td>常用且高效</td></tr>
+<tr><td><code>vTaskDelay</code></td><td>无</td><td>中断不能延时/阻塞</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">9.2</span>pxHigherPriorityTaskWoken 与 yield</h3>
+<codeblock lang="C11" file="isr_queue.c">
+static void UART_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;          /* 必须先初始化为 pdFALSE */
+    uint8_t byte = uart_read();
+
+    xQueueSendFromISR(g_rx_q, &byte, &woken);
+
+    /* 如果刚才的发送唤醒了更高优先级任务，退出中断时立刻切换 */
+    portYIELD_FROM_ISR(woken);
+}
+</codeblock>
+<p>为什么需要这个参数？中断结束时，硬件会恢复被中断的任务。如果刚才的操作让一个更高优先级任务就绪，内核需要“改主意”，在中断退出时切换到它。这个参数就是告诉移植层“要不要切”。</p>
+<div class="note bad">
+<b>易错</b>
+<p>忘记初始化 <code class="i">woken = pdFALSE</code>，或者多个 FromISR 调用共用一个变量却在中途重置，都会导致“该切换时没切换”，表现为高优先级任务延迟运行，甚至偶尔卡死。</p>
+</div>
+
+<h3><span class="n">9.3</span>Cortex-M 的中断优先级陷阱</h3>
+<p>FreeRTOS 在 Cortex-M 上要求：<strong>调用 FreeRTOS API 的中断，其硬件优先级数值必须 ≥ <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code></strong>（数值越大，优先级越低）。</p>
+<codeblock lang="C11" file="FreeRTOSConfig.h · 片段">
+/* 典型配置：优先级 5–15 允许调用 FreeRTOS API，0–4 留给极高优先级中断 */
+#define configPRIO_BITS                       4
+#define configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY  5
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY  (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS))
+#define configKERNEL_INTERRUPT_PRIORITY       (15 << (8 - configPRIO_BITS))
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>中断优先级（数值）</th><th>能否调用 FreeRTOS API</th><th>典型用途</th></tr></thead>
+<tbody>
+<tr><td>0–4（最高）</td><td>不能</td><td>电机急停、故障保护，必须立刻响应</td></tr>
+<tr><td>5–14</td><td>可以</td><td>串口、SPI、定时器，使用 FromISR API</td></tr>
+<tr><td>15（最低）</td><td>可以</td><td>PendSV / SysTick（内核占用）</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>还有两个常见坑：NVIC 的优先级分组必须设置为“全部位用于抢占优先级”（Cortex-M 上通常 <code class="i">NVIC_SetPriorityGrouping(0)</code>）；并且中断优先级要在 <code class="i">NVIC_EnableIRQ</code> 之前设置。否则 FreeRTOS 的临界区无法正确屏蔽中断。</p>
+</div>
+
+<h3><span class="n">9.4</span>延迟中断处理：ISR 只做最少的事</h3>
+<codeblock lang="C11" file="deferred.c">
+/* 中断：读硬件、清标志、发通知，立刻返回 */
+void ADC_IRQHandler(void)
+{
+    BaseType_t woken = pdFALSE;
+    uint16_t raw = adc_read_result();
+    xQueueSendFromISR(g_adc_q, &raw, &woken);
+    portYIELD_FROM_ISR(woken);
+}
+
+/* 任务：做滤波、换算、上报（这些都可能耗时） */
+static void adc_task(void *arg)
+{
+    (void)arg;
+    uint16_t raw;
+    for (;;) {
+        if (xQueueReceive(g_adc_q, &raw, portMAX_DELAY) == pdPASS) {
+            float v = raw_to_voltage(raw);
+            filter_update(v);
+        }
+    }
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>ISR 里可以做</th><th>不应该做</th></tr></thead>
+<tbody>
+<tr><td>读/写寄存器、清中断标志</td><td><code>printf</code>、浮点运算、复杂数学</td></tr>
+<tr><td>把数据放进队列/缓冲区</td><td>等待信号量、延时、阻塞</td></tr>
+<tr><td>置事件位、发任务通知</td><td>动态分配内存（<code>malloc</code>）</td></tr>
+<tr><td>触发 DMA / 启动下一次传输</td><td>调用任务版 FreeRTOS API</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">9.5</span>中断嵌套与临界区</h3>
+<p>如果允许中断嵌套，高优先级中断可以打断低优先级 ISR。这时共享数据的保护更复杂：低优先级 ISR 持有的数据，可能被高优先级 ISR 修改。</p>
+<p>实践建议：<strong>尽量不嵌套</strong>，或者只让“绝对不能延迟”的故障中断拥有高于 <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code> 的优先级，并且这类中断不碰任何共享数据。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 9 讲</div>
+<div class="pb">
+<ol>
+<li>写一个串口接收中断，把字节送入队列，并正确触发切换。</li>
+<li>解释 <code class="i">configMAX_SYSCALL_INTERRUPT_PRIORITY</code> 的作用。</li>
+<li>为什么 ISR 里不能调用 <code class="i">xSemaphoreTake</code>？</li>
+<li>一个中断每 10 µs 触发一次，处理需要 5 µs。直接处理还是延迟到任务？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 它是“允许调用 FreeRTOS API 的最高中断优先级阈值”。高于它的中断不会被内核临界区屏蔽，因此不能调用任何 FreeRTOS API，否则会破坏内核状态。</p>
+<p><b>3.</b> 它会阻塞，而中断上下文不能阻塞；互斥量还需要“任务所有者”，中断没有任务上下文。</p>
+<p><b>4.</b> 5 µs 的处理占用了 50% CPU，且不能让出；应尽量缩短 ISR（只搬运数据），把处理放到任务，或改用 DMA。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：ISR 中调用 <code class="i">xQueueSendFromISR</code> 后，为什么要调用 <code class="i">portYIELD_FROM_ISR(woken)</code>？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>为了清中断标志</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>为了释放队列内存</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>为了在唤醒了更高优先级任务时立刻切换</span></button>
+</div>
+<div class="fb" data-fb>如果发送操作让更高优先级任务就绪，应该中断退出时直接切过去，而不是等下一个 tick。这个宏根据 <code class="i">woken</code> 决定是否触发 PendSV。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>中断里只能用 FromISR 版本，不能阻塞。</li>
+<li><code>pxHigherPriorityTaskWoken</code> 决定退出中断时是否切换。</li>
+<li>Cortex-M 上调 API 的中断优先级必须低于阈值。</li>
+<li>ISR 只做搬运，处理放到任务里。</li>
+<li>中断嵌套会增加共享数据的复杂度，慎用。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出正确的 ISR 收数据流程</li>
+<li>我知道中断优先级的数值方向</li>
+<li>我能解释延迟中断处理</li>
+</ul>
+</div>

@@ -1,0 +1,200 @@
+<h3><span class="n">8.1</span>什么时候需要自定义协议</h3>
+<p>现成协议不够用时才自己设计：字段特殊、开销要求高、需要多路复用、需要版本演进。设计目标通常只有三个：<strong>能分帧、能检错、能扩展</strong>。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>设计项</th><th>常见选择</th><th>取舍</th></tr></thead>
+<tbody>
+<tr><td>帧头</td><td>1–2 字节固定魔数（如 0xAA 0x55）</td><td>越长越不容易误同步，开销越大</td></tr>
+<tr><td>长度</td><td>1–2 字节，表示载荷长度</td><td>必须有上限，解析前先校验</td></tr>
+<tr><td>类型/命令</td><td>1 字节</td><td>区分请求/响应/事件</td></tr>
+<tr><td>序号</td><td>1 字节，请求响应配对</td><td>支持重传与乱序检测</td></tr>
+<tr><td>校验</td><td>CRC16 / CRC32 / 简单和</td><td>CRC 检错强，计算稍贵</td></tr>
+<tr><td>转义</td><td>字节填充（如 0x7D）</td><td>避免载荷中出现帧头，但增加复杂度</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">8.2</span>一个可用的帧格式</h3>
+<codeblock lang="text" file="帧格式定义">
++--------+--------+--------+--------+--------+---------+--------+--------+
+| 0xAA   | 0x55   | type   | seq    | len    | payload | crc_lo | crc_hi |
++--------+--------+--------+--------+--------+---------+--------+--------+
+  帧头     帧头     类型     序号     长度     len 字节   CRC16（低字节先发）
+
+type: 0x01 读请求  0x02 写请求  0x81 读响应  0x82 写响应  0xFF 错误
+len : 0–32（超过视为非法，直接丢弃）
+crc : 对 type..payload 计算，多项式 0x8005 反射（0xA001），初值 0xFFFF
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>长度字段是解析器最容易被攻击的地方。如果直接 <code class="i">memcpy(dst, payload, len)</code> 而不检查 <code class="i">len &lt;= sizeof dst</code>，一个错误的长度字节就能造成缓冲区溢出。所有来自外部的长度都必须先校验。</p>
+</div>
+
+<h3><span class="n">8.3</span>解析状态机</h3>
+<codeblock lang="C11" file="frame_parser.c">
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+#include <stddef.h>
+
+#define SOF1        0xAAu
+#define SOF2        0x55u
+#define MAX_PAYLOAD 32u
+
+typedef enum {
+    ST_SOF1 = 0, ST_SOF2, ST_TYPE, ST_SEQ, ST_LEN, ST_PAYLOAD, ST_CRC_LO, ST_CRC_HI
+} pstate_t;
+
+/* CRC-16/MODBUS：覆盖 type、seq、len 与 payload */
+static uint16_t crc16_frame(uint8_t type, uint8_t seq, uint8_t len, const uint8_t *p)
+{
+    uint8_t buf[MAX_PAYLOAD + 3];
+    buf[0] = type; buf[1] = seq; buf[2] = len;
+    memcpy(&buf[3], p, len);
+
+    uint16_t crc = 0xFFFFu;
+    for (size_t i = 0; i < (size_t)len + 3u; i++) {
+        crc ^= buf[i];
+        for (int b = 0; b < 8; b++) {
+            crc = (crc & 1u) ? (uint16_t)((crc >> 1) ^ 0xA001u) : (uint16_t)(crc >> 1);
+        }
+    }
+    return crc;
+}
+
+typedef struct {
+    pstate_t state;
+    uint8_t  type, seq, len, index;
+    uint8_t  payload[MAX_PAYLOAD];
+    uint16_t crc_rx;
+} parser_t;
+
+/* out 缓冲区由调用者提供，长度至少为 MAX_PAYLOAD；
+   返回 true 表示收到一个完整且校验通过的帧 */
+bool parser_feed(parser_t *p, uint8_t b, uint8_t *type, uint8_t *seq,
+                 uint8_t *payload, uint8_t *len)
+{
+    switch (p->state) {
+    case ST_SOF1:
+        if (b == SOF1) p->state = ST_SOF2;
+        break;
+    case ST_SOF2:
+        p->state = (b == SOF2) ? ST_TYPE : (b == SOF1 ? ST_SOF2 : ST_SOF1);
+        break;
+    case ST_TYPE:
+        p->type = b; p->state = ST_SEQ;
+        break;
+    case ST_SEQ:
+        p->seq = b; p->state = ST_LEN;
+        break;
+    case ST_LEN:
+        if (b > MAX_PAYLOAD) { p->state = ST_SOF1; break; }   /* 非法长度：重同步 */
+        p->len = b; p->index = 0;
+        p->state = (b == 0) ? ST_CRC_LO : ST_PAYLOAD;
+        break;
+    case ST_PAYLOAD:
+        p->payload[p->index++] = b;
+        if (p->index >= p->len) p->state = ST_CRC_LO;
+        break;
+    case ST_CRC_LO:
+        p->crc_rx = b; p->state = ST_CRC_HI;
+        break;
+    case ST_CRC_HI:
+        p->crc_rx |= (uint16_t)(b << 8);
+        p->state = ST_SOF1;
+        if (crc16_frame(p->type, p->seq, p->len, p->payload) == p->crc_rx) {
+            *type = p->type; *seq = p->seq; *len = p->len;
+            memcpy(payload, p->payload, p->len);
+            return true;
+        }
+        break;
+    default:
+        p->state = ST_SOF1;
+        break;
+    }
+    return false;
+}
+</codeblock>
+
+<div class="lab" id="lab-frame">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>逐字节喂给解析器</h4>
+    <p>输入一串十六进制字节，单步观察状态机如何走、何时重同步、何时因 CRC 错而丢弃。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>字节流 <input id="frInput" type="text" value="AA 55 01 07 02 12 34 00 00" style="width:280px"></label>
+      <button class="lab-btn pri" type="button" id="frLoad">载入</button>
+      <button class="lab-btn" type="button" id="frStep">下一步</button>
+      <button class="lab-btn" type="button" id="frReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="frCanvas"></div>
+    <div class="lab-read" id="frOut" aria-live="polite"></div>
+    <p class="lab-note">注意：状态机在长度非法时会立刻回到找帧头，而不是继续等载荷——这就是“重同步”。</p>
+  </div>
+</div>
+
+<h3><span class="n">8.4</span>粘包、半包与重同步</h3>
+<div class="grid3">
+<div class="card"><h4>粘包</h4><p>一次收到 <code>[帧1][帧2]</code>。解析器必须循环喂字节，直到没有剩余，而不是“一次调用解一帧”。</p></div>
+<div class="card"><h4>半包</h4><p>只收到半帧。状态机必须保存中间状态，下次继续；不能要求“每次喂一整帧”。</p></div>
+<div class="card"><h4>噪声</h4><p>帧头前有乱码。状态机要能在任意位置重新找到 <code>AA 55</code>，而不是一直错位。</p></div>
+</div>
+<p>最稳妥的测试方法是：把一帧拆成任意长度的片段，逐个喂给解析器，结果必须一致；再在前后插入随机字节，解析器必须能恢复。</p>
+
+<h3><span class="n">8.5</span>版本与扩展</h3>
+<ul>
+<li>帧里留 1 字节版本号，或者用 type 的高位表示版本。</li>
+<li>新增字段时，优先“追加在末尾 + 用长度判断”，不要改变已有字段的偏移。</li>
+<li>未知 type 要能安全忽略，而不是崩溃。</li>
+<li>保留字段写 0，读取时忽略。</li>
+</ul>
+<div class="note eng">
+<b>工程习惯</b>
+<p>协议一旦发布就很难改。设计时多留 1 字节版本、多留几个保留位，比事后“加个字段导致所有设备不兼容”便宜得多。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 8 讲</div>
+<div class="pb">
+<ol>
+<li>给 8.2 的帧加上 1 字节版本号，说明放在哪里、为什么。</li>
+<li>如果载荷里可能出现 <code>AA 55</code>，有哪两种处理方式？</li>
+<li>长度字段最大 32，收到 0x40 时解析器应该怎么做？</li>
+<li>写三个测试：正常帧、半帧、带噪声的帧。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 放在 type 之后、seq 之前（或作为 type 的高 4 位）。接收方先看版本，再决定如何解释后续字段。</p>
+<p><b>2.</b> 用长度字段界定载荷（推荐），或对载荷中的帧头/转义字节做字节填充。</p>
+<p><b>3.</b> 判定为非法长度，立刻回到 <code>ST_SOF1</code> 重新找帧头，不要继续读 64 字节。</p>
+<p><b>4.</b> 正常帧应返回 true 且字段正确；半帧应返回 false 且状态停在中间；噪声帧应在噪声后重新同步并解出正确帧。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：解析器收到非法长度字段时，最安全的做法是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>按长度继续读，读完再判断</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>把长度截断到最大值继续读</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>立刻丢弃当前帧，回到找帧头状态</span></button>
+</div>
+<div class="fb" data-fb>非法长度意味着当前“帧”很可能已经错位。继续读只会把后续数据也吞掉；截断则可能把噪声当成有效载荷。立即重同步最安全。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>自定义协议要解决分帧、检错、扩展三件事。</li>
+<li>长度字段必须先校验上限，再使用。</li>
+<li>解析器是状态机，要支持半包、粘包和噪声重同步。</li>
+<li>CRC 覆盖范围要写清楚，收发一致。</li>
+<li>版本与保留字段要提前留好。</li>
+</ul>
+<ul class="checklist">
+<li>我能设计一个带长度和 CRC 的帧</li>
+<li>我能写出可重同步的解析状态机</li>
+<li>我知道粘包/半包怎么测</li>
+</ul>
+</div>

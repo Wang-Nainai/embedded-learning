@@ -1,0 +1,181 @@
+<h3><span class="n">2.1</span>UART 的一帧长什么样</h3>
+<p>UART 没有时钟线，收发双方靠<strong>起始位</strong>对齐，然后按约定的波特率逐位采样。空闲时线保持高电平，第一个下降沿就是起始位。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 210" role="img" aria-labelledby="fig2t fig2d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig2t">UART 8N1 帧结构</title>
+<desc id="fig2d">空闲高电平，起始位为低，随后是 8 个数据位（低位在前），无校验位，最后是停止位高电平。</desc>
+<rect width="820" height="210" fill="#fbfdff"/>
+<text x="24" y="24" font-size="12" fill="#475569">空闲（高）</text>
+<g font-family="Consolas,monospace" font-size="11" text-anchor="middle">
+<rect x="24" y="36" width="60" height="34" fill="#f1f5f9" stroke="#cbd5e1"/><text x="54" y="58" fill="#475569">1</text>
+<rect x="84" y="36" width="60" height="34" fill="#fef3c7" stroke="#fbbf24"/><text x="114" y="58" fill="#92400e">0</text>
+<rect x="144" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="174" y="58" fill="#26348f">D0</text>
+<rect x="204" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="234" y="58" fill="#26348f">D1</text>
+<rect x="264" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="294" y="58" fill="#26348f">D2</text>
+<rect x="324" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="354" y="58" fill="#26348f">D3</text>
+<rect x="384" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="414" y="58" fill="#26348f">D4</text>
+<rect x="444" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="474" y="58" fill="#26348f">D5</text>
+<rect x="504" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="534" y="58" fill="#26348f">D6</text>
+<rect x="564" y="36" width="60" height="34" fill="#e0e7ff" stroke="#818cf8"/><text x="594" y="58" fill="#26348f">D7</text>
+<rect x="624" y="36" width="60" height="34" fill="#dcfce7" stroke="#4ade80"/><text x="654" y="58" fill="#166534">停止</text>
+<rect x="684" y="36" width="60" height="34" fill="#f1f5f9" stroke="#cbd5e1"/><text x="714" y="58" fill="#475569">1</text>
+</g>
+<g font-size="10.5" fill="#64748b" text-anchor="middle">
+<text x="114" y="88">起始位</text><text x="384" y="88">数据位（LSB 在前）</text><text x="654" y="88">停止位</text>
+</g>
+<text x="24" y="122" font-size="11.5" fill="#334155">每一位的时间 = 1 / 波特率。115200 bps 时，一位约 8.68 µs，一帧（10 位）约 86.8 µs。</text>
+<text x="24" y="146" font-size="11.5" fill="#475569">接收方通常在位中间采样（16 倍过采样时取第 8 个采样点），以容忍双方时钟的微小偏差。</text>
+<text x="24" y="176" font-size="11.5" fill="#b91c1c">注意：数据位是“低位先发”。发送 0x41（0100 0001）时，线上的顺序是 1,0,0,0,0,0,1,0。</text>
+</svg>
+<figcaption>8N1 帧：1 起始 + 8 数据 + 1 停止，共 10 位。</figcaption>
+</figure>
+
+<div class="lab" id="lab-uart">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>UART 帧配置器</h4>
+    <p>改波特率、数据位、校验和停止位，看帧结构、总位数、单帧时间和理论吞吐如何变化。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>波特率
+        <select id="uartBaud">
+          <option>9600</option><option>19200</option><option>57600</option>
+          <option selected>115200</option><option>921600</option>
+        </select>
+      </label>
+      <label>数据位
+        <select id="uartData"><option>7</option><option selected>8</option></select>
+      </label>
+      <label>校验
+        <select id="uartParity"><option value="N" selected>无</option><option value="E">偶</option><option value="O">奇</option></select>
+      </label>
+      <label>停止位
+        <select id="uartStop"><option selected>1</option><option>2</option></select>
+      </label>
+      <label>字节 <input id="uartByte" type="text" value="0x41" style="width:76px"></label>
+    </div>
+    <div class="lab-canvas" id="uartCanvas"></div>
+    <div class="lab-read" id="uartOut" aria-live="polite"></div>
+    <p class="lab-note">“8N1”表示 8 数据位、无校验、1 停止位。两边配置必须完全一致，否则会解析出乱码或帧错误。</p>
+  </div>
+</div>
+
+<h3><span class="n">2.2</span>波特率误差：为什么 115200 会乱码</h3>
+<p>接收方没有时钟线，只能按自己的波特率估算每一位的位置。如果双方时钟有偏差，采样点会逐渐偏离位中心，到第 9、10 位就可能采错。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>总误差</th><th>后果</th></tr></thead>
+<tbody>
+<tr><td>&lt; 1%</td><td>安全，绝大多数场景没问题</td></tr>
+<tr><td>1% – 2%</td><td>通常可用，但接近边界；长帧/高温/低精度晶振要小心</td></tr>
+<tr><td>2% – 3%</td><td>偶发帧错误，表现为“大部分正常，偶尔乱码”</td></tr>
+<tr><td>&gt; 3%</td><td>基本不可用，成片乱码</td></tr>
+</tbody>
+</table>
+</div>
+<p>误差来源：晶振精度（RC 振荡器可能 ±2%）、波特率分频取整、温度漂移。用内部 RC 振荡器跑高波特率，是最常见的翻车原因。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>高波特率（≥ 460800）优先用外部晶振；如果必须用内部 RC，先把波特率降下来，或者留出校准机制。计算分频时看实际误差，不要只看“接近”。</p>
+</div>
+
+<h3><span class="n">2.3</span>校验位：能查错，不能纠错</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>配置</th><th>校验位</th><th>能发现</th><th>不能发现</th></tr></thead>
+<tbody>
+<tr><td>无（N）</td><td>—</td><td>—</td><td>任何位错误</td></tr>
+<tr><td>偶（E）</td><td>使 1 的个数为偶数</td><td>奇数个位翻转</td><td>偶数个位翻转</td></tr>
+<tr><td>奇（O）</td><td>使 1 的个数为奇数</td><td>奇数个位翻转</td><td>偶数个位翻转</td></tr>
+</tbody>
+</table>
+</div>
+<p>校验位只能告诉你“这一帧可能错了”，不能纠正，也不能保证一定对。真正的数据完整性要靠应用层的 CRC。</p>
+
+<h3><span class="n">2.4</span>TTL、RS-232、RS-485：别接错</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>TTL 串口</th><th>RS-232</th><th>RS-485</th></tr></thead>
+<tbody>
+<tr><td>电平</td><td>0 / 3.3 V 或 5 V</td><td>±3 – ±15 V，逻辑反相</td><td>差分 A/B</td></tr>
+<tr><td>距离</td><td>板内几十厘米</td><td>十几米</td><td>几十米到 1200 米</td></tr>
+<tr><td>拓扑</td><td>点对点</td><td>点对点</td><td>多点总线</td></tr>
+<tr><td>典型芯片</td><td>MCU 引脚直连</td><td>MAX3232</td><td>MAX485 / SP3485</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>把 TTL 串口直接接到 RS-232 的 DB9 上，可能因负电压损坏引脚；把 RS-485 的 A/B 接反，表现为“完全收不到数据”，但波形其实存在。接线前先确认电平标准和引脚定义。</p>
+</div>
+
+<h3><span class="n">2.5</span>最小收发代码</h3>
+<codeblock lang="C11" file="uart_poll.c · 平台相关（寄存器名仅为示例）">
+#include <stdint.h>
+#include <stdbool.h>
+
+/* 发送一个字节：等发送寄存器空，再写入 */
+void uart_putc(uint8_t c)
+{
+    while ((UART_SR & UART_SR_TXE) == 0) {
+        /* 等待，实际项目应加超时 */
+    }
+    UART_DR = c;
+}
+
+/* 接收一个字节：返回 false 表示暂无数据 */
+bool uart_getc(uint8_t *out)
+{
+    if ((UART_SR & UART_SR_RXNE) == 0) {
+        return false;
+    }
+    *out = (uint8_t)UART_DR;
+    return true;
+}
+</codeblock>
+<p>轮询版本适合调试和低速场景。高速接收必须用中断或 DMA，否则一旦主循环去处理别的事，接收寄存器就会溢出（ORE）。第 3 讲展开。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 2 讲</div>
+<div class="pb">
+<ol>
+<li>9600 8N1 传一个字节需要多少时间？</li>
+<li>发送 0x5A，画出 8N1 的位序列（含起始、停止）。</li>
+<li>双方一个用 115200、一个用 114000，会发生什么？</li>
+<li>为什么校验位不能替代 CRC？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 10 位 / 9600 ≈ 1.04 ms。</p>
+<p><b>2.</b> 0x5A = 0101 1010，LSB 在前：0,1,0,1,1,0,1,0；加上起始 0 和停止 1：<code>0 0 1 0 1 1 0 1 0 1</code>。</p>
+<p><b>3.</b> 约 1% 的偏差，短帧可能正常，长帧/连续传输会偶发帧错误，表现为间歇性乱码。</p>
+<p><b>4.</b> 校验位只能检测奇数个位翻转，且没有足够的位置信息；CRC 能检测突发错误、多位错误，检错能力强得多。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：8N1 的一帧包含多少位？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>8</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>10</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>11</span></button>
+</div>
+<div class="fb" data-fb>1 起始 + 8 数据 + 0 校验 + 1 停止 = 10 位。如果有校验位就是 11 位，2 个停止位则再加 1。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>UART 靠起始位对齐、按波特率采样，数据低位先发。</li>
+<li>8N1 一帧 10 位；帧时间 = 位数 / 波特率。</li>
+<li>波特率总误差建议控制在 2% 以内。</li>
+<li>校验位只能查奇数位错误，完整性靠 CRC。</li>
+<li>TTL / RS-232 / RS-485 电平不同，不能直连。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出 8N1 帧并算时间</li>
+<li>我能解释波特率误差的后果</li>
+<li>我知道校验位的局限</li>
+</ul>
+</div>

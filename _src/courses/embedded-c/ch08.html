@@ -1,0 +1,235 @@
+<h3><span class="n">8.1</span>为什么驱动要分层</h3>
+<p>如果应用代码里直接写 <code class="i">GPIOA-&gt;ODR |= (1&lt;&lt;5)</code>，那么换一颗芯片就要改遍所有业务逻辑。分层的目标只有一个：<strong>把“会变的”关在一个小盒子里</strong>。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 300" role="img" aria-labelledby="fig8t fig8d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig8t">驱动的三层结构</title>
+<desc id="fig8d">应用层只调用设备接口，设备层实现协议与状态，芯片层封装寄存器；依赖方向自上而下，替换芯片只需要改最底层。</desc>
+<rect width="820" height="300" fill="#fbfdff"/>
+<rect x="60" y="34" width="300" height="58" rx="9" fill="#e0e7ff" stroke="#818cf8"/>
+<text x="76" y="58" font-size="13" font-weight="700" fill="#26348f">应用层 app.c</text>
+<text x="76" y="79" font-size="11.5" fill="#475569">业务逻辑：采样、判断、上报</text>
+
+<rect x="60" y="112" width="300" height="72" rx="9" fill="#dcfce7" stroke="#4ade80"/>
+<text x="76" y="136" font-size="13" font-weight="700" fill="#166534">设备层 sensor.c</text>
+<text x="76" y="157" font-size="11.5" fill="#475569">协议、状态、错误处理、缓存</text>
+<text x="76" y="174" font-size="11.5" fill="#475569">只依赖 sensor.h 里的接口</text>
+
+<rect x="60" y="204" width="300" height="66" rx="9" fill="#fef3c7" stroke="#fbbf24"/>
+<text x="76" y="228" font-size="13" font-weight="700" fill="#92400e">芯片层 bsp_i2c.c</text>
+<text x="76" y="249" font-size="11.5" fill="#78350f">寄存器、时序、中断、DMA</text>
+<text x="76" y="266" font-size="11.5" fill="#78350f">换芯片时只改这一层</text>
+
+<path d="M210 92 L210 110" stroke="#475569" stroke-width="2" marker-end="url(#a8)"/>
+<path d="M210 184 L210 202" stroke="#475569" stroke-width="2" marker-end="url(#a8)"/>
+<defs><marker id="a8" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#475569"/></marker></defs>
+
+<rect x="410" y="60" width="380" height="210" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="426" y="84" font-size="12.5" font-weight="700" fill="#334155">依赖方向只能向下</text>
+<text x="426" y="110" font-size="12" fill="#1e293b">• 应用层 include "sensor.h"</text>
+<text x="426" y="134" font-size="12" fill="#1e293b">• 设备层 include "i2c_if.h"</text>
+<text x="426" y="158" font-size="12" fill="#1e293b">• 芯片层 include 厂商头文件</text>
+<text x="426" y="186" font-size="12" fill="#b91c1c">✗ 芯片层不能 include "app.h"</text>
+<text x="426" y="210" font-size="12" fill="#b91c1c">✗ 头文件之间不要互相包含</text>
+<text x="426" y="238" font-size="11.5" fill="#64748b">反向依赖会让“换芯片”变成“改整个工程”。</text>
+</svg>
+<figcaption>分层不是画着好看：它决定了替换硬件时要改多少文件。</figcaption>
+</figure>
+
+<h3><span class="n">8.2</span>接口长什么样</h3>
+<p>一套稳定的设备接口通常只有五类函数：初始化、销毁、读、写、控制。返回统一用错误码，而不是“成功返回 0、失败返回 -1”混着来。</p>
+<codeblock lang="C11" file="i2c_if.h">
+#ifndef I2C_IF_H
+#define I2C_IF_H
+
+#include <stdint.h>
+#include <stddef.h>
+
+typedef enum {
+    I2C_OK = 0,
+    I2C_ERR_ARG,        /* 参数非法 */
+    I2C_ERR_NACK,       /* 从机无应答 */
+    I2C_ERR_BUSY,       /* 总线忙 / 超时 */
+    I2C_ERR_IO          /* 其他硬件错误 */
+} i2c_status_t;
+
+/* 传输描述：只描述“要做什么”，不暴露寄存器细节 */
+typedef struct {
+    uint8_t        addr;      /* 7 位地址 */
+    const uint8_t *tx;
+    size_t         tx_len;
+    uint8_t       *rx;
+    size_t         rx_len;
+} i2c_msg_t;
+
+i2c_status_t i2c_transfer(const i2c_msg_t *msg, uint32_t timeout_ms);
+const char  *i2c_status_str(i2c_status_t st);
+
+#endif
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>错误码用 <code class="i">enum</code> 而不是裸 <code class="i">int</code>，有三个好处：调用者能 switch 出所有情况、日志能打印名字、新增错误码时不会和已有数值冲突。<code class="i">i2c_status_str</code> 让日志更可读。</p>
+</div>
+
+<h3><span class="n">8.3</span>头文件依赖：能少包含就少包含</h3>
+<codeblock lang="C11" file="bad_include.h · 片段">
+/* 应用头文件里包含了整个驱动头文件 */
+#include "bsp_i2c.h"
+#include "sensor_xxx_v2.h"
+
+typedef struct {
+    sensor_xxx_t dev;      /* 调用者被迫知道驱动的完整定义 */
+} app_ctx_t;
+</codeblock>
+<p>这会导致：改驱动头文件 → 所有包含应用头文件的文件全部重编译；驱动头文件里的宏还可能污染应用命名空间。</p>
+<codeblock lang="C11" file="good_include.h">
+#ifndef APP_CTX_H
+#define APP_CTX_H
+
+#include <stdint.h>
+
+/* 前向声明：只告诉编译器“有这么个类型”，不暴露内部 */
+typedef struct sensor sensor_t;
+
+typedef struct {
+    sensor_t *sensor;      /* 指针，不需要完整定义 */
+    uint32_t  period_ms;
+} app_ctx_t;
+
+#endif
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>做法</th><th>效果</th></tr></thead>
+<tbody>
+<tr><td>头文件只包含“自己需要”的头文件</td><td>减少传递依赖</td></tr>
+<tr><td>能用前向声明就不用 include</td><td>结构体指针、函数参数都可以</td></tr>
+<tr><td>用 <code>&lt;stdint.h&gt;</code> 而不是厂商大杂烩头文件</td><td>避免命名冲突</td></tr>
+<tr><td>每个头文件都有包含守卫</td><td>防止重复定义</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">8.4</span>用条件编译适配不同芯片</h3>
+<codeblock lang="C11" file="board.h">
+#ifndef BOARD_H
+#define BOARD_H
+
+#if defined(BOARD_STM32F4)
+#  include "stm32f4xx_hal.h"
+#  define LED_PORT   GPIOA
+#  define LED_PIN    5u
+#elif defined(BOARD_ESP32)
+#  include "driver/gpio.h"
+#  define LED_PIN    GPIO_NUM_2
+#else
+#  error "未选择目标板：请定义 BOARD_STM32F4 或 BOARD_ESP32"
+#endif
+
+void board_led_init(void);
+void board_led_set(int on);
+
+#endif
+</codeblock>
+<p><code class="i">#error</code> 很重要：配置缺失时立刻停止编译，而不是生成一个“看起来能过、实际引脚全错”的固件。</p>
+<div class="note impl">
+<b>实现细节</b>
+<p>条件编译只适合<strong>少量、稳定的差异</strong>。如果每个函数里都塞满 <code class="i">#ifdef</code>，代码会迅速不可读。更好的做法是把差异收敛到 <code class="i">board_*</code> 或 <code class="i">bsp_*</code> 这一层，上层保持单一实现。</p>
+</div>
+
+<h3><span class="n">8.5</span>一个完整的模块骨架</h3>
+<codeblock lang="C11" file="bsp_led.h">
+#ifndef BSP_LED_H
+#define BSP_LED_H
+
+#include <stdbool.h>
+
+void bsp_led_init(void);
+void bsp_led_set(bool on);
+void bsp_led_toggle(void);
+
+#endif
+</codeblock>
+<codeblock lang="C11" file="bsp_led.c">
+#include "bsp_led.h"
+#include "board.h"
+
+static bool s_state;
+
+void bsp_led_init(void)
+{
+    /* 具体寄存器操作依赖芯片，这里用伪接口表示 */
+    board_gpio_config_output(LED_PORT, LED_PIN);
+    s_state = false;
+    board_gpio_write(LED_PORT, LED_PIN, false);
+}
+
+void bsp_led_set(bool on)
+{
+    s_state = on;
+    board_gpio_write(LED_PORT, LED_PIN, on);
+}
+
+void bsp_led_toggle(void)
+{
+    bsp_led_set(!s_state);
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p><code class="i">static bool s_state;</code> 保存了“软件认为的当前状态”。如果外部（中断、其他模块）也能改这个引脚，软件状态就会和硬件不一致。要么保证唯一入口，要么每次从硬件回读。</p>
+</div>
+
+<h3><span class="n">8.6</span>模块化的检查清单</h3>
+<ul class="checklist">
+<li>头文件里只有声明、类型、宏，没有变量定义</li>
+<li>每个 .c 都有对应的 .h，接口与实现同名</li>
+<li>模块内部函数用 <code class="i">static</code></li>
+<li>没有跨模块的全局变量，只有 <code class="i">xxx_get()</code> / <code class="i">xxx_set()</code></li>
+<li>依赖方向单一，没有循环包含</li>
+<li>错误码统一，调用者能区分“参数错 / 忙 / 硬件错”</li>
+</ul>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 8 讲</div>
+<div class="pb">
+<ol>
+<li>为一个按键模块设计头文件：初始化、读取、注册回调。</li>
+<li>解释为什么在头文件里包含厂商 HAL 头文件会拖慢编译。</li>
+<li>把 8.5 节的 LED 模块改成“不保存软件状态”，每次直接读回硬件。</li>
+<li>设计一个 <code class="i">bsp_delay_ms</code> 接口，说明它应该放在哪一层。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">key_init()</code>、<code class="i">key_is_pressed()</code>、<code class="i">key_on_event(cb, ctx)</code>；事件类型用 enum，回调在中断或扫描任务里触发。</p>
+<p><b>2.</b> 厂商头文件通常很大且包含大量宏与类型，任何包含它的文件在它变化时都要重编译；还会把芯片相关名字带进上层命名空间。</p>
+<p><b>3.</b> 去掉 <code class="i">s_state</code>，<code class="i">toggle</code> 先 <code class="i">board_gpio_read</code> 再写反值。代价是多一次读，且读改写之间可能被中断打断。</p>
+<p><b>4.</b> 放在芯片层（<code class="i">bsp_delay</code>），因为实现依赖 SysTick 或定时器；上层只调用毫秒级接口，不关心怎么计时。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：应用层需要持有 <code class="i">sensor_t</code> 指针，但不想暴露其内部结构，头文件里应该？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span><code>#include "sensor_internal.h"</code></span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>直接写 <code>struct sensor { ... };</code></span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span><code>typedef struct sensor sensor_t;</code> 前向声明</span></button>
+</div>
+<div class="fb" data-fb>前向声明只引入“类型名字”，不暴露成员布局，指针大小固定，因此足够使用；定义留在驱动内部，调用者无法依赖内部字段。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>分层的目的：把芯片差异关在最小范围内。</li>
+<li>接口统一错误码，调用者才能正确处理失败。</li>
+<li>头文件只放必要内容，能用前向声明就不 include。</li>
+<li>条件编译收敛到 board/bsp 层，配置缺失用 <code>#error</code>。</li>
+<li>模块内部函数一律 <code>static</code>，全局状态要有唯一入口。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出三层驱动结构</li>
+<li>我能写出一套带错误码的设备接口</li>
+<li>我知道如何避免头文件循环包含</li>
+</ul>
+</div>

@@ -1,0 +1,2885 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="计算机网络教程：分层与封装、以太网与交换机、IPv4 与子网划分、ARP 与路由、UDP 与 TCP、端口与套接字、DNS/DHCP/NAT、HTTP/HTTPS/TLS/WebSocket、MQTT、Wi-Fi 与 IPv6、网络安全基础、网络调试，以及一个设备联网上报的完整项目。">
+<title>计算机网络教程 · 嵌入式学习路径</title>
+<style>
+/* ==========================================================================
+   嵌入式学习路径 · 系列教程共享样式
+   设计语言：深色封面 + 浅色纸面正文 + 深色代码区 + 图解画布
+   ========================================================================== */
+
+:root{
+  --bg:#f5f7fb;
+  --bg-2:#eef2f9;
+  --paper:#ffffff;
+  --paper-2:#f8fafc;
+  --ink:#151d2e;
+  --ink-2:#33415c;
+  --muted:#63708a;
+  --faint:#8b97ac;
+  --line:#e3e9f3;
+  --line-2:#cfd8e8;
+
+  --accent:#3b5bdb;
+  --accent-d:#2a44b0;
+  --accent-soft:#eef2ff;
+  --accent-line:#c7d2fe;
+  --accent-ink:#26348f;
+
+  --ok:#0f7a54; --ok-bg:#ecfdf5; --ok-line:#a7f3d0;
+  --warn:#9a5b00; --warn-bg:#fffbeb; --warn-line:#fcd34d;
+  --bad:#b42318; --bad-bg:#fef3f2; --bad-line:#fecaca;
+  --info:#0e6f8e; --info-bg:#eff9fc; --info-line:#a5e3f2;
+
+  --code-bg:#0b1220;
+  --code-bg2:#101a2e;
+  --code-ink:#d9e6f8;
+  --code-dim:#7f93b3;
+
+  --r:18px;
+  --r-sm:11px;
+  --shadow:0 16px 44px rgba(18,30,58,.08);
+  --shadow-sm:0 6px 18px rgba(18,30,58,.06);
+  --sans:"Segoe UI","Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB","Noto Sans SC",system-ui,sans-serif;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,"SFMono-Regular",Menlo,"Liberation Mono",monospace;
+  --max:1480px;
+  --topbar:58px;
+}
+
+html[data-theme="dark"]{
+  --bg:#0b111c;
+  --bg-2:#0e1624;
+  --paper:#111a29;
+  --paper-2:#16202f;
+  --ink:#e8eefb;
+  --ink-2:#c2cee3;
+  --muted:#93a2ba;
+  --faint:#75849c;
+  --line:#22304a;
+  --line-2:#2e3f5c;
+
+  --accent:#8ba4ff;
+  --accent-d:#a9bcff;
+  --accent-soft:#1a2440;
+  --accent-line:#31406a;
+  --accent-ink:#c3d0ff;
+
+  --ok:#5ee0ac; --ok-bg:#0e2a22; --ok-line:#1d5344;
+  --warn:#f3c46b; --warn-bg:#2a2313; --warn-line:#5a4a1e;
+  --bad:#ff9b93; --bad-bg:#2c1717; --bad-line:#5c2b28;
+  --info:#7fd6ef; --info-bg:#0d2530; --info-line:#1c4b5c;
+
+  --code-bg:#070d18;
+  --code-bg2:#0c1524;
+  --code-ink:#d9e6f8;
+  --code-dim:#7286a4;
+
+  --shadow:0 18px 50px rgba(0,0,0,.45);
+  --shadow-sm:0 6px 20px rgba(0,0,0,.35);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--topbar) + 22px);-webkit-text-size-adjust:100%}
+body.no-scroll{overflow:hidden}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16.5px;
+  line-height:1.88;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-wrap:break-word;
+}
+img,svg{max-width:100%}
+a{color:var(--accent-d);text-underline-offset:.2em;text-decoration-thickness:.06em}
+a:hover{color:var(--accent)}
+::selection{background:var(--accent-line);color:#0b1220}
+:focus-visible{outline:3px solid #f59e0b;outline-offset:3px;border-radius:4px}
+hr{border:0;border-top:1px solid var(--line);margin:28px 0}
+
+.skip{position:fixed;left:14px;top:-90px;z-index:200;background:#111827;color:#fff;padding:10px 16px;border-radius:10px;font-weight:700;text-decoration:none;transition:top .18s}
+.skip:focus{top:12px;color:#fff}
+
+/* ---------- 顶栏 ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  background:var(--paper);
+  background:color-mix(in srgb,var(--paper) 92%,transparent);
+  border-bottom:1px solid var(--line);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+.topbar-in{max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px);height:var(--topbar);display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;color:var(--ink)}
+.brand-mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(140deg,var(--accent),#7c3aed);color:#fff;display:grid;place-items:center;font-weight:900;font-size:13px;flex:0 0 auto;letter-spacing:-.04em}
+.brand-txt{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.brand-txt b{font-size:13.5px;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand-txt span{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.topbar-sp{flex:1}
+.icon-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  height:38px;min-width:38px;padding:0 11px;border-radius:10px;
+  border:1px solid var(--line-2);background:var(--paper);color:var(--ink-2);
+  font-size:13.5px;font-weight:650;cursor:pointer;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.icon-btn:hover{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent-ink)}
+.icon-btn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.icon-btn .lbl{white-space:nowrap}
+@media(max-width:720px){.icon-btn .lbl{display:none}.icon-btn{width:38px;padding:0}}
+.progress{position:absolute;left:0;bottom:-1px;height:2px;width:0;background:linear-gradient(90deg,var(--accent),#8b5cf6);transition:width .1s linear}
+
+/* ---------- 封面 ---------- */
+.cover{
+  position:relative;overflow:hidden;color:#fff;
+  background:
+    radial-gradient(760px 380px at 84% 6%,rgba(99,102,241,.42),transparent 62%),
+    radial-gradient(620px 420px at 4% 100%,rgba(14,165,233,.26),transparent 64%),
+    linear-gradient(126deg,#070c17 0%,#0d1730 38%,#1a1550 70%,#0a1020 100%);
+  padding:clamp(46px,6.4vw,84px) 0 clamp(38px,4.6vw,58px);
+}
+.cover::before{
+  content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(rgba(148,163,184,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.13) 1px,transparent 1px);
+  background-size:46px 46px;
+  mask-image:linear-gradient(180deg,#000,transparent 82%);
+  -webkit-mask-image:linear-gradient(180deg,#000,transparent 82%);
+}
+.cover::after{
+  content:"";position:absolute;right:-180px;top:-200px;width:620px;height:620px;border-radius:50%;
+  background:radial-gradient(circle,rgba(139,92,246,.28),transparent 66%);filter:blur(12px);pointer-events:none;
+}
+.cover-in{position:relative;z-index:1;max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px)}
+.cover-grid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,.72fr);gap:clamp(24px,4.6vw,60px);align-items:center}
+.series-tag{display:inline-flex;align-items:center;gap:9px;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:#bfd0ff}
+.series-tag::before{content:"";width:30px;height:2px;background:linear-gradient(90deg,var(--accent),#67e8f9);border-radius:2px}
+.cover h1{margin:14px 0 16px;font-size:clamp(2.1rem,4.9vw,4rem);line-height:1.1;letter-spacing:-.03em;font-weight:850}
+.cover h1 em{font-style:normal;background:linear-gradient(92deg,#c7d2fe 0%,#7dd3fc 52%,#d8b4fe 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.cover .sub{margin:0;max-width:44em;color:#d5e0f8;font-size:clamp(15px,1.5vw,17.5px);line-height:1.85}
+.cover .sub b{color:#fff;font-weight:750}
+.cover-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.ctag{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);font-size:12.5px;color:#e6edff;font-weight:600}
+.ctag i{width:5px;height:5px;border-radius:50%;background:#67e8f9;font-style:normal}
+.cover-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  min-height:44px;padding:9px 17px;border-radius:11px;border:1px solid transparent;
+  font-size:14.5px;font-weight:750;text-decoration:none;cursor:pointer;font-family:inherit;
+  transition:transform .16s,filter .16s,background .16s;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn-primary{background:linear-gradient(135deg,#5b6ef5,#2563eb);color:#fff;box-shadow:0 10px 26px rgba(37,99,235,.34)}
+.btn-primary:hover{color:#fff;filter:brightness(1.08)}
+.btn-ghost{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.26);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.15);color:#fff}
+
+.dossier{border:1px solid rgba(255,255,255,.16);border-radius:20px;padding:18px 20px;background:linear-gradient(160deg,rgba(255,255,255,.1),rgba(255,255,255,.035));box-shadow:0 24px 60px rgba(0,0,0,.3);backdrop-filter:blur(8px)}
+.dossier h2{margin:0 0 10px;font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;color:#a9c0e8;font-weight:800}
+.dossier dl{margin:0;display:grid;gap:0}
+.dossier .row{display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px dashed rgba(255,255,255,.13);font-size:13px}
+.dossier .row:last-child{border-bottom:0}
+.dossier dt{color:#9fb2d4;white-space:nowrap;margin:0}
+.dossier dd{margin:0;text-align:right;color:#f0f5ff;font-weight:650}
+.dossier .note{margin-top:12px;padding-top:11px;border-top:1px solid rgba(255,255,255,.14);font-size:11.5px;line-height:1.7;color:#b9c8e4}
+.pathstrip{display:flex;gap:6px;margin-top:22px;flex-wrap:wrap}
+.pathstrip a,.pathstrip span{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:8px;font-size:11.5px;text-decoration:none;color:#a9b8d6;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04)}
+.pathstrip a.on,.pathstrip span.on{color:#fff;border-color:rgba(147,197,253,.6);background:rgba(96,165,250,.18);font-weight:700}
+.pathstrip a:hover{color:#fff;border-color:rgba(255,255,255,.34)}
+
+/* ---------- 布局 ---------- */
+.shell{max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px);display:grid;grid-template-columns:272px minmax(0,1fr);gap:40px;align-items:start}
+.sidebar{position:sticky;top:calc(var(--topbar) + 20px);max-height:calc(100vh - var(--topbar) - 40px);overflow:auto;padding:22px 0 30px;scrollbar-width:thin}
+.sidebar h2{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 10px;font-weight:800}
+.toc{list-style:none;margin:0;padding:0;border-left:2px solid var(--line);display:grid;gap:1px}
+.toc a{display:flex;gap:9px;padding:7px 10px 7px 12px;margin-left:-2px;border-left:2px solid transparent;text-decoration:none;color:var(--muted);font-size:13.2px;line-height:1.45;transition:color .15s,border-color .15s,background .15s}
+.toc a b{font-family:var(--mono);font-size:11.5px;color:var(--faint);font-weight:700;padding-top:1px;flex:0 0 auto}
+.toc a:hover{color:var(--ink);background:var(--paper-2)}
+.toc a.active{color:var(--accent-ink);border-left-color:var(--accent);background:var(--accent-soft);font-weight:700}
+.toc a.active b{color:var(--accent)}
+.side-tools{display:grid;gap:8px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.side-tools .icon-btn{width:100%;justify-content:flex-start}
+.main{min-width:0;padding:26px 0 70px}
+
+/* ---------- 课程地图 ---------- */
+.mapcard{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:clamp(20px,3vw,30px);box-shadow:var(--shadow-sm);margin-bottom:26px}
+.mapcard h2{margin:0 0 6px;font-size:clamp(20px,2.6vw,25px);letter-spacing:-.01em}
+.mapcard>p{margin:0 0 18px;color:var(--muted);font-size:14.5px}
+.mapgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:11px}
+.mapitem{display:block;text-decoration:none;color:inherit;border:1px solid var(--line);border-radius:13px;padding:12px 13px;background:var(--paper-2);transition:border-color .16s,transform .16s,box-shadow .16s}
+.mapitem:hover{border-color:var(--accent-line);transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+.mapitem .n{font-family:var(--mono);font-size:11px;font-weight:800;color:var(--accent);letter-spacing:.06em}
+.mapitem b{display:block;font-size:14px;line-height:1.5;margin:3px 0 4px;color:var(--ink)}
+.mapitem span{display:block;font-size:12px;color:var(--muted);line-height:1.55}
+.mapitem .t{display:inline-block;margin-top:6px;font-size:10.5px;color:var(--faint);border:1px solid var(--line-2);border-radius:5px;padding:1px 5px}
+
+/* ---------- 章节 ---------- */
+.ch{min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:clamp(22px,3.2vw,44px);margin:0 0 26px;box-shadow:var(--shadow-sm)}
+.ch-head{display:flex;gap:16px;align-items:flex-start;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.ch-no{flex:0 0 auto;width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-family:var(--mono);font-size:19px;font-weight:800;color:var(--accent-ink);background:linear-gradient(145deg,var(--accent-soft),var(--paper-2));border:1px solid var(--accent-line)}
+.ch-title{min-width:0}
+.ch-kicker{margin:0 0 3px;font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.ch-kicker span{color:var(--faint);font-weight:650;letter-spacing:0}
+.ch h2{margin:2px 0 6px;font-size:clamp(22px,3.1vw,30px);line-height:1.28;letter-spacing:-.02em;color:var(--ink)}
+.ch-lede{margin:0;color:var(--ink-2);font-size:15px;line-height:1.75}
+.goals{margin:18px 0 6px;border:1px solid var(--accent-line);background:linear-gradient(180deg,var(--accent-soft),var(--paper));border-radius:13px;padding:13px 16px}
+.goals h3{margin:0 0 5px;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-ink);font-weight:850}
+.goals ul{margin:0;padding-left:1.15em;display:grid;gap:2px}
+.goals li{font-size:14px;color:var(--ink-2);line-height:1.65}
+.goals li::marker{color:var(--accent)}
+
+.ch h3{font-size:19.5px;line-height:1.5;margin:32px 0 9px;color:var(--ink);letter-spacing:-.01em;font-weight:800}
+.ch h3 .n{font-family:var(--mono);font-size:13px;color:var(--accent);margin-right:9px;font-weight:800;letter-spacing:0}
+.ch h4{font-size:15.5px;margin:22px 0 6px;color:var(--ink-2);font-weight:800}
+.ch p{margin:10px 0}
+.ch ul,.ch ol{margin:10px 0;padding-left:1.5em}
+.ch li{margin:5px 0}
+.ch li::marker{color:var(--faint)}
+.ch strong{font-weight:750;color:var(--ink)}
+.ch em{font-style:normal;color:var(--accent-ink);font-weight:650}
+code.i{font-family:var(--mono);font-size:.88em;background:var(--paper-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;color:var(--accent-ink);white-space:normal;overflow-wrap:anywhere}
+kbd{font-family:var(--mono);font-size:.82em;background:var(--paper);border:1px solid var(--line-2);border-bottom-width:2px;border-radius:5px;padding:1px 5px;color:var(--ink-2)}
+
+/* ---------- 提示块 ---------- */
+.note{position:relative;border:1px solid var(--line);border-left:4px solid var(--accent);background:var(--paper-2);border-radius:10px;padding:11px 14px;margin:15px 0;font-size:14.6px;line-height:1.78}
+.note>b{display:inline-block;font-size:11px;letter-spacing:.08em;font-weight:850;padding:1px 7px;border-radius:4px;margin-right:7px;vertical-align:1.5px;background:var(--accent-soft);color:var(--accent-ink);border:1px solid var(--accent-line)}
+.note.law{border-left-color:#0f766e;background:var(--info-bg);border-color:var(--info-line)}
+.note.law>b{background:#ccfbf1;color:#0f5132;border-color:#99f6e4}
+.note.impl{border-left-color:#7c3aed;background:#f7f3ff;border-color:#e0d5ff}
+.note.impl>b{background:#ede9fe;color:#5b21b6;border-color:#ddd6fe}
+.note.eng{border-left-color:#b45309;background:var(--warn-bg);border-color:var(--warn-line)}
+.note.eng>b{background:#fef3c7;color:#8a4b00;border-color:#fde68a}
+.note.bad{border-left-color:var(--bad);background:var(--bad-bg);border-color:var(--bad-line)}
+.note.bad>b{background:#fee2e2;color:#991b1b;border-color:#fecaca}
+.note.good{border-left-color:var(--ok);background:var(--ok-bg);border-color:var(--ok-line)}
+.note.good>b{background:#d1fae5;color:#065f46;border-color:#a7f3d0}
+html[data-theme="dark"] .note.law>b{background:#0f3b34;color:#9ef0d8;border-color:#1c5a4e}
+html[data-theme="dark"] .note.impl{background:#1c1633;border-color:#3b2d66}
+html[data-theme="dark"] .note.impl>b{background:#2a1f52;color:#d3c4ff;border-color:#443077}
+html[data-theme="dark"] .note.eng>b{background:#3a2c10;color:#f7d488;border-color:#5a4a1e}
+html[data-theme="dark"] .note.bad>b{background:#3d1d1b;color:#ffb4ad;border-color:#5c2b28}
+html[data-theme="dark"] .note.good>b{background:#10322a;color:#9df0cd;border-color:#1d5344}
+.note p{margin:5px 0}
+.note ul,.note ol{margin:5px 0;padding-left:1.3em}
+.note li{margin:2px 0}
+
+.analogy{border:1px dashed var(--warn-line);background:var(--warn-bg);border-radius:11px;padding:12px 15px;margin:16px 0;font-size:14.6px;color:var(--ink-2)}
+.analogy>b{display:inline-block;font-size:11px;letter-spacing:.08em;font-weight:850;background:#fde68a;color:#7a4400;border-radius:4px;padding:1px 7px;margin-right:7px;vertical-align:1.5px}
+.analogy p{margin:5px 0}
+.analogy .limit{display:block;margin-top:7px;padding-top:7px;border-top:1px dashed var(--warn-line);font-size:13px;color:var(--warn)}
+html[data-theme="dark"] .analogy>b{background:#4a3810;color:#f7d488}
+
+/* ---------- 代码 ---------- */
+.code{max-width:100%;min-width:0;margin:16px 0;border-radius:12px;overflow:hidden;background:var(--code-bg);border:1px solid #1d2b45;box-shadow:0 8px 24px rgba(8,15,30,.16)}
+.code-bar{display:flex;align-items:center;gap:9px;padding:8px 11px;background:var(--code-bg2);border-bottom:1px solid #1b2740;font-family:var(--mono);font-size:11.5px;color:var(--code-dim)}
+.code-bar .file{color:#a9c1e6;font-weight:700}
+.code-bar .lang{margin-left:auto;border:1px solid #2a3a58;border-radius:4px;padding:1px 6px;color:#8aa2c6;font-size:10.5px;letter-spacing:.04em}
+.copy{border:1px solid #2c3d5c;background:#16233a;color:#a9c1e6;border-radius:6px;padding:2px 8px;font-size:11px;font-family:var(--sans);cursor:pointer;transition:background .15s,color .15s}
+.copy:hover{background:#20304d;color:#fff}
+.copy.ok{background:#14532d;border-color:#166534;color:#bbf7d0}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:13.2px;line-height:1.72;color:var(--code-ink);tab-size:4;-webkit-overflow-scrolling:touch}
+.code pre code{font-family:inherit;white-space:pre;background:none;border:0;padding:0;color:inherit;font-size:inherit}
+.code pre::-webkit-scrollbar{height:8px}
+.code pre::-webkit-scrollbar-thumb{background:#2c3d5c;border-radius:4px}
+.out{margin:-6px 0 16px;border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;background:var(--paper-2);overflow:hidden}
+.out>b{display:block;padding:5px 13px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ok);background:var(--ok-bg);border-bottom:1px solid var(--line);font-weight:850}
+.out pre{margin:0;padding:10px 14px;overflow-x:auto;font-family:var(--mono);font-size:12.6px;line-height:1.65;color:var(--ink-2);white-space:pre}
+
+/* ---------- 表格 ---------- */
+.table-wrap{max-width:100%;margin:16px 0;border:1px solid var(--line);border-radius:11px;overflow-x:auto;background:var(--paper);-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13.6px;line-height:1.65;min-width:520px}
+caption{caption-side:top;text-align:left;padding:9px 13px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);background:var(--paper-2)}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{background:var(--paper-2);font-size:12.4px;color:var(--ink-2);font-weight:800;white-space:nowrap;letter-spacing:.01em}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--paper-2)}
+td code,th code{font-family:var(--mono);font-size:12.3px;background:var(--accent-soft);border-radius:4px;padding:1px 4px;color:var(--accent-ink);white-space:nowrap}
+
+/* ---------- 图解 ---------- */
+.fig{margin:18px 0;border:1px solid var(--line);border-radius:13px;background:#fbfcff;padding:12px;overflow:hidden}
+.fig svg{display:block;width:100%;height:auto;max-width:100%}
+.fig figcaption{margin:8px 3px 0;font-size:12.4px;color:#5b6b85;line-height:1.65}
+.fig figcaption b{color:#22304a}
+.fig .zoom{overflow-x:auto;-webkit-overflow-scrolling:touch}
+html[data-theme="dark"] .fig{background:#f7f9fd;border-color:#2a3752}
+html[data-theme="dark"] .fig figcaption{color:#4b5a72}
+
+/* ---------- 卡片/网格 ---------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:15px 0}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:15px 0}
+.card{border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:var(--paper-2)}
+.card h4{margin:0 0 5px;font-size:14px;color:var(--ink)}
+.card p{margin:3px 0;font-size:13.4px;color:var(--ink-2);line-height:1.7}
+.card ul{margin:4px 0 0;padding-left:1.2em;font-size:13.2px}
+.card .tag{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.06em;color:var(--accent-ink);background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:4px;padding:1px 6px;margin-bottom:5px}
+@media(max-width:700px){.grid2,.grid3{grid-template-columns:1fr}}
+
+.steps{counter-reset:s;margin:16px 0;display:grid;gap:9px}
+.steps>div{position:relative;padding:9px 13px 9px 42px;border:1px solid var(--line);border-radius:10px;background:var(--paper-2);font-size:14px}
+.steps>div::before{counter-increment:s;content:counter(s);position:absolute;left:11px;top:9px;width:21px;height:21px;border-radius:6px;background:var(--accent);color:#fff;font-size:11.5px;font-weight:800;display:grid;place-items:center;font-family:var(--mono)}
+.steps b{color:var(--ink)}
+
+/* ---------- 交互实验台 ---------- */
+.lab{margin:20px 0;border:1px solid var(--accent-line);border-radius:14px;background:linear-gradient(180deg,var(--accent-soft),var(--paper) 42%);overflow:hidden}
+.lab-head{padding:12px 15px 0}
+.lab-head .badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;color:#fff;background:linear-gradient(135deg,var(--accent),#7c3aed);border-radius:5px;padding:2px 8px}
+.lab-head h4{margin:6px 0 3px;font-size:15px;color:var(--ink)}
+.lab-head p{margin:0 0 10px;font-size:13px;color:var(--muted);line-height:1.7}
+.lab-body{padding:0 15px 14px;display:grid;gap:11px}
+.lab-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lab-ctl label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);font-weight:650}
+.lab-ctl select,.lab-ctl input[type="number"],.lab-ctl input[type="text"]{
+  font-family:var(--mono);font-size:12.5px;padding:5px 7px;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--paper);color:var(--ink);min-height:32px;
+}
+.lab-ctl input[type="range"]{accent-color:var(--accent);width:130px;max-width:100%}
+.lab-btn{
+  font-family:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;min-height:34px;
+  border-radius:8px;border:1px solid var(--line-2);background:var(--paper);color:var(--ink-2);cursor:pointer;
+  transition:background .15s,border-color .15s,color .15s;
+}
+.lab-btn:hover{border-color:var(--accent-line);color:var(--accent-ink);background:var(--accent-soft)}
+.lab-btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.lab-btn.pri:hover{filter:brightness(1.08);color:#fff}
+.lab-btn:disabled{opacity:.45;cursor:not-allowed}
+.lab-canvas{background:#f8fafd;border:1px solid #dbe4f3;border-radius:10px;padding:10px;overflow-x:auto}
+.lab-canvas svg{display:block;width:100%;height:auto;min-width:0}
+.lab-read{font-family:var(--mono);font-size:12.4px;line-height:1.7;background:var(--code-bg);color:var(--code-ink);border-radius:9px;padding:9px 12px;white-space:pre-wrap;overflow-x:auto}
+.lab-read .k{color:#7dd3fc}
+.lab-read .v{color:#fcd34d}
+.lab-read .e{color:#fca5a5}
+.lab-read .g{color:#86efac}
+.lab-note{font-size:12.2px;color:var(--muted);line-height:1.65}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line-2);border-radius:6px;padding:2px 7px;background:var(--paper);color:var(--ink-2)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+/* ---------- 练习/测验 ---------- */
+.practice{margin:22px 0 6px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--paper)}
+.practice>.ph{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--paper-2);border-bottom:1px solid var(--line);font-size:11.5px;font-weight:850;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink)}
+.practice>.pb{padding:12px 15px}
+.practice ol{margin:6px 0;padding-left:1.35em}
+.practice li{margin:7px 0;font-size:14.4px}
+details.qa{margin:9px 0 0;border:1px dashed var(--line-2);border-radius:9px;background:var(--paper-2);overflow:hidden}
+details.qa>summary{cursor:pointer;padding:7px 12px;font-size:12.6px;font-weight:750;color:var(--accent-ink);list-style:none;display:flex;align-items:center;gap:7px;min-height:34px}
+details.qa>summary::-webkit-details-marker{display:none}
+details.qa>summary::before{content:"▸";font-size:11px;transition:transform .18s;display:inline-block}
+details.qa[open]>summary::before{transform:rotate(90deg)}
+details.qa>summary:hover{background:var(--accent-soft)}
+details.qa .ans{padding:2px 13px 11px;font-size:13.8px;line-height:1.78;border-top:1px solid var(--line)}
+details.qa .ans p{margin:6px 0}
+details.deep{margin:16px 0;border:1px solid var(--line-2);border-radius:11px;background:var(--paper-2)}
+details.deep>summary{cursor:pointer;padding:9px 14px;font-size:13.2px;font-weight:750;color:var(--ink-2);list-style:none;display:flex;gap:8px;align-items:center;min-height:38px}
+details.deep>summary::-webkit-details-marker{display:none}
+details.deep>summary::before{content:"＋";font-family:var(--mono);color:var(--accent);font-weight:800}
+details.deep[open]>summary::before{content:"－"}
+details.deep>summary:hover{background:var(--accent-soft);border-radius:11px 11px 0 0}
+details.deep .inner{padding:2px 15px 12px;border-top:1px solid var(--line);font-size:14px}
+
+.quiz{margin:18px 0;border:1px solid var(--line);border-radius:13px;padding:14px 16px;background:var(--paper)}
+.quiz>p.q{font-weight:750;font-size:14.8px;margin:0 0 10px;color:var(--ink)}
+.quiz .opts{display:grid;gap:7px}
+.quiz .opt{display:flex;gap:9px;align-items:flex-start;text-align:left;padding:8px 11px;border:1px solid var(--line-2);border-radius:9px;background:var(--paper-2);font-family:inherit;font-size:13.8px;line-height:1.6;color:var(--ink-2);cursor:pointer;transition:border-color .15s,background .15s}
+.quiz .opt:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.quiz .opt b{flex:0 0 auto;font-family:var(--mono);font-size:11.5px;color:var(--accent);width:14px}
+.quiz .opt.right{border-color:#16a34a;background:#ecfdf5;color:#14532d}
+.quiz .opt.right b{color:#15803d}
+.quiz .opt.wrong{border-color:#dc2626;background:#fef2f2;color:#7f1d1d}
+.quiz .opt.wrong b{color:#b91c1c}
+html[data-theme="dark"] .quiz .opt.right{background:#10322a;color:#c7f7e4;border-color:#1d6b52}
+html[data-theme="dark"] .quiz .opt.wrong{background:#3a1a18;color:#ffd6d1;border-color:#7f2d27}
+.quiz .fb{margin-top:9px;font-size:13.2px;line-height:1.7;padding:8px 11px;border-radius:8px;background:var(--paper-2);border-left:3px solid var(--accent);color:var(--ink-2);display:none}
+.quiz .fb.show{display:block}
+.quiz .fb b{color:var(--accent-ink)}
+
+.summary{margin:26px 0 4px;padding:14px 17px;border-radius:12px;border:1px solid var(--line-2);background:var(--paper-2)}
+.summary h3{margin:0 0 7px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-ink);font-weight:850}
+.summary ul{margin:4px 0;padding-left:1.3em}
+.summary li{font-size:14px;margin:4px 0}
+.checklist{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:5px}
+.checklist li{position:relative;padding-left:24px;font-size:13.8px;color:var(--ink-2)}
+.checklist li::before{content:"";position:absolute;left:0;top:.45em;width:13px;height:13px;border:1.6px solid var(--line-2);border-radius:4px}
+
+.ch-foot{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;margin-top:22px;padding-top:14px;border-top:1px solid var(--line);font-size:12.8px;color:var(--muted)}
+.ch-foot a{font-weight:700;text-decoration:none}
+.ch-foot a:hover{text-decoration:underline}
+
+/* ---------- 附录 ---------- */
+.appendix{margin-top:30px}
+.cheat{width:100%;border-collapse:collapse;font-size:13px}
+.cheat th{position:static}
+.term-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:14px 0}
+.term{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--paper-2)}
+.term b{display:block;font-size:13.4px;color:var(--accent-ink);font-family:var(--mono)}
+.term span{font-size:12.6px;color:var(--ink-2);line-height:1.65}
+
+/* ---------- 搜索 ---------- */
+.searchbox{position:fixed;inset:0;z-index:120;display:none;background:rgba(9,14,25,.55);backdrop-filter:blur(3px);padding:9vh 16px 16px}
+.searchbox.on{display:block}
+.search-panel{max-width:660px;margin:0 auto;background:var(--paper);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.35);overflow:hidden}
+.search-top{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.search-top svg{width:17px;height:17px;stroke:var(--muted);fill:none;stroke-width:2}
+.search-top input{flex:1;border:0;background:none;font-family:inherit;font-size:15px;color:var(--ink);outline:none;min-width:0}
+.search-top kbd{font-size:10.5px}
+.search-res{max-height:56vh;overflow:auto;padding:6px}
+.sr-item{display:block;width:100%;text-align:left;border:0;background:none;padding:8px 11px;border-radius:8px;cursor:pointer;font-family:inherit}
+.sr-item:hover,.sr-item.sel{background:var(--accent-soft)}
+.sr-item b{display:block;font-size:13.6px;color:var(--ink);font-weight:700}
+.sr-item span{display:block;font-size:11.6px;color:var(--muted);line-height:1.55;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sr-empty{padding:18px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ---------- 页脚 ---------- */
+.foot{border-top:1px solid var(--line);background:var(--paper);padding:26px 0 34px;margin-top:10px}
+.foot-in{max-width:var(--max);margin:0 auto;padding:0 clamp(20px,2.4vw,44px);display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;font-size:12.4px;color:var(--muted)}
+.foot-in b{color:var(--ink-2)}
+.foot-links{display:flex;gap:14px;flex-wrap:wrap}
+.foot-links a{text-decoration:none}
+
+.totop{position:fixed;right:18px;bottom:18px;z-index:50;width:42px;height:42px;border-radius:50%;border:1px solid var(--line-2);background:var(--paper);color:var(--ink-2);display:none;place-items:center;cursor:pointer;box-shadow:var(--shadow-sm)}
+.totop.on{display:grid}
+.totop:hover{color:var(--accent);border-color:var(--accent-line)}
+.totop svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- 右栏：本讲目录 ---------- */
+.rail{display:none}
+.rail-kicker{margin:0 0 4px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);font-weight:800}
+.rail-title{margin:0 0 10px;font-size:13px;font-weight:750;color:var(--ink-2);line-height:1.5}
+.rail-list{list-style:none;margin:0;padding:0;border-left:1px solid var(--line)}
+.rail-list a{display:block;padding:5px 0 5px 10px;margin-left:-1px;border-left:2px solid transparent;font-size:12.2px;line-height:1.55;color:var(--muted);text-decoration:none;transition:color .15s,border-color .15s}
+.rail-list a:hover{color:var(--ink)}
+.rail-list a.active{color:var(--accent-ink);border-left-color:var(--accent);font-weight:700}
+.rail-list li{margin:0}
+.rail-progress{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:7px;color:var(--muted);font-size:11px}
+.rail-progress b{font-family:var(--mono);font-size:20px;color:var(--accent);letter-spacing:-.02em}
+
+/* ---------- 响应式 ---------- */
+@media(min-width:1700px){
+  .shell{max-width:1720px;grid-template-columns:272px minmax(0,1fr) 236px}
+  .cover-in,.topbar-in,.foot-in{max-width:1720px}
+  .rail{display:block;position:sticky;top:calc(var(--topbar) + 20px);align-self:start;max-height:calc(100vh - var(--topbar) - 40px);overflow:auto;padding:22px 0 30px;scrollbar-width:thin}
+}
+@media(max-width:1024px){
+  .shell{grid-template-columns:minmax(0,1fr);gap:0}
+  .sidebar{position:fixed;left:0;top:var(--topbar);bottom:0;width:min(310px,86vw);max-height:none;background:var(--paper);border-right:1px solid var(--line);padding:18px 16px 30px;z-index:70;transform:translateX(-104%);transition:transform .22s ease;box-shadow:var(--shadow)}
+  .sidebar.open{transform:none}
+  .scrim{position:fixed;inset:var(--topbar) 0 0;background:rgba(8,13,24,.45);z-index:65;display:none}
+  .scrim.on{display:block}
+  .main{padding-top:18px}
+  .cover-grid{grid-template-columns:minmax(0,1fr)}
+  .dossier{max-width:520px}
+}
+@media(max-width:640px){
+  body{font-size:16px;line-height:1.82}
+  .topbar-in,.cover-in,.shell,.foot-in{padding-left:14px;padding-right:14px}
+  .ch{padding:18px 15px;border-radius:14px}
+  .ch-head{gap:11px}
+  .ch-no{width:42px;height:42px;font-size:15px;border-radius:11px}
+  .ch h3{font-size:18px;margin-top:26px}
+  .ch h2{font-size:21px}
+  .code pre{font-size:12.4px;padding:12px}
+  .lab-body{padding:0 11px 12px}
+  .lab-head{padding:11px 12px 0}
+  .mapgrid{grid-template-columns:1fr}
+  .cover{padding-top:34px}
+  .cover-actions .btn{flex:1 1 auto}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .quiz .opt{font-size:13.2px}
+  .dossier{padding:14px 15px}
+  .pathstrip{gap:5px}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+
+/* ---------- 打印 ---------- */
+@media print{
+  @page{margin:16mm 14mm}
+  html,body{background:#fff!important;color:#000!important;font-size:11pt;line-height:1.6}
+  .topbar,.sidebar,.scrim,.totop,.searchbox,.cover-actions,.pathstrip,.side-tools,.lab-ctl,.copy,.ch-foot,.foot-links,.skip,.rail{display:none!important}
+  .cover{background:#fff!important;color:#000!important;padding:0 0 10mm;border-bottom:2px solid #000}
+  .cover::before,.cover::after{display:none}
+  .cover h1,.cover .sub,.cover .sub b{color:#000!important;-webkit-text-fill-color:#000}
+  .cover h1 em{background:none!important;color:#000!important;-webkit-text-fill-color:#000}
+  .series-tag,.ctag,.dossier h2,.dossier dt,.dossier dd,.dossier .note{color:#000!important}
+  .ctag,.dossier{border-color:#999!important;background:#fff!important}
+  .shell{display:block;padding:0}
+  .ch{break-inside:auto;page-break-inside:auto;border:0;box-shadow:none;padding:0;margin:0 0 8mm}
+  .ch{break-before:page;page-break-before:always}
+  .ch:first-of-type{break-before:auto;page-break-before:auto}
+  .ch-head{border-bottom:1.5px solid #000}
+  .ch-no{background:#fff!important;border:1px solid #000;color:#000!important;box-shadow:none!important}
+  .dossier{box-shadow:none!important}
+  .ch h3,.ch h3 .n,.ch-kicker{color:#000!important}
+  .ch-lede{color:#222!important}
+  .goals{background:#fff!important}
+  .code pre code{color:#000!important}
+  .code{background:#f5f5f5!important;border:1px solid #999;box-shadow:none;break-inside:avoid}
+  .code-bar{background:#e8e8e8!important;color:#333!important;border-bottom:1px solid #bbb}
+  .code-bar .file,.code-bar .lang{color:#333!important}
+  .code pre{color:#000!important;font-size:9pt;white-space:pre-wrap;word-break:break-word}
+  .out{background:#fafafa!important;border:1px solid #bbb;break-inside:avoid}
+  .out pre{color:#000!important}
+  .fig{break-inside:avoid;page-break-inside:avoid;background:#fff!important;border:1px solid #bbb}
+  .fig svg{max-height:88mm}
+  table{font-size:9pt}
+  .table-wrap{overflow:visible;break-inside:auto}
+  tr{break-inside:avoid}
+  .lab{border:1px solid #999;background:#fff!important;break-inside:avoid}
+  .lab-canvas{background:#fff!important;border:1px solid #ccc}
+  .lab-read{background:#f2f2f2!important;color:#000!important}
+  .note,.analogy,.summary,.practice,.quiz{border-color:#999!important;background:#fafafa!important;break-inside:avoid}
+  details.qa,details.deep{break-inside:avoid}
+  details:not([open])>*:not(summary){display:block!important}
+  details>summary{list-style:none}
+  a{color:#000!important;text-decoration:none}
+  .appendix{break-before:page}
+}
+
+
+:root{--accent:#0369a1;--accent-d:#075985;--accent-soft:#f0f9ff;--accent-line:#bae6fd;--accent-ink:#075985}
+html[data-theme="dark"]{--accent:#7dd3fc;--accent-d:#bae6fd;--accent-soft:#0b2230;--accent-line:#1e4a5f;--accent-ink:#c7ecff}
+
+</style>
+</head>
+<body>
+<a class="skip" href="#map">跳到正文</a>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <button class="icon-btn" id="menuBtn" type="button" aria-label="打开课程目录" aria-expanded="false" aria-controls="sidebar">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">E5</span>
+      <span class="brand-txt"><b>计算机网络</b><span>嵌入式学习路径 · 第 5 册</span></span>
+    </a>
+    <span class="topbar-sp"></span>
+    <button class="icon-btn" id="searchBtn" type="button" aria-label="搜索本册内容（Ctrl+K）">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <span class="lbl">搜索</span>
+    </button>
+    <button class="icon-btn" id="themeBtn" type="button" aria-pressed="false" aria-label="切换到深色模式">
+      <svg class="ic-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg>
+      <svg class="ic-moon" viewBox="0 0 24 24" aria-hidden="true" style="display:none"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></svg>
+    </button>
+  </div>
+  <div class="progress" id="progressBar" aria-hidden="true"></div>
+</header>
+
+<div id="top"></div>
+<section class="cover">
+  <div class="cover-in">
+    <div class="cover-grid">
+      <div>
+        <p class="series-tag">嵌入式学习路径 · 第 5 册</p>
+        <h1>计算机<br><em>网络教程</em></h1>
+        <p class="sub">从一根网线到一次 MQTT 上报：数据经过<b>交换机、路由器、NAT、DNS、TCP</b>，最后变成应用层的一条消息。这一册讲清每一层到底做了什么。</p>
+        <div class="cover-tags"><span class="ctag"><i></i>零基础可读</span><span class="ctag"><i></i>分层与封装图解</span><span class="ctag"><i></i>子网/握手/MQTT 演示</span><span class="ctag"><i></i>11 讲 + 速查附录</span><span class="ctag"><i></i>完全离线</span></div>
+        <div class="cover-actions">
+          <a class="btn btn-primary" href="#map">开始学习</a>
+          <a class="btn btn-ghost" href="#ch01">直接进入第 01 讲</a>
+          <button class="btn btn-ghost" type="button" onclick="window.print()">打印 / 导出 PDF</button>
+        </div>
+        <div class="pathstrip" aria-label="系列中的位置"><span class="off">1 · C 语言基础</span><span class="off">2 · 嵌入式 C 进阶</span><span class="off">3 · FreeRTOS</span><span class="off">4 · 通信协议</span><span class="on">5 · 计算机网络</span></div>
+      </div>
+      <aside class="dossier" aria-label="课程档案">
+        <h2>课程档案</h2>
+        <dl><div class="row"><dt>适合读者</dt><dd>想理解设备联网的开发者 / 学生</dd></div><div class="row"><dt>先修要求</dt><dd>基本命令行操作（不要求编程）</dd></div><div class="row"><dt>课程规模</dt><dd>11 讲 + 附录</dd></div><div class="row"><dt>预计学时</dt><dd>18 – 22 小时</dd></div><div class="row"><dt>实验环境</dt><dd>本机命令 + 局域网，无需公网服务器</dd></div><div class="row"><dt>在系列中</dt><dd>第 5 册 / 共 5 册</dd></div></dl>
+        <p class="note">本册实验优先使用本机回环与局域网，不要求你拥有公网 IP 或云服务器。涉及 ESP32 的地方只是案例，概念适用于任何联网设备。</p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+<div class="shell">
+  <nav class="sidebar" id="sidebar" aria-label="课程目录">
+    <h2>课程目录</h2>
+    <ol class="toc">
+<li><a href="#map"><b>00</b><span>课程地图与学习路径</span></a></li>
+<li><a href="#ch01"><b>01</b><span>客户端、服务器与封装</span></a></li>
+<li><a href="#ch02"><b>02</b><span>同一局域网内怎么找到对方</span></a></li>
+<li><a href="#ch03"><b>03</b><span>地址、掩码、网关与子网划分</span></a></li>
+<li><a href="#ch04"><b>04</b><span>从 IP 地址到下一跳</span></a></li>
+<li><a href="#ch05"><b>05</b><span>无连接通信适合什么</span></a></li>
+<li><a href="#ch06"><b>06</b><span>握手、重传、流量控制与关闭</span></a></li>
+<li><a href="#ch07"><b>07</b><span>名字怎么变地址，设备怎么上网</span></a></li>
+<li><a href="#ch08"><b>08</b><span>应用层协议与加密</span></a></li>
+<li><a href="#ch09"><b>09</b><span>物联网消息如何流转</span></a></li>
+<li><a href="#ch10"><b>10</b><span>无线接入、地址演进与凭据保护</span></a></li>
+<li><a href="#ch11"><b>11</b><span>ping、抓包与设备上报</span></a></li>
+<li><a href="#appendix"><b>附</b><span>速查与排错</span></a></li>
+    </ol>
+    <div class="side-tools">
+      <button class="icon-btn" type="button" onclick="window.print()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V3h10v6M7 18H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v7H7z"/></svg>
+        <span>打印 / 导出 PDF</span>
+      </button>
+      <a class="icon-btn" href="#top">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        <span>回到顶部</span>
+      </a>
+    </div>
+  </nav>
+
+  <main class="main" id="main">
+    <section class="mapcard" id="map">
+      <h2>课程地图</h2>
+      <p>教学顺序是“本机 → 局域网 → 互联网 → 应用层”：第 1–4 讲建立分层、寻址与转发；第 5–6 讲是传输层；第 7–9 讲是互联网服务与应用协议；第 10–11 讲处理无线、安全与排障。每讲都给出可本机执行的命令。</p>
+      <div class="mapgrid">
+<a class="mapitem" href="#ch01"><span class="n">第 01 讲</span><b>网络基础与分层</b><span>客户端、服务器与封装</span><span class="t">45 分钟</span></a>
+<a class="mapitem" href="#ch02"><span class="n">第 02 讲</span><b>以太网、MAC 与交换机</b><span>同一局域网内怎么找到对方</span><span class="t">50 分钟</span></a>
+<a class="mapitem" href="#ch03"><span class="n">第 03 讲</span><b>IPv4、子网与 CIDR</b><span>地址、掩码、网关与子网划分</span><span class="t">60 分钟</span></a>
+<a class="mapitem" href="#ch04"><span class="n">第 04 讲</span><b>ARP、路由与数据包转发</b><span>从 IP 地址到下一跳</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch05"><span class="n">第 05 讲</span><b>UDP、端口与套接字</b><span>无连接通信适合什么</span><span class="t">50 分钟</span></a>
+<a class="mapitem" href="#ch06"><span class="n">第 06 讲</span><b>TCP：可靠字节流</b><span>握手、重传、流量控制与关闭</span><span class="t">65 分钟</span></a>
+<a class="mapitem" href="#ch07"><span class="n">第 07 讲</span><b>DNS、DHCP 与 NAT</b><span>名字怎么变地址，设备怎么上网</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch08"><span class="n">第 08 讲</span><b>HTTP、HTTPS、TLS 与 WebSocket</b><span>应用层协议与加密</span><span class="t">60 分钟</span></a>
+<a class="mapitem" href="#ch09"><span class="n">第 09 讲</span><b>MQTT：发布/订阅与 QoS</b><span>物联网消息如何流转</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch10"><span class="n">第 10 讲</span><b>Wi-Fi、IPv6 与联网安全</b><span>无线接入、地址演进与凭据保护</span><span class="t">55 分钟</span></a>
+<a class="mapitem" href="#ch11"><span class="n">第 11 讲</span><b>网络调试与综合项目</b><span>ping、抓包与设备上报</span><span class="t">85 分钟</span></a>
+<a class="mapitem" href="#appendix"><span class="n">附录</span><b>协议速查、端口表与排错清单</b><span>速查与排错</span><span class="t">随时查阅</span></a>
+      </div>
+    </section>
+<section class="ch" id="ch01" aria-labelledby="ch01-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">01</div>
+  <div class="ch-title">
+    <p class="ch-kicker">入门 · 45 分钟 · ★☆☆</p>
+    <h2 id="ch01-h">网络基础与分层</h2>
+    <p class="ch-lede">一次网页访问，数据在发送方被一层层套上头部，在接收方又被一层层剥开。理解封装，就理解了一半网络。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>说清客户端/服务器模型</li><li>区分 OSI 与 TCP/IP 分层</li><li>描述封装与解封装过程</li><li>知道每层典型的协议与设备</li></ul></div>
+<h3 id="ch01-s1"><span class="n">1.1</span>两台机器说话，需要约定什么</h3>
+<p>网络通信的本质是“两台机器上的两个程序交换字节”。要让它可靠发生，至少要约定五件事：</p>
+<div class="steps">
+<div><b>怎么连</b>　物理介质与接口（网线、Wi-Fi、光纤）。</div>
+<div><b>怎么找到对方</b>　地址（MAC、IP、域名）。</div>
+<div><b>数据怎么切分</b>　帧、包、段，各自的边界与校验。</div>
+<div><b>丢了怎么办</b>　确认、重传、超时、顺序。</div>
+<div><b>字节是什么意思</b>　应用层协议（HTTP、MQTT、自定义）。</div>
+</div>
+<p>把这些问题分层处理，就是网络架构的核心思想：<strong>每一层只解决一类问题，并向上提供接口</strong>。</p>
+
+<h3 id="ch01-s2"><span class="n">1.2</span>OSI 七层与 TCP/IP 四层</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>TCP/IP 四层</th><th>OSI 对应</th><th>典型协议</th><th>典型设备/概念</th><th>数据单位</th></tr></thead>
+<tbody>
+<tr><td>应用层</td><td>应用 / 表示 / 会话</td><td>HTTP、DNS、MQTT、TLS</td><td>浏览器、客户端、Broker</td><td>消息</td></tr>
+<tr><td>传输层</td><td>传输</td><td>TCP、UDP</td><td>端口、套接字</td><td>段（segment）/ 数据报</td></tr>
+<tr><td>网络层</td><td>网络</td><td>IP、ICMP、ARP*</td><td>路由器</td><td>包（packet）</td></tr>
+<tr><td>链路层</td><td>数据链路 / 物理</td><td>Ethernet、Wi-Fi、PPP</td><td>交换机、网卡</td><td>帧（frame）</td></tr>
+</tbody>
+</table>
+</div>
+<p>* ARP 常被归到链路层与网络层之间，它把 IP 地址解析成 MAC 地址，不承载上层数据。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>排障时先问“问题在哪一层”：网线没插是链路层，IP 配错是网络层，端口没监听是传输层，返回 404 是应用层。分层不是为了考试，是为了让你知道下一步该查什么。</p>
+</div>
+
+<h3 id="ch01-s3"><span class="n">1.3</span>封装：一层套一层</h3>
+<p>发送数据时，每一层都会在数据前面加上自己的头部（有时还有尾部）。接收时再逐层剥掉。这个过程叫<strong>封装 / 解封装</strong>。</p>
+
+<div class="lab" id="lab-encap">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>一条消息被套了多少层</h4>
+    <p>点击“发送”，看应用数据如何被 TCP、IP、以太网依次加上头部；再点“接收”，看它如何被逐层剥开。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="encapSend">发送（封装）</button>
+      <button class="lab-btn" type="button" id="encapRecv">接收（解封装）</button>
+      <button class="lab-btn" type="button" id="encapReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="encapCanvas"></div>
+    <div class="lab-read" id="encapOut" aria-live="polite"></div>
+    <p class="lab-note">每层只关心自己的头部，不关心上层载荷的内容——这就是分层的价值。</p>
+  </div>
+</div>
+
+<figure class="fig scroll">
+<svg viewBox="0 0 820 260" role="img" aria-labelledby="fig1t fig1d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig1t">数据封装过程</title>
+<desc id="fig1d">应用数据依次加上 TCP 头、IP 头、以太网头与尾部，形成帧；接收方按相反顺序剥离。</desc>
+<rect width="820" height="260" fill="#fbfdff"/>
+<g font-size="10.5" text-anchor="middle">
+<rect x="40" y="40" width="180" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="130" y="63" fill="#26348f">应用数据 "Hello"</text>
+<rect x="40" y="92" width="80" height="36" fill="#dcfce7" stroke="#4ade80"/><text x="80" y="115" fill="#166534">TCP 头</text>
+<rect x="120" y="92" width="180" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="210" y="115" fill="#26348f">应用数据</text>
+<rect x="40" y="144" width="70" height="36" fill="#fef3c7" stroke="#fbbf24"/><text x="75" y="167" fill="#92400e">IP 头</text>
+<rect x="110" y="144" width="80" height="36" fill="#dcfce7" stroke="#4ade80"/><text x="150" y="167" fill="#166534">TCP 头</text>
+<rect x="190" y="144" width="180" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="280" y="167" fill="#26348f">应用数据</text>
+<rect x="40" y="196" width="90" height="36" fill="#ede9fe" stroke="#c4b5fd"/><text x="85" y="219" fill="#5b21b6">以太网头</text>
+<rect x="130" y="196" width="70" height="36" fill="#fef3c7" stroke="#fbbf24"/><text x="165" y="219" fill="#92400e">IP 头</text>
+<rect x="200" y="196" width="80" height="36" fill="#dcfce7" stroke="#4ade80"/><text x="240" y="219" fill="#166534">TCP 头</text>
+<rect x="280" y="196" width="140" height="36" fill="#e0e7ff" stroke="#818cf8"/><text x="350" y="219" fill="#26348f">应用数据</text>
+<rect x="420" y="196" width="50" height="36" fill="#f1f5f9" stroke="#cbd5e1"/><text x="445" y="219" fill="#475569">FCS</text>
+</g>
+<text x="500" y="60" font-size="11.5" fill="#334155">每一层只加自己的头：</text>
+<text x="500" y="84" font-size="11" fill="#475569">TCP 头：端口、序号、确认号、窗口</text>
+<text x="500" y="106" font-size="11" fill="#475569">IP 头：源/目的 IP、TTL、协议号</text>
+<text x="500" y="128" font-size="11" fill="#475569">以太网头：源/目的 MAC、类型</text>
+<text x="500" y="150" font-size="11" fill="#475569">FCS：帧校验（链路层尾部）</text>
+<text x="500" y="180" font-size="11" fill="#0f766e">接收方从外到内逐层剥离，</text>
+<text x="500" y="200" font-size="11" fill="#0f766e">每层只处理自己的头部。</text>
+</svg>
+<figcaption>图 1-1　封装：应用数据 → TCP 段 → IP 包 → 以太网帧。</figcaption>
+</figure>
+
+<h3 id="ch01-s4"><span class="n">1.4</span>客户端与服务器</h3>
+<p>“客户端/服务器”不是指硬件，而是指<strong>角色</strong>：主动发起连接的一方是客户端，被动等待连接的一方是服务器。同一个程序可以既是客户端又是服务器。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>角色</th><th>典型行为</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>客户端</td><td>知道服务器地址，主动连接，发请求</td><td>浏览器、手机 App、ESP32 上报程序</td></tr>
+<tr><td>服务器</td><td>监听端口，接受连接，处理请求</td><td>Web 服务器、MQTT Broker</td></tr>
+<tr><td>对等（P2P）</td><td>双方既发又收，角色对等</td><td>局域网文件传输、部分音视频</td></tr>
+</tbody>
+</table>
+</div>
+<p>服务器要同时服务多个客户端，通常用“每连接一个线程/协程”或“事件循环（epoll/kqueue）”。嵌入式设备资源有限，通常只做客户端，或者做轻量服务器（如配置页面）。</p>
+
+<h3 id="ch01-s5"><span class="n">1.5</span>一次访问，经过哪些设备</h3>
+<div class="code"><div class="code-bar"><span class="file">一次网页访问的简化路径</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>浏览器 → 本机协议栈 → 网卡 → 交换机 → 路由器 → 运营商网络 → 目标服务器
+   ↑                                                              ↓
+   └──────────────── 响应沿相反路径返回 ─────────────────────────┘</code></pre></div>
+<ul>
+<li><strong>交换机</strong>工作在链路层，按 MAC 转发帧，不改变 IP。</li>
+<li><strong>路由器</strong>工作在网络层，按 IP 前缀转发包，每跳都会改 MAC、减 TTL。</li>
+<li><strong>NAT</strong> 在路由器上改写源/目的 IP 与端口，让多台内网设备共享一个公网地址。</li>
+</ul>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 1 讲</div>
+<div class="pb">
+<ol>
+<li>把 HTTP、TCP、IP、Ethernet 分别放到 TCP/IP 四层中。</li>
+<li>“交换机根据 IP 转发”这句话对吗？为什么？</li>
+<li>封装过程中，哪一层会加校验尾部？</li>
+<li>客户端和服务器的区分依据是什么？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> HTTP 应用层、TCP 传输层、IP 网络层、Ethernet 链路层。</p>
+<p><b>2.</b> 不对。交换机主要按 MAC 地址转发，不解析 IP（三层交换机除外）。</p>
+<p><b>3.</b> 以太网帧有 FCS 尾部；IP 头有校验和（仅头部）；TCP/UDP 有校验和字段。</p>
+<p><b>4.</b> 谁主动发起连接谁是客户端；角色是相对的，不是设备属性。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：IP 地址属于哪一层？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>链路层</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>传输层</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>网络层</span></button>
+</div>
+<div class="fb" data-fb>IP 是网络层地址，负责跨网络寻址与路由；MAC 是链路层地址，负责同一局域网内的交付；端口是传输层概念。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch01-s6">本讲小结</h3>
+<ul>
+<li>网络通信要解决连接、寻址、分帧、可靠性、语义五类问题。</li>
+<li>TCP/IP 四层：应用、传输、网络、链路。</li>
+<li>封装是逐层加头，解封装是逐层剥离。</li>
+<li>交换机看 MAC，路由器看 IP，NAT 改写地址与端口。</li>
+<li>客户端/服务器是角色，不是设备。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出四层各自的协议与设备</li>
+<li>我能画出一次访问的封装过程</li>
+<li>我知道排障要先定位层次</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 01 讲 · 共 11 讲</span><span class="ch-nav"><a href="#map">← 课程地图</a> <a href="#ch02">第 02 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch02" aria-labelledby="ch02-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">02</div>
+  <div class="ch-title">
+    <p class="ch-kicker">链路层 · 50 分钟 · ★★☆</p>
+    <h2 id="ch02-h">以太网、MAC 与交换机</h2>
+    <p class="ch-lede">MAC 地址是网卡的身份证，交换机靠 MAC 表转发帧。广播域、冲突域这些词，其实都在描述“谁能听到谁”。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>解释 MAC 地址与以太网帧结构</li><li>说明交换机如何学习与转发</li><li>区分广播、单播与泛洪</li><li>理解 VLAN 与广播域</li></ul></div>
+<h3 id="ch02-s1"><span class="n">2.1</span>MAC 地址：网卡的身份证</h3>
+<p>MAC 地址 48 位，通常写成 <code class="i">00:1A:2B:3C:4D:5E</code>。前 24 位是厂商前缀（OUI），后 24 位由厂商分配。它只在<strong>同一个局域网内</strong>有效，路由器不会把 MAC 带到互联网。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类型</th><th>特征</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td>单播</td><td>第一个字节最低位为 0</td><td>发给某一块网卡</td></tr>
+<tr><td>广播</td><td><code>FF:FF:FF:FF:FF:FF</code></td><td>ARP 请求、DHCP 发现</td></tr>
+<tr><td>组播</td><td>第一个字节最低位为 1</td><td>视频流、IPv6 邻居发现</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>每块网卡的 MAC 理论上全球唯一，但很多芯片允许软件修改（MAC 地址克隆/随机化）。虚拟机和容器更是随便配。所以<strong>不能把 MAC 当作安全凭证</strong>。</p>
+</div>
+
+<h3 id="ch02-s2"><span class="n">2.2</span>以太网帧</h3>
+<div class="table-wrap">
+<table>
+<caption>Ethernet II 帧</caption>
+<thead><tr><th>字段</th><th>长度</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>前导码 + SFD</td><td>7 + 1 字节</td><td>用于时钟同步，不算帧内容</td></tr>
+<tr><td>目的 MAC</td><td>6 字节</td><td>可以是单播/广播/组播</td></tr>
+<tr><td>源 MAC</td><td>6 字节</td><td>发送方网卡</td></tr>
+<tr><td>类型/长度</td><td>2 字节</td><td>0x0800 = IPv4，0x0806 = ARP，0x86DD = IPv6</td></tr>
+<tr><td>载荷</td><td>46–1500 字节</td><td>IP 包；不足 46 字节要填充</td></tr>
+<tr><td>FCS</td><td>4 字节</td><td>CRC32 校验，错误帧直接丢弃</td></tr>
+</tbody>
+</table>
+</div>
+<p>MTU（最大传输单元）通常是 1500 字节。IP 包超过 MTU 就要分片，或者由上层控制报文大小（TCP 的 MSS 就是据此协商的）。</p>
+
+<h3 id="ch02-s3"><span class="n">2.3</span>交换机怎么转发</h3>
+<div class="steps">
+<div><b>学习</b>　收到帧时，把“源 MAC + 入端口”记进 MAC 表。</div>
+<div><b>查找</b>　看目的 MAC 在表里有没有。</div>
+<div><b>转发</b>　有就只从对应端口发出（单播）。</div>
+<div><b>泛洪</b>　没有就从除入端口外的所有端口发出。</div>
+<div><b>老化</b>　表项一段时间不用就删除，适应设备移动。</div>
+</div>
+<div class="code"><div class="code-bar"><span class="file">查看本机 MAC 与邻居（Linux / Windows）</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>ip link                     # Linux：看网卡与 MAC
+getmac /v                   # Windows：看 MAC
+ip neigh                    # Linux：ARP/邻居表
+arp -a                      # Windows：ARP 表</code></pre></div>
+
+<h3 id="ch02-s4"><span class="n">2.4</span>冲突域与广播域</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>含义</th><th>隔离设备</th></tr></thead>
+<tbody>
+<tr><td>冲突域</td><td>同时发送会冲突的范围</td><td>交换机每个端口一个冲突域</td></tr>
+<tr><td>广播域</td><td>广播帧能到达的范围</td><td>路由器 / VLAN</td></tr>
+</tbody>
+</table>
+</div>
+<p>交换机隔离冲突域，但不隔离广播域：一个广播帧会被泛洪到所有端口。广播太多会占用带宽和 CPU，这时就用 <strong>VLAN</strong> 把一个物理交换机切成多个逻辑广播域。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>嵌入式设备如果频繁发广播（例如设备发现协议），要考虑广播风暴的风险。能用量身定制的组播/单播，就不要用广播。</p>
+</div>
+
+<h3 id="ch02-s5"><span class="n">2.5</span>VLAN 与 Trunk</h3>
+<p>VLAN 在以太网帧里插入 4 字节标签（802.1Q），用 12 位 VLAN ID 标识所属网络。交换机端口可以配置成：</p>
+<ul>
+<li><strong>Access</strong>：只属于一个 VLAN，接终端设备。</li>
+<li><strong>Trunk</strong>：承载多个 VLAN，接交换机/路由器，帧带标签。</li>
+</ul>
+<p>对嵌入式设备来说，VLAN 通常是“网络管理员的事”；但如果你要接工业交换机、划分控制网与办公网，就需要知道设备该接 Access 口还是 Trunk 口。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 2 讲</div>
+<div class="pb">
+<ol>
+<li>为什么 MAC 地址不能跨路由器传递？</li>
+<li>交换机收到未知目的 MAC 的帧会怎么做？</li>
+<li>广播域和冲突域分别由什么设备隔离？</li>
+<li>MTU 1500 时，一个 3000 字节的 IP 包会怎样？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> MAC 只在链路层本地有效；路由器每跳会重新封装成新的链路层帧，源/目的 MAC 都变成当前链路两端的地址。</p>
+<p><b>2.</b> 泛洪到除入端口外的所有端口，同时学习源 MAC。</p>
+<p><b>3.</b> 冲突域由交换机端口隔离；广播域由路由器或 VLAN 隔离。</p>
+<p><b>4.</b> 若 DF=0 则分成两个片；若 DF=1 则丢弃并返回 ICMP“需要分片”。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：交换机主要根据什么转发帧？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>目的 MAC 地址</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>目的 IP 地址</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>目的端口号</span></button>
+</div>
+<div class="fb" data-fb>普通二层交换机看目的 MAC；路由器才看目的 IP；端口号是传输层概念，交换机不解析。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch02-s6">本讲小结</h3>
+<ul>
+<li>MAC 是链路层地址，只在本地链路有效。</li>
+<li>以太网帧包含源/目的 MAC、类型、载荷与 FCS。</li>
+<li>交换机学习源 MAC、按目的 MAC 转发、未知则泛洪。</li>
+<li>交换机隔离冲突域，路由器/VLAN 隔离广播域。</li>
+<li>MTU 决定是否需要分片。</li>
+</ul>
+<ul class="checklist">
+<li>我能读出以太网帧的关键字段</li>
+<li>我能解释交换机的学习与泛洪</li>
+<li>我知道 VLAN 解决什么问题</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 02 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch01">← 第 01 讲</a> <a href="#ch03">第 03 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch03" aria-labelledby="ch03-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">03</div>
+  <div class="ch-title">
+    <p class="ch-kicker">网络层 · 60 分钟 · ★★★</p>
+    <h2 id="ch03-h">IPv4、子网与 CIDR</h2>
+    <p class="ch-lede">IP 地址不是“设备编号”，而是“网络号 + 主机号”。掩码决定哪部分是网络，网关决定出网找谁。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>根据 IP 与掩码算出网络号、广播地址与可用范围</li><li>用 CIDR 表示子网并划分子网</li><li>解释默认网关的作用</li><li>区分私有地址、回环与链路本地地址</li></ul></div>
+<h3 id="ch03-s1"><span class="n">3.1</span>IP 地址 = 网络号 + 主机号</h3>
+<p>IPv4 地址 32 位，写成四段十进制（<code class="i">192.168.1.10</code>）。它由两部分组成：<strong>网络号</strong>（在哪个网络）和<strong>主机号</strong>（网络里的哪台设备）。分界线由<strong>子网掩码</strong>决定。</p>
+<div class="code"><div class="code-bar"><span class="file">一个 /24 的例子</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>IP     192.168.1.10    11000000 10101000 00000001 00001010
+掩码   255.255.255.0   11111111 11111111 11111111 00000000
+网络号 192.168.1.0     前 24 位相同
+广播   192.168.1.255   主机号全 1
+可用   192.168.1.1 – 192.168.1.254</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>地址段</th><th>用途</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>10.0.0.0/8</td><td>私有</td><td>企业内网，可用地址最多</td></tr>
+<tr><td>172.16.0.0/12</td><td>私有</td><td>172.16–172.31</td></tr>
+<tr><td>192.168.0.0/16</td><td>私有</td><td>家庭/小型办公最常见</td></tr>
+<tr><td>127.0.0.0/8</td><td>回环</td><td>127.0.0.1 指本机</td></tr>
+<tr><td>169.254.0.0/16</td><td>链路本地</td><td>DHCP 失败时自动配置</td></tr>
+<tr><td>224.0.0.0/4</td><td>组播</td><td>视频、路由协议、mDNS</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch03-s2"><span class="n">3.2</span>CIDR：用 /n 表示掩码</h3>
+<p><code class="i">/24</code> 表示前 24 位是网络号，等价于 <code class="i">255.255.255.0</code>。常见换算：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>前缀</th><th>掩码</th><th>地址数</th><th>可用主机数</th></tr></thead>
+<tbody>
+<tr><td>/24</td><td>255.255.255.0</td><td>256</td><td>254</td></tr>
+<tr><td>/25</td><td>255.255.255.128</td><td>128</td><td>126</td></tr>
+<tr><td>/26</td><td>255.255.255.192</td><td>64</td><td>62</td></tr>
+<tr><td>/27</td><td>255.255.255.224</td><td>32</td><td>30</td></tr>
+<tr><td>/28</td><td>255.255.255.240</td><td>16</td><td>14</td></tr>
+<tr><td>/30</td><td>255.255.255.252</td><td>4</td><td>2（点对点链路）</td></tr>
+</tbody>
+</table>
+</div>
+<p>主机数 = 2<sup>(32-n)</sup> - 2，减去网络地址和广播地址。 exceptions：/31 点对点链路（RFC 3021）可用 2 个地址，/32 表示单个主机路由。</p>
+
+<div class="lab" id="lab-subnet">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>子网计算器</h4>
+    <p>输入 IP 和前缀，实时得到网络号、广播地址、可用范围与主机数，并显示二进制对齐过程。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>IP <input id="snIp" type="text" value="192.168.1.10" style="width:130px"></label>
+      <label>前缀 <input id="snPrefix" type="number" value="24" min="0" max="32" style="width:64px"></label>
+      <button class="lab-btn pri" type="button" id="snGo">计算</button>
+    </div>
+    <div class="lab-read" id="snOut" aria-live="polite"></div>
+    <p class="lab-note">网络地址 = IP 与掩码按位与；广播地址 = 网络地址 | ~掩码。这两个地址不能分配给主机。</p>
+  </div>
+</div>
+
+<h3 id="ch03-s3"><span class="n">3.3</span>划分子网：为什么要借位</h3>
+<p>一个 /24 有 254 个可用地址。如果只有 20 台设备，剩下的地址就浪费了，而且所有设备在同一个广播域里。划分子网就是<strong>从主机号里借几位当网络号</strong>。</p>
+<div class="code"><div class="code-bar"><span class="file">把 192.168.1.0/24 划成 4 个 /26</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>子网 1：192.168.1.0/26    可用 .1  – .62
+子网 2：192.168.1.64/26   可用 .65 – .126
+子网 3：192.168.1.128/26  可用 .129 – .190
+子网 4：192.168.1.192/26  可用 .193 – .254</code></pre></div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>规划地址时按“未来 2–3 年的设备数”留余量。把生产设备、办公设备、访客网络分到不同子网，既方便管理，也方便做访问控制。</p>
+</div>
+
+<h3 id="ch03-s4"><span class="n">3.4</span>默认网关：出网找谁</h3>
+<p>主机发数据前先判断：目的 IP 和我在同一个子网吗？</p>
+<ul>
+<li><strong>是</strong>：直接 ARP 找对方 MAC，发给它。</li>
+<li><strong>否</strong>：发给默认网关（路由器的内网地址），由它继续转发。</li>
+</ul>
+<div class="code"><div class="code-bar"><span class="file">查看本机地址与路由（Linux / Windows）</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>ip addr                     # Linux：地址与掩码
+ip route                    # Linux：默认网关
+ipconfig                    # Windows：地址、掩码、网关
+route print                 # Windows：路由表</code></pre></div>
+<div class="note bad">
+<b>易错</b>
+<p>“能上局域网、不能上网”最常见的原因是<strong>默认网关没配</strong>或配错，其次是 DNS 配错。先 <code class="i">ping 网关</code>，再 <code class="i">ping 8.8.8.8</code>，最后 <code class="i">ping 域名</code>，三步就能定位。</p>
+</div>
+
+<h3 id="ch03-s5"><span class="n">3.5</span>IPv4 头部关键字段</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>字段</th><th>作用</th><th>常见值</th></tr></thead>
+<tbody>
+<tr><td>版本 / 头长度</td><td>IPv4、头部多少字节</td><td>4 / 5（20 字节）</td></tr>
+<tr><td>总长度</td><td>整个 IP 包长度</td><td>≤ MTU（通常 1500）</td></tr>
+<tr><td>标识 / 标志 / 片偏移</td><td>分片与重组</td><td>DF、MF</td></tr>
+<tr><td>TTL</td><td>剩余跳数，每经路由器减 1</td><td>64 / 128 / 255</td></tr>
+<tr><td>协议</td><td>上层协议</td><td>6=TCP，17=UDP，1=ICMP</td></tr>
+<tr><td>源/目的 IP</td><td>寻址</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 3 讲</div>
+<div class="pb">
+<ol>
+<li>192.168.10.130/26 的网络号、广播地址、可用范围是什么？</li>
+<li>为什么 /24 的可用主机数是 254 而不是 256？</li>
+<li>一台设备 IP 是 192.168.1.10/24，网关是 192.168.2.1，能上网吗？</li>
+<li>169.254.x.x 地址说明什么？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> /26 的块大小是 64，130 落在 128–191 这一段：网络号 192.168.10.128，广播 192.168.10.191，可用 129–190。</p>
+<p><b>2.</b> 网络地址（主机号全 0）和广播地址（全 1）不能分配给主机。</p>
+<p><b>3.</b> 不能。网关不在同一子网，主机无法 ARP 到网关，包发不出去。</p>
+<p><b>4.</b> DHCP 没拿到地址，系统自动配了链路本地地址；通常意味着 DHCP 服务器不可达。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：192.168.1.100/25 的网络地址是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>192.168.1.0</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>192.168.1.128</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>192.168.1.100</span></button>
+</div>
+<div class="fb" data-fb>/25 把最后一个字节分成 0–127 和 128–255 两段；100 落在前一段，所以网络地址是 192.168.1.0，广播是 192.168.1.127。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch03-s6">本讲小结</h3>
+<ul>
+<li>IP = 网络号 + 主机号，掩码决定分界。</li>
+<li>CIDR 用 /n 表示前缀，主机数 = 2^(32-n) - 2。</li>
+<li>网络地址与广播地址不能分配给主机。</li>
+<li>同子网直接 ARP，跨子网交给默认网关。</li>
+<li>私有地址不能直接出现在公网。</li>
+</ul>
+<ul class="checklist">
+<li>我能手算子网范围</li>
+<li>我能解释默认网关的作用</li>
+<li>我知道 169.254 意味着什么</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 03 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch02">← 第 02 讲</a> <a href="#ch04">第 04 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch04" aria-labelledby="ch04-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">04</div>
+  <div class="ch-title">
+    <p class="ch-kicker">网络层 · 55 分钟 · ★★★</p>
+    <h2 id="ch04-h">ARP、路由与数据包转发</h2>
+    <p class="ch-lede">知道对方 IP 还不够，得知道对方的 MAC。ARP 负责这件事；路由表决定“下一跳交给谁”。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>解释 ARP 请求/应答与缓存</li><li>读懂路由表与最长前缀匹配</li><li>描述一个包从主机到目标的全过程</li><li>理解 TTL 与分片</li></ul></div>
+<h3 id="ch04-s1"><span class="n">4.1</span>知道 IP，为什么还要 MAC</h3>
+<p>IP 是“最终目的地”，MAC 是“这一跳交给谁”。数据包从主机到路由器、从路由器到下一跳，每一跳的源/目的 MAC 都会变，但源/目的 IP 不变（NAT 除外）。</p>
+<p>ARP（地址解析协议）负责在<strong>同一局域网内</strong>把 IP 解析成 MAC。</p>
+<div class="steps">
+<div><b>查缓存</b>　先看 ARP 表里有没有对应项。</div>
+<div><b>广播请求</b>　没有就发广播：“谁有 192.168.1.1？请告诉 192.168.1.10”。</div>
+<div><b>单播应答</b>　目标主机回复自己的 MAC。</div>
+<div><b>写入缓存</b>　缓存几分钟，避免每次都广播。</div>
+</div>
+<div class="code"><div class="code-bar"><span class="file">查看与清理 ARP 表</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>arp -a                       # Windows / Linux 都可看
+ip neigh                     # Linux 更现代
+sudo ip neigh flush all      # Linux 清空（需要权限）
+arp -d 192.168.1.1           # Windows 删除单条</code></pre></div>
+<div class="note bad">
+<b>易错</b>
+<p>ARP 没有认证，任何人都可以伪造应答（ARP 欺骗），把流量引到自己这里。所以“同一个局域网”默认是互相信任的；跨网段隔离、动态 ARP 检测（DAI）是常见的防护手段。</p>
+</div>
+
+<h3 id="ch04-s2"><span class="n">4.2</span>路由表：下一跳交给谁</h3>
+<p>主机和路由器都维护路由表。每条路由包含：目的网络、掩码、下一跳、出接口、度量值。</p>
+<div class="code"><div class="code-bar"><span class="file">路由表示例（简化）</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>目的网络        掩码              下一跳          接口
+0.0.0.0         0.0.0.0           192.168.1.1     eth0     ← 默认路由
+192.168.1.0     255.255.255.0     直连            eth0
+192.168.2.0     255.255.255.0     192.168.1.2     eth0</code></pre></div>
+<p>转发时按<strong>最长前缀匹配</strong>：在所有匹配的路由里，选前缀最长（最具体）的那条。默认路由 <code class="i">0.0.0.0/0</code> 前缀长度为 0，是最后的兜底。</p>
+<div class="note impl">
+<b>实现细节</b>
+<p>最长前缀匹配不是“按顺序查表”，硬件路由器用 TCAM 并行比较。主机上的路由表通常很小，线性查找也够快。</p>
+</div>
+
+<h3 id="ch04-s3"><span class="n">4.3</span>一个包从 A 到 B 的完整过程</h3>
+<div class="steps">
+<div><b>应用发数据</b>　写入套接字，传输层加上 TCP/UDP 头。</div>
+<div><b>查路由</b>　目的 IP 不在本子网 → 走默认网关。</div>
+<div><b>ARP 网关</b>　拿到网关 MAC，封装成以太网帧。</div>
+<div><b>交换机转发</b>　按目的 MAC 送到路由器端口。</div>
+<div><b>路由器转发</b>　查路由表，TTL 减 1，改 MAC，发往下一跳。</div>
+<div><b>重复</b>　直到到达目的子网的路由器。</div>
+<div><b>最后一跳</b>　ARP 目标主机，交付帧。</div>
+<div><b>解封装</b>　逐层剥离，数据交给应用。</div>
+</div>
+
+<div class="lab" id="lab-route">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>一个包怎么跳过三个网络</h4>
+    <p>点击“下一跳”，看源/目的 IP 与 MAC 在每一跳如何变化。注意：IP 不变，MAC 每跳都换。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="routeStep">下一跳</button>
+      <button class="lab-btn" type="button" id="routeReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="routeCanvas"></div>
+    <div class="lab-read" id="routeOut" aria-live="polite"></div>
+    <p class="lab-note">TTL 每经一个路由器减 1；减到 0 就丢弃并返回 ICMP 超时——traceroute 就是利用这一点。</p>
+  </div>
+</div>
+
+<h3 id="ch04-s4"><span class="n">4.4</span>TTL 与分片</h3>
+<ul>
+<li><strong>TTL</strong>：防止包在环路里永远转。每经路由器减 1，到 0 丢弃并回 ICMP Time Exceeded。</li>
+<li><strong>分片</strong>：IP 包大于链路 MTU 时，路由器可以分片（DF=0），接收方按标识/偏移重组。分片会增加丢失概率（丢一片整包重传），所以现代协议倾向用 Path MTU Discovery 避免分片。</li>
+<li><strong>ICMP</strong>：网络层的“控制消息”，ping 用 Echo Request/Reply，traceroute 用 TTL 超时。</li>
+</ul>
+<div class="code"><div class="code-bar"><span class="file">观察路径与 MTU</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>tracert example.com            # Windows
+traceroute example.com         # Linux / macOS
+ping -f -l 1472 192.168.1.1    # Windows：探测 MTU（1472+28=1500）
+ping -M do -s 1472 192.168.1.1 # Linux：禁止分片</code></pre></div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 4 讲</div>
+<div class="pb">
+<ol>
+<li>同一子网内两台主机通信，需要经过路由器吗？</li>
+<li>路由表里同时有 0.0.0.0/0 和 10.0.0.0/8，去 10.1.2.3 走哪条？</li>
+<li>TTL 的作用是什么？traceroute 怎么利用它？</li>
+<li>为什么分片会降低可靠性？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 不需要，直接 ARP 对方 MAC，经交换机转发。</p>
+<p><b>2.</b> 10.0.0.0/8，因为前缀更长（更具体），最长前缀匹配优先。</p>
+<p><b>3.</b> 防止环路；traceroute 逐次增大 TTL，让路径上的路由器依次返回超时消息，从而得到路径。</p>
+<p><b>4.</b> 任意一片丢失都要重传整个包，且重组占用资源；路径 MTU 不一致时更容易丢。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：数据包经过路由器时，哪个地址会改变？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>源 IP 和目的 IP</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>只有目的 IP</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>链路层的源/目的 MAC（NAT 场景除外）</span></button>
+</div>
+<div class="fb" data-fb>路由器每跳重新封装链路层帧，MAC 会变；IP 在普通路由中保持不变（NAT 会改写 IP 和端口，那是另一回事）。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch04-s5">本讲小结</h3>
+<ul>
+<li>ARP 在同一局域网内把 IP 解析成 MAC。</li>
+<li>路由表按最长前缀匹配选择下一跳。</li>
+<li>每经一跳，MAC 改变、TTL 减 1，IP 通常不变。</li>
+<li>TTL 防环，traceroute 利用 TTL 超时。</li>
+<li>分片增加丢失与重组成本，能避免就避免。</li>
+</ul>
+<ul class="checklist">
+<li>我能描述 ARP 的请求与应答</li>
+<li>我能读懂路由表并判断下一跳</li>
+<li>我知道 TTL 与 traceroute 的关系</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 04 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch03">← 第 03 讲</a> <a href="#ch05">第 05 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch05" aria-labelledby="ch05-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">05</div>
+  <div class="ch-title">
+    <p class="ch-kicker">传输层 · 50 分钟 · ★★★</p>
+    <h2 id="ch05-h">UDP、端口与套接字</h2>
+    <p class="ch-lede">UDP 不保证送达，但它没有建连、没有重传、没有队头阻塞——实时音视频和 DNS 都靠它。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>解释端口与套接字的概念</li><li>说清 UDP 报文结构与校验</li><li>判断什么时候选 UDP</li><li>用本机命令观察 UDP 通信</li></ul></div>
+<h3 id="ch05-s1"><span class="n">5.1</span>端口与套接字</h3>
+<p>IP 地址把数据送到主机，<strong>端口</strong>把数据送到主机上的某个程序。端口是 16 位整数（0–65535）：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>范围</th><th>名称</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>0–1023</td><td>知名端口</td><td>HTTP 80、HTTPS 443、DNS 53、MQTT 1883</td></tr>
+<tr><td>1024–49151</td><td>注册端口</td><td>厂商/应用注册使用</td></tr>
+<tr><td>49152–65535</td><td>临时端口</td><td>客户端发起连接时由系统分配</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>套接字（socket）</strong>通常指“IP + 端口 + 协议”的组合，例如 <code class="i">192.168.1.10:50000 TCP</code>。一条 TCP 连接由四元组唯一确定：源 IP、源端口、目的 IP、目的端口。</p>
+
+<h3 id="ch05-s2"><span class="n">5.2</span>UDP 只做四件事</h3>
+<p>UDP 的头部只有 8 字节：源端口、目的端口、长度、校验和。它提供的能力非常有限：</p>
+<div class="grid2">
+<div class="card"><span class="tag">提供</span><h4>它做的</h4><ul><li>端口复用（区分应用）</li><li>可选的校验和</li><li>保留消息边界（一次发 = 一个数据报）</li><li>支持广播/组播</li></ul></div>
+<div class="card"><span class="tag">不提供</span><h4>它不做的</h4><ul><li>不建连、不握手</li><li>不确认、不重传</li><li>不保证顺序</li><li>不控制拥塞</li></ul></div>
+</div>
+<div class="note law">
+<b>标准怎么说</b>
+<p>IPv4 中 UDP 校验和是可选的（全 0 表示不校验），IPv6 中<strong>必须</strong>计算。校验和覆盖伪头部（源/目的 IP、协议号、UDP 长度）+ UDP 头 + 数据，所以能发现 IP 地址错误。</p>
+</div>
+
+<h3 id="ch05-s3"><span class="n">5.3</span>什么时候选 UDP</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>场景</th><th>为什么 UDP</th></tr></thead>
+<tbody>
+<tr><td>DNS 查询</td><td>一问一答，包小，重发比建连快</td></tr>
+<tr><td>DHCP</td><td>客户端还没有 IP，无法建 TCP；用广播</td></tr>
+<tr><td>实时音视频</td><td>宁可丢一帧，也不要等重传造成卡顿</td></tr>
+<tr><td>游戏状态同步</td><td>只关心最新状态，旧包没价值</td></tr>
+<tr><td>局域网设备发现</td><td>广播/组播，TCP 不支持</td></tr>
+<tr><td>CoAP / LwM2M</td><td>受限设备，开销小</td></tr>
+</tbody>
+</table>
+</div>
+<p>“UDP 不可靠”不等于“不能用”。很多协议在 UDP 之上自己做序号、确认、重传（QUIC 就是典型），把可靠性做成可定制的。</p>
+
+<h3 id="ch05-s4"><span class="n">5.4</span>本机观察 UDP</h3>
+<div class="code"><div class="code-bar"><span class="file">终端（Linux / macOS 示例）</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code># 终端 1：监听 9999 端口
+nc -u -l 9999
+
+# 终端 2：发送一个数据报
+echo "hello udp" | nc -u 127.0.0.1 9999
+
+# 查看本机 UDP 端口
+ss -lun          # Linux
+netstat -anu     # Windows / macOS</code></pre></div>
+<div class="out"><b>终端 1 收到</b><pre>hello udp</pre></div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>UDP 没有连接状态，防火墙/ NAT 的超时更短。设备如果长时间不发数据，NAT 映射可能被回收，导致“服务器发不进来”。需要心跳（keepalive）维持映射。</p>
+</div>
+
+<h3 id="ch05-s5"><span class="n">5.5</span>UDP 上的可靠性要自己补</h3>
+<p>如果业务需要“不丢、不重、有序”，又必须用 UDP（例如实时性要求高、或需要组播），就要自己实现：</p>
+<ul>
+<li>序号 + 确认 + 超时重传（或 NACK）。</li>
+<li>去重（同一序号只处理一次）。</li>
+<li>乱序缓冲（按序号重组）。</li>
+<li>拥塞控制（否则会压垮网络）。</li>
+</ul>
+<p>这也是 QUIC 做的事情——它把 TCP 的可靠性 + TLS 加密搬到了 UDP 之上，避免了 TCP 的队头阻塞。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 5 讲</div>
+<div class="pb">
+<ol>
+<li>一条 TCP 连接由哪四元组唯一确定？</li>
+<li>DNS 为什么通常用 UDP 而不是 TCP？</li>
+<li>UDP 校验和能发现 IP 地址错误吗？为什么？</li>
+<li>设备通过 NAT 发 UDP，长时间不发数据会怎样？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 源 IP、源端口、目的 IP、目的端口（加协议）。</p>
+<p><b>2.</b> 查询小、一问一答，UDP 省去建连开销；超时重发比 TCP 握手更快。大响应/区域传送会用 TCP。</p>
+<p><b>3.</b> 能。校验和覆盖伪头部，其中包含源/目的 IP。</p>
+<p><b>4.</b> NAT 映射可能超时被删除，服务器再发数据就找不到内网设备；需要周期性心跳维持。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：UDP 相比 TCP 缺少下面哪一项？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>端口号</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>校验和</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>确认、重传与顺序保证</span></button>
+</div>
+<div class="fb" data-fb>UDP 有端口和校验和，但不提供确认、重传、排序、流量控制与拥塞控制——这些正是 TCP 的核心。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch05-s6">本讲小结</h3>
+<ul>
+<li>端口区分主机上的应用，套接字由 IP+端口+协议标识。</li>
+<li>UDP 头部只有 8 字节，保留消息边界，支持广播/组播。</li>
+<li>UDP 不保证送达、顺序与拥塞控制。</li>
+<li>实时、短查询、广播场景优先 UDP。</li>
+<li>需要可靠性时，在应用层自己补或改用 QUIC。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出 UDP 头部的四个字段</li>
+<li>我能判断一个场景该用 UDP 还是 TCP</li>
+<li>我知道 NAT 对 UDP 的影响</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 05 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch04">← 第 04 讲</a> <a href="#ch06">第 06 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch06" aria-labelledby="ch06-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">06</div>
+  <div class="ch-title">
+    <p class="ch-kicker">传输层 · 65 分钟 · ★★★</p>
+    <h2 id="ch06-h">TCP：可靠字节流</h2>
+    <p class="ch-lede">TCP 把不可靠的 IP 包变成可靠的字节流。它到底保证了什么、没保证什么？为什么会有 TIME_WAIT？</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>画出三次握手与四次挥手</li><li>解释序号、确认、重传与滑动窗口</li><li>区分流量控制与拥塞控制</li><li>说明 TCP 的边界问题与粘包</li></ul></div>
+<h3 id="ch06-s1"><span class="n">6.1</span>TCP 提供的是“字节流”，不是“消息”</h3>
+<p>TCP 保证的是：<strong>你写进去的字节，会按顺序、不重复、不丢失地到达对方</strong>。它不保留“消息边界”——你分三次写 100 字节，对方可能一次读到 300 字节，也可能分十次读到。</p>
+<div class="note bad">
+<b>易错</b>
+<p>“TCP 会粘包”是一个不准确的说法。TCP 根本没有“包”的概念，它只有字节流。所谓粘包/拆包，是应用层没有定义消息边界造成的，解决方法是长度字段、分隔符或固定长度，而不是“让 TCP 别粘”。</p>
+</div>
+
+<h3 id="ch06-s2"><span class="n">6.2</span>三次握手：确认双方都能收发</h3>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 300" role="img" aria-labelledby="fig6t fig6d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig6t">TCP 三次握手与四次挥手</title>
+<desc id="fig6d">客户端发送 SYN，服务器回复 SYN+ACK，客户端再发 ACK；关闭时双方各发 FIN 并确认，主动关闭方进入 TIME_WAIT。</desc>
+<rect width="820" height="300" fill="#fbfdff"/>
+<text x="90" y="26" font-size="12" font-weight="700" fill="#075985">客户端</text>
+<text x="650" y="26" font-size="12" font-weight="700" fill="#075985">服务器</text>
+<line x1="120" y1="40" x2="120" y2="286" stroke="#cbd5e1" stroke-width="1.4"/>
+<line x1="680" y1="40" x2="680" y2="286" stroke="#cbd5e1" stroke-width="1.4"/>
+<g font-size="11" fill="#334155">
+<text x="126" y="66">CLOSED</text><text x="126" y="92">SYN_SENT</text><text x="126" y="150">ESTABLISHED</text>
+<text x="590" y="66">LISTEN</text><text x="590" y="92">SYN_RCVD</text><text x="590" y="150">ESTABLISHED</text>
+</g>
+<g stroke="#0369a1" stroke-width="1.6" fill="none" marker-end="url(#a6)">
+<path d="M120 78 L676 78"/>
+<path d="M680 104 L124 104"/>
+<path d="M120 130 L676 130"/>
+</g>
+<defs><marker id="a6" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0369a1"/></marker></defs>
+<g font-size="10.5" fill="#075985">
+<text x="330" y="72">SYN, seq=x</text>
+<text x="330" y="98">SYN+ACK, seq=y, ack=x+1</text>
+<text x="330" y="124">ACK, ack=y+1</text>
+</g>
+<g stroke="#b45309" stroke-width="1.6" fill="none" marker-end="url(#a7)">
+<path d="M120 196 L676 196"/>
+<path d="M680 222 L124 222"/>
+<path d="M680 248 L124 248"/>
+<path d="M120 274 L676 274"/>
+</g>
+<defs><marker id="a7" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b45309"/></marker></defs>
+<g font-size="10.5" fill="#92400e">
+<text x="300" y="190">FIN, seq=u</text>
+<text x="330" y="216">ACK, ack=u+1</text>
+<text x="300" y="242">FIN, seq=v</text>
+<text x="330" y="268">ACK, ack=v+1</text>
+</g>
+<text x="126" y="214" font-size="10.5" fill="#92400e">FIN_WAIT_1</text>
+<text x="126" y="240" font-size="10.5" fill="#92400e">FIN_WAIT_2</text>
+<text x="126" y="286" font-size="10.5" fill="#b91c1c">TIME_WAIT（2MSL）</text>
+</svg>
+<figcaption>图 6-1　三次握手建立连接；四次挥手关闭，主动关闭方等待 2MSL。</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+<thead><tr><th>步骤</th><th>方向</th><th>标志</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>客户端 → 服务器</td><td>SYN</td><td>我想连接，我的初始序号是 x</td></tr>
+<tr><td>2</td><td>服务器 → 客户端</td><td>SYN + ACK</td><td>同意，我的初始序号是 y，确认 x+1</td></tr>
+<tr><td>3</td><td>客户端 → 服务器</td><td>ACK</td><td>确认 y+1，连接建立</td></tr>
+</tbody>
+</table>
+</div>
+<p>为什么不是两次？两次只能确认“客户端能发、服务器能收”，无法确认“服务器能发、客户端能收”。第三次 ACK 让服务器确认自己的 SYN 被收到。</p>
+
+<h3 id="ch06-s3"><span class="n">6.3</span>序号、确认与重传</h3>
+<ul>
+<li><strong>序号（seq）</strong>：本段第一个字节在字节流中的位置。</li>
+<li><strong>确认号（ack）</strong>：期望收到的下一个字节序号，表示“这之前的所有字节都收到了”（累积确认）。</li>
+<li><strong>超时重传</strong>：发送方等不到 ACK，按 RTO 重发。RTO 根据往返时间动态估算。</li>
+<li><strong>快速重传</strong>：收到 3 个重复 ACK，不等超时立刻重发丢失的段。</li>
+</ul>
+<div class="code"><div class="code-bar"><span class="file">一个重传的例子</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>发送方：seq=1000, len=500  → 丢失
+接收方收到 seq=1500 → 回 ACK 1000
+接收方收到 seq=2000 → 回 ACK 1000（重复）
+接收方收到 seq=2500 → 回 ACK 1000（重复）
+发送方收到 3 个重复 ACK → 立刻重发 seq=1000</code></pre></div>
+
+<h3 id="ch06-s4"><span class="n">6.4</span>流量控制与拥塞控制</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>流量控制</th><th>拥塞控制</th></tr></thead>
+<tbody>
+<tr><td>解决什么</td><td>接收方处理不过来</td><td>网络中间链路拥塞</td></tr>
+<tr><td>依据</td><td>接收窗口 rwnd</td><td>拥塞窗口 cwnd</td></tr>
+<tr><td>谁决定</td><td>接收方通告</td><td>发送方根据丢包/延迟调整</td></tr>
+<tr><td>实际发送量</td><td colspan="2">min(rwnd, cwnd)</td></tr>
+</tbody>
+</table>
+</div>
+<p>拥塞控制的经典行为：慢启动（cwnd 指数增长）→ 拥塞避免（线性增长）→ 丢包时减半（AIMD）。现代算法（CUBIC、BBR）各有不同，但目标都是“尽量跑满又不压垮网络”。</p>
+
+<h3 id="ch06-s5"><span class="n">6.5</span>四次挥手与 TIME_WAIT</h3>
+<p>TCP 是全双工，两个方向要分别关闭，所以需要四次：</p>
+<div class="steps">
+<div><b>FIN</b>　主动关闭方说“我没数据要发了”。</div>
+<div><b>ACK</b>　对方确认，但可能还有数据要发。</div>
+<div><b>FIN</b>　对方发完数据，也说“我发完了”。</div>
+<div><b>ACK</b>　主动关闭方确认，进入 TIME_WAIT。</div>
+</div>
+<p>TIME_WAIT 持续 2MSL（通常 60 秒），目的有两个：确保最后一个 ACK 能到达（丢了可以重发），以及让旧连接的迷路包在网络中消失，避免污染新连接。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>服务器出现大量 TIME_WAIT 通常是“短连接太多”。可以用连接池/长连接减少，而不是简单调小 TIME_WAIT 或开 <code class="i">tcp_tw_reuse</code>——后者有副作用，要理解清楚再用。</p>
+</div>
+
+<div class="lab" id="lab-tcp">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>握手、传数据、挥手</h4>
+    <p>单步走完一条 TCP 连接的生命周期，看双方状态、序号与确认号如何变化。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="tcpStep">下一步</button>
+      <button class="lab-btn" type="button" id="tcpReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="tcpCanvas"></div>
+    <div class="lab-read" id="tcpOut" aria-live="polite"></div>
+    <p class="lab-note">序号是“字节偏移”，不是“第几个包”。一次发送 500 字节，下一个 seq 就加 500。</p>
+  </div>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 6 讲</div>
+<div class="pb">
+<ol>
+<li>为什么 TCP 需要三次握手而不是两次？</li>
+<li>接收方通告窗口为 0 时，发送方会怎么做？</li>
+<li>TIME_WAIT 的两个作用是什么？</li>
+<li>TCP 连接上发送两条消息，接收方一次读到两条，是谁的问题？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 两次无法让服务器确认“自己的 SYN 被客户端收到”，也无法确认客户端接收能力；三次才能双向确认。</p>
+<p><b>2.</b> 停止发送新数据，启动零窗口探测（zero window probe），定期询问窗口是否恢复。</p>
+<p><b>3.</b> 保证最后一个 ACK 能重发；让旧连接的残留包过期，避免影响新连接。</p>
+<p><b>4.</b> 应用层的问题。TCP 是字节流，不保留消息边界；需要长度字段/分隔符来分帧。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：TCP 的确认号表示什么？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>已收到的最后一个字节的序号</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>期望收到的下一个字节的序号</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>发送方的窗口大小</span></button>
+</div>
+<div class="fb" data-fb>确认号是“下一个期望的字节序号”，表示该序号之前的所有字节都已收到（累积确认）。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch06-s6">本讲小结</h3>
+<ul>
+<li>TCP 是可靠、有序的字节流，不保留消息边界。</li>
+<li>三次握手双向确认；四次挥手分别关闭两个方向。</li>
+<li>序号按字节编号，确认号是下一个期望字节。</li>
+<li>流量控制看接收窗口，拥塞控制看网络状况。</li>
+<li>TIME_WAIT 保证可靠关闭与旧包过期。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出握手与挥手</li>
+<li>我能解释重传与快速重传</li>
+<li>我知道粘包是应用层问题</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 06 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch05">← 第 05 讲</a> <a href="#ch07">第 07 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch07" aria-labelledby="ch07-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">07</div>
+  <div class="ch-title">
+    <p class="ch-kicker">互联网服务 · 55 分钟 · ★★★</p>
+    <h2 id="ch07-h">DNS、DHCP 与 NAT</h2>
+    <p class="ch-lede">没有 DNS，你要记 IP；没有 DHCP，你要手动配地址；没有 NAT，家里的设备根本不够公网 IP。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>描述一次 DNS 递归查询</li><li>解释 DHCP 的四个步骤</li><li>说明 NAT/PAT 如何工作及其限制</li><li>排查“能上局域网不能上网”</li></ul></div>
+<h3 id="ch07-s1"><span class="n">7.1</span>DNS：把名字翻译成地址</h3>
+<p>你记不住 <code class="i">142.250.72.14</code>，但记得住 <code class="i">www.example.com</code>。DNS 就是互联网的“电话簿”，把域名解析成 IP。</p>
+<div class="steps">
+<div><b>本机缓存</b>　浏览器、操作系统先查缓存（含 hosts 文件）。</div>
+<div><b>递归解析器</b>　通常是运营商或公共 DNS（如 223.5.5.5）。</div>
+<div><b>根服务器</b>　告诉你“.com 的权威服务器在哪”。</div>
+<div><b>顶级域服务器</b>　告诉你“example.com 的权威服务器在哪”。</div>
+<div><b>权威服务器</b>　返回最终的 A / AAAA 记录。</div>
+<div><b>缓存</b>　按 TTL 缓存，减少后续查询。</div>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>记录</th><th>含义</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>A</td><td>域名 → IPv4</td><td>example.com → 93.184.216.34</td></tr>
+<tr><td>AAAA</td><td>域名 → IPv6</td><td>example.com → 2606:2800:…</td></tr>
+<tr><td>CNAME</td><td>别名</td><td>www → example.com</td></tr>
+<tr><td>MX</td><td>邮件服务器</td><td>example.com → mail.example.com</td></tr>
+<tr><td>TXT</td><td>文本记录</td><td>SPF、域名验证</td></tr>
+<tr><td>NS</td><td>权威服务器</td><td>example.com → ns1.example.com</td></tr>
+</tbody>
+</table>
+</div>
+<div class="code"><div class="code-bar"><span class="file">查询 DNS</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>nslookup example.com            # Windows / Linux
+dig example.com A               # Linux / macOS
+dig @223.5.5.5 example.com      # 指定 DNS 服务器
+ipconfig /flushdns              # Windows 清缓存</code></pre></div>
+
+<h3 id="ch07-s2"><span class="n">7.2</span>DHCP：自动拿到地址</h3>
+<p>设备刚接入网络时没有 IP，只能用广播找 DHCP 服务器。四个步骤简称 DORA：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>步骤</th><th>方向</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>Discover</td><td>客户端广播</td><td>有没有 DHCP 服务器？</td></tr>
+<tr><td>Offer</td><td>服务器 → 客户端</td><td>给你这个地址，要不要？</td></tr>
+<tr><td>Request</td><td>客户端广播</td><td>我要这个地址</td></tr>
+<tr><td>Ack</td><td>服务器 → 客户端</td><td>确认，租期 N 小时</td></tr>
+</tbody>
+</table>
+</div>
+<p>地址是“租”的，到期要续租（T1 50%、T2 87.5% 时尝试）。嵌入式设备如果 DHCP 失败，通常会落到 169.254.x.x（链路本地），表现为“连上了 Wi-Fi 但上不了网”。</p>
+
+<h3 id="ch07-s3"><span class="n">7.3</span>NAT：一个公网 IP 怎么够全家用</h3>
+<p>NAT 在路由器上改写 IP 和端口，让多台内网设备共享一个公网地址。最常见的 PAT（端口地址转换）用一个映射表：</p>
+<div class="code"><div class="code-bar"><span class="file">NAT 映射表示例</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>内网 192.168.1.10:50000  →  公网 203.0.113.5:40001
+内网 192.168.1.11:50000  →  公网 203.0.113.5:40002</code></pre></div>
+<p>出站时改源地址/端口，回包时按表反向改写。它解决了 IPv4 地址不足，但也带来三个限制：</p>
+<ul>
+<li><strong>外网不能主动连内网</strong>，除非做端口映射/打洞。</li>
+<li>映射表有超时，长时间无流量会被回收。</li>
+<li>某些协议（FTP 主动模式、SIP）在载荷里带 IP，需要 ALG 特殊处理。</li>
+</ul>
+<div class="note eng">
+<b>工程习惯</b>
+<p>设备作为 TCP 客户端连服务器，NAT 不是问题；设备要做“被访问的服务器”，就必须有公网映射、内网穿透或反向连接。设计物联网架构时，优先让设备主动连出（MQTT 就是这种模式）。</p>
+</div>
+
+<h3 id="ch07-s4"><span class="n">7.4</span>“能上局域网不能上网”怎么查</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>检查</th><th>命令</th><th>结果说明</th></tr></thead>
+<tbody>
+<tr><td>本机地址</td><td><code>ipconfig</code> / <code>ip addr</code></td><td>是否有 169.254 地址</td></tr>
+<tr><td>网关连通</td><td><code>ping 网关</code></td><td>不通 → 链路/交换/VLAN 问题</td></tr>
+<tr><td>公网 IP 连通</td><td><code>ping 8.8.8.8</code></td><td>通 → 路由与 NAT 正常</td></tr>
+<tr><td>DNS</td><td><code>nslookup example.com</code></td><td>失败 → DNS 配错或被拦</td></tr>
+<tr><td>端口</td><td><code>curl -v http://example.com</code></td><td>看卡在建连还是响应</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 7 讲</div>
+<div class="pb">
+<ol>
+<li>DNS 查询为什么要分层？为什么不集中在一台服务器？</li>
+<li>DHCP 的四个步骤分别是什么？</li>
+<li>NAT 为什么能省公网 IP？代价是什么？</li>
+<li>能 ping 通 8.8.8.8 但打不开网页，最可能是什么问题？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 域名数量巨大且分散管理，分层可以把查询分散到各级权威服务器，并用缓存减少根服务器压力。</p>
+<p><b>2.</b> Discover、Offer、Request、Ack。</p>
+<p><b>3.</b> 用端口区分内网连接，多个内网地址共享一个公网地址；代价是外网无法主动访问内网、映射表有状态与超时。</p>
+<p><b>4.</b> DNS 解析失败（或代理配置错误）。IP 层通，应用层域名解析不了。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：DHCP 的作用是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>把域名解析成 IP</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>自动分配 IP、掩码、网关与 DNS</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>在公网与内网之间转换地址</span></button>
+</div>
+<div class="fb" data-fb>DHCP 负责“自动配置网络参数”；DNS 负责域名解析；NAT 负责地址转换。三者经常一起出现，但职责完全不同。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch07-s5">本讲小结</h3>
+<ul>
+<li>DNS 分层解析域名，按 TTL 缓存。</li>
+<li>DHCP 用 DORA 四步自动分配地址与参数。</li>
+<li>NAT/PAT 用端口映射让多设备共享公网 IP。</li>
+<li>NAT 限制外网主动访问，设备应优先主动连出。</li>
+<li>排障顺序：地址 → 网关 → 公网 IP → DNS → 端口。</li>
+</ul>
+<ul class="checklist">
+<li>我能描述一次 DNS 查询</li>
+<li>我能说出 DHCP 四步</li>
+<li>我知道 NAT 的限制</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 07 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch06">← 第 06 讲</a> <a href="#ch08">第 08 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch08" aria-labelledby="ch08-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">08</div>
+  <div class="ch-title">
+    <p class="ch-kicker">应用层 · 60 分钟 · ★★★</p>
+    <h2 id="ch08-h">HTTP、HTTPS、TLS 与 WebSocket</h2>
+    <p class="ch-lede">HTTP 是“请求-响应”的文本协议；TLS 解决身份与加密；WebSocket 让服务器能主动推消息。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>拆解 HTTP 请求与响应报文</li><li>说明 HTTPS 证书链与握手</li><li>区分 HTTP/1.1、HTTP/2 与 WebSocket</li><li>识别常见的 TLS 配置错误</li></ul></div>
+<h3 id="ch08-s1"><span class="n">8.1</span>HTTP 是“请求-响应”的文本协议</h3>
+<div class="code"><div class="code-bar"><span class="file">HTTP 请求</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>GET /api/v1/device?id=42 HTTP/1.1
+Host: api.example.com
+User-Agent: esp32/1.0
+Accept: application/json
+Connection: keep-alive</code></pre></div>
+<div class="code"><div class="code-bar"><span class="file">HTTP 响应</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>HTTP/1.1 200 OK
+Content-Type: application/json
+Content-Length: 27
+Date: Thu, 23 Oct 2026 08:00:00 GMT
+
+{"id":42,"temp":23.5,"ok":1}</code></pre></div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>部分</th><th>内容</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>请求行</td><td>方法 + 路径 + 版本</td><td>路径含查询参数</td></tr>
+<tr><td>头部</td><td>键值对，每行一个</td><td><code>Host</code> 在 HTTP/1.1 必须存在</td></tr>
+<tr><td>空行</td><td>CRLF</td><td>头部结束的标志</td></tr>
+<tr><td>正文</td><td>可选</td><td>长度由 <code>Content-Length</code> 或 chunked 决定</td></tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>状态码</th><th>含义</th><th>设备端常见原因</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>成功</td><td>—</td></tr>
+<tr><td>301/302</td><td>重定向</td><td>URL 写错、强制 HTTPS</td></tr>
+<tr><td>304</td><td>未修改</td><td>缓存协商</td></tr>
+<tr><td>400</td><td>请求格式错</td><td>JSON 不合法、缺少字段</td></tr>
+<tr><td>401/403</td><td>未认证/无权限</td><td>Token 过期、签名错</td></tr>
+<tr><td>404</td><td>路径不存在</td><td>API 版本/路径拼错</td></tr>
+<tr><td>500</td><td>服务器内部错误</td><td>服务端 bug，不是设备问题</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch08-s2"><span class="n">8.2</span>HTTP/1.1、HTTP/2 与 WebSocket</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>HTTP/1.1</th><th>HTTP/2</th><th>WebSocket</th></tr></thead>
+<tbody>
+<tr><td>模型</td><td>请求-响应</td><td>请求-响应，多路复用</td><td>全双工长连接</td></tr>
+<tr><td>连接</td><td>keep-alive 复用</td><td>单连接多流</td><td>HTTP Upgrade 后独立协议</td></tr>
+<tr><td>服务器推送</td><td>不支持</td><td>Server Push（已弱化）</td><td>天然支持</td></tr>
+<tr><td>典型用途</td><td>REST API、简单上报</td><td>现代 Web</td><td>实时控制、推送</td></tr>
+</tbody>
+</table>
+</div>
+<p>WebSocket 握手借用 HTTP：客户端发 <code class="i">Upgrade: websocket</code>，服务器回 <code class="i">101 Switching Protocols</code>，之后双方按帧收发，不再有 HTTP 头。</p>
+
+<h3 id="ch08-s3"><span class="n">8.3</span>HTTPS：HTTP over TLS</h3>
+<p>HTTPS 不是新协议，而是“HTTP 跑在 TLS 之上”。TLS 解决三件事：</p>
+<div class="grid3">
+<div class="card"><h4>机密性</h4><p>对称加密（AES-GCM/ChaCha20）保护内容，中间人看不到明文。</p></div>
+<div class="card"><h4>完整性</h4><p>AEAD 同时校验，篡改会被发现。</p></div>
+<div class="card"><h4>身份</h4><p>证书链证明“服务器确实是它声称的那个”。</p></div>
+</div>
+<div class="steps">
+<div><b>ClientHello</b>　客户端提供支持的版本、套件、随机数、SNI。</div>
+<div><b>ServerHello + 证书</b>　服务器选套件，发送证书链。</div>
+<div><b>验证证书</b>　客户端检查签名链、有效期、域名、吊销状态。</div>
+<div><b>密钥交换</b>　TLS 1.3 用 ECDHE，一次往返完成。</div>
+<div><b>Finished</b>　双方确认握手完整性，开始加密传输。</div>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>嵌入式设备最常见的 TLS 失败原因：<strong>设备时钟不对</strong>（证书“尚未生效”）、<strong>根证书缺失</strong>（无法验证链）、<strong>SNI 没发</strong>（服务器返回默认站点证书）、<strong>证书过期</strong>。先用 <code class="i">openssl s_client</code> 在电脑上验证，再查设备。</p>
+</div>
+<div class="code"><div class="code-bar"><span class="file">用 openssl 检查证书</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>openssl s_client -connect example.com:443 -servername example.com
+openssl s_client -connect example.com:443 -showcerts</code></pre></div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>不要在固件里关掉证书校验来“先跑通”。这等于把 HTTPS 降级成 HTTP，中间人可以随意篡改。正确做法是内置根证书、校验证书链与域名，并保证设备时间可用（NTP 或构建时间兜底）。</p>
+</div>
+
+<h3 id="ch08-s4"><span class="n">8.4</span>HTTP 客户端的常见坑</h3>
+<ul>
+<li><strong>没有读完响应就关闭</strong>：HTTP/1.1 复用连接时，残留数据会污染下一个请求。</li>
+<li><strong>不处理 chunked</strong>：有些响应没有 Content-Length，用分块传输。</li>
+<li><strong>不设超时</strong>：服务器不响应时，设备永远卡住。</li>
+<li><strong>不检查状态码</strong>：把 401/500 的响应体当成正常 JSON 解析。</li>
+<li><strong>URL 编码</strong>：查询参数里的空格、中文、特殊字符必须编码。</li>
+</ul>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 8 讲</div>
+<div class="pb">
+<ol>
+<li>写一个 GET 请求，带 Host 和 Accept 头。</li>
+<li>401 和 403 的区别是什么？</li>
+<li>TLS 1.3 比 1.2 少了几次往返？</li>
+<li>设备 HTTPS 报“证书验证失败”，列出三个排查方向。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 401 是“未认证”（没登录/Token 无效），403 是“已认证但无权限”。</p>
+<p><b>3.</b> TLS 1.3 首次握手 1-RTT（会话恢复可 0-RTT），TLS 1.2 通常 2-RTT。</p>
+<p><b>4.</b> 设备时间、根证书、SNI/域名、证书链完整性、中间证书缺失。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：HTTPS 相比 HTTP 多了什么？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>更快的传输速度</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>不同的请求方法</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>TLS 提供的加密、完整性与身份验证</span></button>
+</div>
+<div class="fb" data-fb>HTTPS = HTTP + TLS。它不改变 HTTP 的语义，只是在传输层加上加密、完整性校验和服务器身份验证。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch08-s5">本讲小结</h3>
+<ul>
+<li>HTTP 是文本的请求-响应协议，头部以空行结束。</li>
+<li>状态码表达结果类别，设备端要检查再解析。</li>
+<li>HTTP/2 多路复用，WebSocket 提供全双工。</li>
+<li>HTTPS 用 TLS 提供加密、完整性与身份。</li>
+<li>证书校验不能关，时钟与根证书是常见坑。</li>
+</ul>
+<ul class="checklist">
+<li>我能拆解 HTTP 请求与响应</li>
+<li>我能解释 TLS 握手的关键步骤</li>
+<li>我知道 WebSocket 与 HTTP 的关系</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 08 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch07">← 第 07 讲</a> <a href="#ch09">第 09 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch09" aria-labelledby="ch09-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">09</div>
+  <div class="ch-title">
+    <p class="ch-kicker">应用层 · 55 分钟 · ★★★</p>
+    <h2 id="ch09-h">MQTT：发布/订阅与 QoS</h2>
+    <p class="ch-lede">MQTT 跑在 TCP 之上，用 Broker 解耦发布者和订阅者。QoS 0/1/2 到底保证了什么？</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>解释 Broker、主题、通配符</li><li>区分 QoS 0/1/2 的语义</li><li>说明保留消息、遗嘱消息与会话</li><li>避免把 MQTT 当成传输层协议</li></ul></div>
+<h3 id="ch09-s1"><span class="n">9.1</span>MQTT 解决“很多设备、很多订阅者”</h3>
+<p>HTTP 是“客户端问、服务器答”。如果 1000 台设备都要把数据送给 10 个订阅者，HTTP 会让每台设备分别推给每个订阅者，连接数和耦合度都爆炸。</p>
+<p>MQTT 引入 <strong>Broker</strong>：发布者只把消息发给 Broker，订阅者只从 Broker 收。双方不需要知道对方的存在，只约定<strong>主题</strong>。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 220" role="img" aria-labelledby="fig9t fig9d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig9t">MQTT 发布订阅模型</title>
+<desc id="fig9d">多个发布者把消息发到 Broker 的主题，多个订阅者按主题订阅，Broker 负责转发。</desc>
+<rect width="820" height="220" fill="#fbfdff"/>
+<g font-size="11" text-anchor="middle">
+<rect x="30" y="40" width="120" height="44" rx="8" fill="#e0e7ff" stroke="#818cf8"/><text x="90" y="67" fill="#26348f">设备 A</text>
+<rect x="30" y="130" width="120" height="44" rx="8" fill="#e0e7ff" stroke="#818cf8"/><text x="90" y="157" fill="#26348f">设备 B</text>
+<rect x="330" y="70" width="150" height="76" rx="10" fill="#fef3c7" stroke="#fbbf24"/><text x="405" y="100" fill="#92400e" font-weight="700">MQTT Broker</text><text x="405" y="122" fill="#78350f" font-size="10">主题路由</text>
+<rect x="640" y="30" width="150" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="715" y="57" fill="#166534">订阅者 1</text>
+<rect x="640" y="90" width="150" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="715" y="117" fill="#166534">订阅者 2</text>
+<rect x="640" y="150" width="150" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="715" y="177" fill="#166534">订阅者 3</text>
+</g>
+<g stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#a9)">
+<path d="M150 62 L326 90"/><path d="M150 152 L326 126"/>
+<path d="M480 90 L636 54"/><path d="M480 104 L636 112"/><path d="M480 126 L636 170"/>
+</g>
+<defs><marker id="a9" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+</svg>
+<figcaption>图 9-1　发布者与订阅者通过 Broker 和主题解耦。</figcaption>
+</figure>
+<div class="note law">
+<b>标准怎么说</b>
+<p>MQTT 是<strong>应用层协议</strong>，跑在 TCP 之上（默认 1883，TLS 为 8883）。它不是“替代 TCP/IP 的底层传输”，也不负责 IP 寻址、路由和可靠字节流——那些仍然是 TCP/IP 的工作。</p>
+</div>
+
+<h3 id="ch09-s2"><span class="n">9.2</span>主题与通配符</h3>
+<div class="code"><div class="code-bar"><span class="file">主题示例</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>home/livingroom/temperature
+home/kitchen/temperature
+device/esp32-001/status
+
+订阅：
+home/+/temperature       + 匹配一层
+home/#                   # 匹配多层（必须放在末尾）</code></pre></div>
+<p>主题是大小写敏感的，用 <code class="i">/</code> 分层。不要用 <code class="i">#</code> 订阅所有主题——消息量大时会压垮设备和 Broker。</p>
+
+<h3 id="ch09-s3"><span class="n">9.3</span>QoS：保证到什么程度</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>QoS</th><th>语义</th><th>交互</th><th>可能的结果</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>最多一次（发完就忘）</td><td>PUBLISH</td><td>可能丢，不会重复</td></tr>
+<tr><td>1</td><td>至少一次</td><td>PUBLISH → PUBACK</td><td>不丢，但可能重复（需要应用去重）</td></tr>
+<tr><td>2</td><td>恰好一次</td><td>PUBLISH → PUBREC → PUBREL → PUBCOMP</td><td>不丢不重，开销最大</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>QoS 2 的“恰好一次”是<strong>在 Broker 与客户端之间</strong>的语义，不覆盖端到端业务。如果发布者重连后重发、或者业务本身重复执行，仍然可能产生重复副作用。关键操作要自己做幂等（例如带消息 ID 去重）。</p>
+</div>
+
+<h3 id="ch09-s4"><span class="n">9.4</span>保留消息、遗嘱消息与会话</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>功能</th><th>作用</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>Retained</td><td>Broker 保留该主题最后一条消息，新订阅者立刻收到</td><td>只保留一条；发空载荷可清除</td></tr>
+<tr><td>Will</td><td>客户端异常断开时，Broker 代发一条消息</td><td>正常断开（DISCONNECT）不触发</td></tr>
+<tr><td>Clean Session</td><td>为 0 时 Broker 保留订阅与离线消息</td><td>MQTT 5 用 Session Expiry 替代</td></tr>
+<tr><td>Keep Alive</td><td>客户端定期 PING，维持连接与 NAT 映射</td><td>超时 1.5 倍未收到任何包则断开</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lab" id="lab-mqtt">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>发布、订阅与 QoS 流程</h4>
+    <p>选择 QoS，点“发布”，看消息经过 Broker 到达订阅者时需要几次交互。再试试保留消息与遗嘱消息。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>QoS
+        <select id="mqQos"><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option></select>
+      </label>
+      <label><input type="checkbox" id="mqRetain"> 保留消息</label>
+      <button class="lab-btn pri" type="button" id="mqPub">发布</button>
+      <button class="lab-btn" type="button" id="mqSub">新订阅者加入</button>
+      <button class="lab-btn" type="button" id="mqDrop">模拟掉线</button>
+      <button class="lab-btn" type="button" id="mqOnline">重新上线</button>
+      <button class="lab-btn" type="button" id="mqReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="mqCanvas"></div>
+    <div class="lab-read" id="mqOut" aria-live="polite"></div>
+    <p class="lab-note">QoS 1 可能重复，QoS 2 用四次交互换“不重”；保留消息让新订阅者立刻拿到最后状态。</p>
+  </div>
+</div>
+
+<h3 id="ch09-s5"><span class="n">9.5</span>一个设备端的连接参数</h3>
+<div class="code"><div class="code-bar"><span class="file">MQTT 连接参数（示例）</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>Broker    broker.example.com:8883（TLS）
+ClientID  esp32-001（必须唯一）
+Username  设备 ID
+Password  Token / 证书
+KeepAlive 60 秒
+Clean     0（保留会话）
+Will      device/esp32-001/status = "offline"（QoS 1, retained）</code></pre></div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>ClientID 重复会导致两个客户端互相踢下线，表现为“设备频繁掉线”。量产设备要用 MAC/芯片 ID 生成唯一 ClientID，并避免在重连时随机变化（否则会话丢失）。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 9 讲</div>
+<div class="pb">
+<ol>
+<li>设计三个主题：设备状态、温度上报、控制指令。</li>
+<li>QoS 1 为什么会重复？应用层怎么处理？</li>
+<li>保留消息和遗嘱消息分别解决什么问题？</li>
+<li>为什么说 MQTT 不能替代 TCP/IP？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 例如 <code class="i">device/&lt;id&gt;/status</code>、<code class="i">device/&lt;id&gt;/telemetry</code>、<code class="i">device/&lt;id&gt;/cmd</code>；控制指令用 QoS 1 + 消息 ID 去重。</p>
+<p><b>2.</b> 发布者没收到 PUBACK 会重发，Broker 可能已处理过。应用层用消息 ID/时间戳做幂等。</p>
+<p><b>3.</b> 保留消息让新订阅者立刻获得最新状态；遗嘱消息让系统知道设备异常离线。</p>
+<p><b>4.</b> MQTT 依赖 TCP 提供可靠字节流与连接管理，自己只负责消息路由与语义；它不定义 IP 寻址、路由、链路传输。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：MQTT QoS 1 的语义是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>最多一次，可能丢</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>至少一次，可能重复</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>恰好一次，绝不重复</span></button>
+</div>
+<div class="fb" data-fb>QoS 1 用 PUBACK 确认，没收到就重发，所以“至少一次”，代价是可能重复；QoS 2 才做到“恰好一次”。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch09-s6">本讲小结</h3>
+<ul>
+<li>MQTT 用 Broker 和主题解耦发布者与订阅者。</li>
+<li>QoS 0/1/2 分别是最多一次、至少一次、恰好一次。</li>
+<li>保留消息、遗嘱消息、会话分别解决状态、离线通知与断线续传。</li>
+<li>MQTT 跑在 TCP 之上，不是传输层协议。</li>
+<li>ClientID 必须唯一，关键业务要自己做幂等。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出发布/订阅流程</li>
+<li>我能解释三种 QoS 的代价</li>
+<li>我知道保留与遗嘱的适用场景</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 09 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch08">← 第 08 讲</a> <a href="#ch10">第 10 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch10" aria-labelledby="ch10-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">10</div>
+  <div class="ch-title">
+    <p class="ch-kicker">接入 · 55 分钟 · ★★★</p>
+    <h2 id="ch10-h">Wi-Fi、IPv6 与联网安全</h2>
+    <p class="ch-lede">Wi-Fi 是共享介质，IPv6 没有 NAT，设备一旦联网就暴露在更大的攻击面里。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>解释 SSID、认证与加密</li><li>说明 IPv6 地址结构与 SLAAC</li><li>区分认证、加密与证书</li><li>避免把密钥硬编码进固件</li></ul></div>
+<h3 id="ch10-s1"><span class="n">10.1</span>Wi-Fi 是共享介质</h3>
+<p>以太网交换机每个端口是独立的冲突域，Wi-Fi 则是一个<strong>共享的无线电空间</strong>：同一信道上的设备轮流发言，靠 CSMA/CA 避免冲突。所以“信号满格但很慢”很常见——不是信号问题，是大家在排队。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td>SSID</td><td>网络名字，可以多个 AP 共用一个</td></tr>
+<tr><td>BSSID</td><td>某个 AP 的 MAC 地址</td></tr>
+<tr><td>Station（STA）</td><td>终端设备，如手机、ESP32</td></tr>
+<tr><td>AP</td><td>接入点，提供无线接入</td></tr>
+<tr><td>信道</td><td>2.4 GHz 常用 1/6/11（互不重叠）</td></tr>
+<tr><td>RSSI</td><td>信号强度，约 -30 dBm 很强，-80 dBm 很弱</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch10-s2"><span class="n">10.2</span>一次 Wi-Fi 连接经历什么</h3>
+<div class="steps">
+<div><b>扫描</b>　主动/被动发现 SSID 与加密方式。</div>
+<div><b>认证与关联</b>　与 AP 建立链路层关系。</div>
+<div><b>四次握手</b>　WPA2/WPA3 派生会话密钥，验证密码。</div>
+<div><b>DHCP</b>　拿到 IP、掩码、网关、DNS。</div>
+<div><b>联网</b>　DNS 解析、TCP 连接、应用协议。</div>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>“连上 Wi-Fi”不等于“能上网”。前者是链路层关联成功，后者还需要 DHCP 拿到地址、网关可达、DNS 可用。排障时按这四步逐层确认，不要一上来就重刷固件。</p>
+</div>
+
+<h3 id="ch10-s3"><span class="n">10.3</span>WPA2 与 WPA3</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>WPA2-PSK</th><th>WPA3-SAE</th></tr></thead>
+<tbody>
+<tr><td>认证</td><td>预共享密钥（PSK）</td><td>SAE（对等同时认证）</td></tr>
+<tr><td>离线字典攻击</td><td>抓握手包可离线爆破</td><td>SAE 抵抗离线猜测</td></tr>
+<tr><td>前向保密</td><td>不支持</td><td>支持</td></tr>
+<tr><td>设备兼容性</td><td>几乎所有设备</td><td>较老设备可能不支持</td></tr>
+</tbody>
+</table>
+</div>
+<p>企业环境用 802.1X/EAP，每台设备一个凭据，便于审计与吊销；家庭/小项目用 PSK 足够，但密码要足够长。</p>
+
+<h3 id="ch10-s4"><span class="n">10.4</span>IPv6：地址多了，玩法也变了</h3>
+<p>IPv6 地址 128 位，通常写成 8 组十六进制。一个 /64 子网就有 2<sup>64</sup> 个地址，足够给每台设备分一个“公网地址”。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类型</th><th>前缀</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>全球单播</td><td>2000::/3</td><td>公网可路由</td></tr>
+<tr><td>链路本地</td><td>fe80::/10</td><td>每块网卡自动生成，仅本地链路</td></tr>
+<tr><td>唯一本地</td><td>fc00::/7</td><td>类似私有地址</td></tr>
+<tr><td>回环</td><td>::1/128</td><td>本机</td></tr>
+<tr><td>组播</td><td>ff00::/8</td><td>ND、路由协议</td></tr>
+</tbody>
+</table>
+</div>
+<p>IPv6 通常不需要 NAT，设备用 SLAAC 自动配置地址（基于前缀 + 接口标识），用 ND（邻居发现）替代 ARP。这带来一个安全含义：<strong>设备可能直接暴露在公网</strong>，防火墙策略必须显式配置。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>设备同时支持 IPv4/IPv6 时，优先使用 Happy Eyeballs 思路：并行尝试，谁先通用谁，避免“IPv6 配置了但不通”导致长时间等待。</p>
+</div>
+
+<h3 id="ch10-s5"><span class="n">10.5</span>联网安全：三件事不能省</h3>
+<div class="grid3">
+<div class="card"><span class="tag">传输</span><h4>加密</h4><p>用 TLS（MQTT 8883、HTTPS 443），不要明文传凭据。校验服务器证书与域名。</p></div>
+<div class="card"><span class="tag">身份</span><h4>认证</h4><p>每台设备独立凭据，支持吊销；不要所有设备共用一个密码。</p></div>
+<div class="card"><span class="tag">固件</span><h4>完整性</h4><p>OTA 包要签名，启动时校验；关闭调试口，防止被读出密钥。</p></div>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误做法</th><th>风险</th><th>正确做法</th></tr></thead>
+<tbody>
+<tr><td>固件里硬编码 WiFi 密码/Token</td><td>固件泄露即全部设备失守</td><td>每台设备独立凭据，安全存储/安全芯片</td></tr>
+<tr><td>关闭 TLS 证书校验</td><td>中间人可篡改</td><td>内置根证书，校验证书链与域名</td></tr>
+<tr><td>OTA 不验签</td><td>可被刷入恶意固件</td><td>签名 + 启动校验 + 回滚保护</td></tr>
+<tr><td>开放调试口/串口 shell</td><td>物理接触即可控制</td><td>量产关闭或加认证</td></tr>
+<tr><td>默认密码不改</td><td>批量被控</td><td>首次配网强制改密</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 10 讲</div>
+<div class="pb">
+<ol>
+<li>“连上 Wi-Fi 但上不了网”，按顺序查哪四步？</li>
+<li>WPA3 相比 WPA2 主要改进了什么？</li>
+<li>IPv6 没有 NAT，对设备安全意味着什么？</li>
+<li>为什么不能把 WiFi 密码硬编码在固件里？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 关联是否成功 → 是否拿到 IP（DHCP）→ 网关是否可达 → DNS 是否可解析。</p>
+<p><b>2.</b> SAE 抵抗离线字典攻击，并提供前向保密。</p>
+<p><b>3.</b> 设备可能直接被公网访问，必须配置防火墙/安全组，不能依赖 NAT 当“天然防火墙”。</p>
+<p><b>4.</b> 固件可被提取，一处泄露会导致所有同型号设备失守；应使用每设备独立凭据并支持吊销。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：IPv6 中替代 ARP 的机制是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>DHCPv6</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>NAT66</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>ND（邻居发现）</span></button>
+</div>
+<div class="fb" data-fb>IPv6 用 ICMPv6 的邻居发现（ND）完成地址解析、重复地址检测与路由器发现；ARP 在 IPv6 中不再使用。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch10-s6">本讲小结</h3>
+<ul>
+<li>Wi-Fi 是共享介质，速率受信道与排队影响。</li>
+<li>连接成功不等于能上网，要逐层检查 DHCP/网关/DNS。</li>
+<li>WPA3 用 SAE 提升抗离线爆破能力。</li>
+<li>IPv6 地址充足、通常无 NAT，安全策略要显式配置。</li>
+<li>加密、认证、固件完整性是联网设备的三条底线。</li>
+</ul>
+<ul class="checklist">
+<li>我能按层次排查 Wi-Fi 联网问题</li>
+<li>我能说出 IPv6 与 IPv4 的主要差异</li>
+<li>我知道设备安全的三个基本要求</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 10 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch09">← 第 09 讲</a> <a href="#ch11">第 11 讲 →</a></span></footer>
+</section>
+<section class="ch" id="ch11" aria-labelledby="ch11-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">11</div>
+  <div class="ch-title">
+    <p class="ch-kicker">实践 · 85 分钟 · ★★★</p>
+    <h2 id="ch11-h">网络调试与综合项目</h2>
+    <p class="ch-lede">网络问题分层排查：先看链路，再看地址，再看路由，再看端口，最后看应用。最后做一个设备上报项目。</p>
+  </div>
+</header>
+<div class="goals"><h3>学完这一讲，你能</h3><ul><li>用 ping/traceroute/curl/抓包定位问题</li><li>读懂常见错误码与超时</li><li>设计设备联网上报与断线重连</li><li>完成一个本机可验证的端到端项目</li></ul></div>
+<h3 id="ch11-s1"><span class="n">11.1</span>五个命令解决大部分问题</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>命令</th><th>回答什么</th><th>典型用法</th></tr></thead>
+<tbody>
+<tr><td><code>ping</code></td><td>对方 IP 是否可达、往返时间、丢包</td><td><code>ping 192.168.1.1</code></td></tr>
+<tr><td><code>traceroute</code> / <code>tracert</code></td><td>路径在哪一跳断了</td><td><code>tracert example.com</code></td></tr>
+<tr><td><code>netstat</code> / <code>ss</code></td><td>本机监听/连接/端口状态</td><td><code>ss -lntp</code></td></tr>
+<tr><td><code>curl -v</code></td><td>HTTP 请求到底卡在哪</td><td><code>curl -v http://127.0.0.1:8080/</code></td></tr>
+<tr><td><code>dig</code> / <code>nslookup</code></td><td>域名解析结果与耗时</td><td><code>dig example.com</code></td></tr>
+</tbody>
+</table>
+</div>
+<div class="code"><div class="code-bar"><span class="file">一次完整的本机排查</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>ping 127.0.0.1                 # 协议栈是否正常
+ping 192.168.1.1               # 网关是否可达
+ping 8.8.8.8                   # 公网 IP 是否可达
+nslookup example.com           # DNS 是否正常
+curl -v http://example.com     # 应用层是否响应
+ss -lntp                       # 本机监听端口</code></pre></div>
+
+<h3 id="ch11-s2"><span class="n">11.2</span>错误信息怎么读</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>现象</th><th>含义</th><th>先查</th></tr></thead>
+<tbody>
+<tr><td>Connection refused</td><td>对方可达，但端口没监听/被拒绝</td><td>服务是否启动、端口是否写错、防火墙</td></tr>
+<tr><td>Connection timed out</td><td>包发出去没有回应</td><td>路由、防火墙丢包、IP 写错、对方没开机</td></tr>
+<tr><td>No route to host</td><td>本地路由表找不到路径</td><td>网关/掩码配置</td></tr>
+<tr><td>Name or service not known</td><td>DNS 解析失败</td><td>DNS 配置、域名拼写</td></tr>
+<tr><td>TLS handshake failed</td><td>证书/协议/时间问题</td><td>设备时间、根证书、SNI</td></tr>
+<tr><td>Connection reset</td><td>对方或中间设备发了 RST</td><td>服务崩溃、防火墙、超时回收</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch11-s3"><span class="n">11.3</span>抓包：看到真相</h3>
+<p>当 ping 通、端口也通，但应用就是不对，就该抓包了。Wireshark 能解码 TCP 流、HTTP、MQTT，直接看到“发了什么、回了什么”。</p>
+<div class="code"><div class="code-bar"><span class="file">命令行抓包（Linux / macOS）</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>sudo tcpdump -i any -n port 1883 -w mqtt.pcap
+sudo tcpdump -i any -n host 192.168.1.50 and port 80</code></pre></div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>抓包要在<strong>两端同时抓</strong>（设备侧 + 服务器侧），才能区分“没发出去”“发出去了没收到”“收到了没处理”。只抓一端，很容易得出错误结论。</p>
+</div>
+
+<h3 id="ch11-s4"><span class="n">11.4</span>分层排查清单</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>层</th><th>检查</th><th>工具</th></tr></thead>
+<tbody>
+<tr><td>链路</td><td>网线/Wi-Fi 关联、指示灯、VLAN</td><td>看灯、<code>ip link</code></td></tr>
+<tr><td>网络</td><td>IP/掩码/网关、ARP、路由</td><td><code>ip addr</code>、<code>ip route</code>、<code>arp -a</code></td></tr>
+<tr><td>传输</td><td>端口监听、防火墙、NAT</td><td><code>ss -lntp</code>、<code>nc -vz</code></td></tr>
+<tr><td>应用</td><td>协议格式、认证、超时</td><td><code>curl -v</code>、Wireshark、日志</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="ch11-s5"><span class="n">11.5</span>综合项目：设备遥测上报</h3>
+<p>目标：设备通过 Wi-Fi 联网，周期采集数据，经 MQTT 上报；同时订阅控制主题，收到指令后执行并回复状态。全部可以在<strong>本机 + 局域网</strong>验证，不需要公网服务器。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>模块</th><th>职责</th><th>失败时</th></tr></thead>
+<tbody>
+<tr><td>Wi-Fi 管理</td><td>连接、断线重连、信号监测</td><td>指数退避重连，状态上报</td></tr>
+<tr><td>MQTT 客户端</td><td>连接 Broker、发布、订阅、心跳</td><td>重连后重新订阅，补发离线数据</td></tr>
+<tr><td>采集</td><td>周期读取传感器</td><td>读数非法时丢弃并计数</td></tr>
+<tr><td>命令处理</td><td>解析控制指令、执行、回复</td><td>非法指令回复错误码</td></tr>
+<tr><td>看门狗</td><td>监控任务健康</td><td>关键任务卡死则复位</td></tr>
+</tbody>
+</table>
+</div>
+<div class="code"><div class="code-bar"><span class="file">本机验证拓扑（无需公网）</span><span class="lang">text</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code>[设备/模拟器] ──Wi-Fi/本机──&gt; [Mosquitto Broker 192.168.1.x:1883]
+                                      │
+                                      ├──&gt; [订阅者 mosquitto_sub]
+                                      └──&gt; [控制发布 mosquitto_pub]</code></pre></div>
+<div class="code"><div class="code-bar"><span class="file">本机启动 Broker 与订阅（示例）</span><span class="lang">bash</span><button class="copy" type="button" aria-label="复制这段代码">复制</button></div><pre><code># 安装 mosquitto 后，本机启动
+mosquitto -p 1883 -v
+
+# 另开终端：订阅所有设备遥测
+mosquitto_sub -h 127.0.0.1 -t 'device/+/telemetry' -v
+
+# 发布一条控制指令
+mosquitto_pub -h 127.0.0.1 -t 'device/esp32-001/cmd' -m '{"led":1}'</code></pre></div>
+<div class="note impl">
+<b>实现细节</b>
+<p>如果没有真实设备，可以用 Python 的 <code class="i">paho-mqtt</code> 或 Node 的 <code class="i">mqtt</code> 包写一个模拟器，行为与设备一致：连接、发布、订阅、断线重连。这样协议与后端逻辑可以先在电脑上验证，再移植到固件。</p>
+</div>
+
+<h3 id="ch11-s6"><span class="n">11.6</span>验收标准</h3>
+<ul class="checklist">
+<li>设备上电后 10 秒内连上 Wi-Fi 与 Broker</li>
+<li>每 5 秒上报一次，断网后本地缓存，恢复后补发（或明确丢弃策略）</li>
+<li>收到控制指令后 1 秒内执行并回复</li>
+<li>Broker 重启后设备能自动重连并重新订阅</li>
+<li>连续运行 24 小时，内存/连接数不持续增长</li>
+<li>抓包能看到完整的 CONNECT/SUBSCRIBE/PUBLISH 流程</li>
+</ul>
+
+<div class="practice">
+<div class="ph">项目练习 · 第 11 讲</div>
+<div class="pb">
+<ol>
+<li>用 <code class="i">curl -v</code> 访问一个不存在的端口，观察错误信息。</li>
+<li>用 <code class="i">tracert</code> 看一次外网路径，指出第一跳是谁。</li>
+<li>设计断线重连策略：初始 1 秒，最大 60 秒，指数退避 + 抖动。</li>
+<li>如果设备时间不可用，HTTPS 证书校验会怎样？如何兜底？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 通常是 <code class="i">Connection refused</code>，说明 IP 可达但端口没有监听。</p>
+<p><b>2.</b> 第一跳通常是家里的路由器/网关；后续是运营商网关。</p>
+<p><b>3.</b> <code class="i">delay = min(60, 2^n)</code>，再加 0–1 秒随机抖动，避免所有设备同时重连造成风暴。</p>
+<p><b>4.</b> 证书有效期校验会失败（“not yet valid”）。兜底：首次联网用 NTP 校时；或使用较长有效期的证书 + 构建时间下限；不能直接关闭校验。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">Connection refused</code> 通常说明？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>网络完全不通</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>对方可达，但目标端口没有服务监听</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>DNS 解析失败</span></button>
+</div>
+<div class="fb" data-fb>收到 RST 才会“refused”，说明包到了对方、对方明确拒绝；完全不通通常是 timeout，DNS 失败则是名字解析错误。</div>
+</div>
+
+<div class="summary">
+<h3 id="ch11-s7">本讲小结</h3>
+<ul>
+<li>ping/traceroute/netstat/curl/dig 能覆盖大部分排查。</li>
+<li>错误信息要分清 refused、timeout、DNS、TLS。</li>
+<li>抓包要两端同时抓，才能定位“哪一段丢了”。</li>
+<li>排查按链路 → 网络 → 传输 → 应用逐层进行。</li>
+<li>项目可在本机 + 局域网完整验证，不需要公网服务器。</li>
+</ul>
+<ul class="checklist">
+<li>我能用五个命令定位常见问题</li>
+<li>我能读懂 refused 与 timeout 的区别</li>
+<li>我能设计断线重连与补发策略</li>
+</ul>
+</div>
+
+<footer class="ch-foot"><span>第 11 讲 · 共 11 讲</span><span class="ch-nav"><a href="#ch10">← 第 10 讲</a> <a href="#appendix">附录 →</a></span></footer>
+</section>
+<section class="ch appendix" id="appendix" aria-labelledby="appendix-h">
+<header class="ch-head">
+  <div class="ch-no" aria-hidden="true">附</div>
+  <div class="ch-title">
+    <p class="ch-kicker">附录 · 随时查阅</p>
+    <h2 id="appendix-h">协议速查、端口表与排错清单</h2>
+    <p class="ch-lede">常用端口、报文结构、私有地址段、命令速查、错误现象对照与术语表。</p>
+  </div>
+</header>
+<h3 id="appendix-s1"><span class="n">A.1</span>常用端口</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>端口</th><th>协议</th><th>传输层</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>20/21</td><td>FTP</td><td>TCP</td><td>数据/控制（明文，不推荐）</td></tr>
+<tr><td>22</td><td>SSH</td><td>TCP</td><td>远程登录</td></tr>
+<tr><td>23</td><td>Telnet</td><td>TCP</td><td>明文，仅调试</td></tr>
+<tr><td>53</td><td>DNS</td><td>UDP/TCP</td><td>查询用 UDP，区域传送用 TCP</td></tr>
+<tr><td>67/68</td><td>DHCP</td><td>UDP</td><td>服务器/客户端</td></tr>
+<tr><td>80</td><td>HTTP</td><td>TCP</td><td>明文 Web</td></tr>
+<tr><td>123</td><td>NTP</td><td>UDP</td><td>时间同步</td></tr>
+<tr><td>443</td><td>HTTPS</td><td>TCP</td><td>HTTP over TLS</td></tr>
+<tr><td>1883</td><td>MQTT</td><td>TCP</td><td>明文</td></tr>
+<tr><td>8883</td><td>MQTT over TLS</td><td>TCP</td><td>加密</td></tr>
+<tr><td>5683</td><td>CoAP</td><td>UDP</td><td>受限设备</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s2"><span class="n">A.2</span>地址段速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>地址段</th><th>用途</th><th>备注</th></tr></thead>
+<tbody>
+<tr><td>10.0.0.0/8</td><td>私有</td><td>约 1677 万地址</td></tr>
+<tr><td>172.16.0.0/12</td><td>私有</td><td>172.16–172.31</td></tr>
+<tr><td>192.168.0.0/16</td><td>私有</td><td>家庭/办公</td></tr>
+<tr><td>127.0.0.0/8</td><td>回环</td><td>127.0.0.1</td></tr>
+<tr><td>169.254.0.0/16</td><td>链路本地</td><td>DHCP 失败</td></tr>
+<tr><td>224.0.0.0/4</td><td>组播</td><td>224.0.0.1 所有主机</td></tr>
+<tr><td>255.255.255.255</td><td>受限广播</td><td>不被路由器转发</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s3"><span class="n">A.3</span>协议对比</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th></th><th>TCP</th><th>UDP</th><th>MQTT</th><th>HTTP</th></tr></thead>
+<tbody>
+<tr><td>层</td><td>传输</td><td>传输</td><td>应用</td><td>应用</td></tr>
+<tr><td>连接</td><td>有</td><td>无</td><td>基于 TCP</td><td>基于 TCP</td></tr>
+<tr><td>可靠性</td><td>可靠有序</td><td>不保证</td><td>QoS 可选</td><td>依赖 TCP</td></tr>
+<tr><td>模型</td><td>字节流</td><td>数据报</td><td>发布/订阅</td><td>请求/响应</td></tr>
+<tr><td>开销</td><td>20+ 字节头</td><td>8 字节头</td><td>2–4 字节固定头</td><td>文本头，较大</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s4"><span class="n">A.4</span>命令速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>目的</th><th>Linux / macOS</th><th>Windows</th></tr></thead>
+<tbody>
+<tr><td>看地址</td><td><code>ip addr</code></td><td><code>ipconfig</code></td></tr>
+<tr><td>看路由</td><td><code>ip route</code></td><td><code>route print</code></td></tr>
+<tr><td>看 ARP</td><td><code>ip neigh</code></td><td><code>arp -a</code></td></tr>
+<tr><td>看监听端口</td><td><code>ss -lntp</code></td><td><code>netstat -ano</code></td></tr>
+<tr><td>测试端口</td><td><code>nc -vz host port</code></td><td><code>Test-NetConnection host -Port 80</code></td></tr>
+<tr><td>路径</td><td><code>traceroute</code></td><td><code>tracert</code></td></tr>
+<tr><td>DNS</td><td><code>dig</code></td><td><code>nslookup</code></td></tr>
+<tr><td>HTTP</td><td><code>curl -v</code></td><td><code>curl.exe -v</code></td></tr>
+<tr><td>抓包</td><td><code>tcpdump</code></td><td><code>Wireshark / pktmon</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s5"><span class="n">A.5</span>错误对照</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>错误</th><th>含义</th><th>排查顺序</th></tr></thead>
+<tbody>
+<tr><td>Network is unreachable</td><td>没有路由到目标网络</td><td>网关、掩码、路由表</td></tr>
+<tr><td>No route to host</td><td>ARP 失败或中间设备拒绝</td><td>同子网？网关 MAC？防火墙</td></tr>
+<tr><td>Connection refused</td><td>端口没监听</td><td>服务、端口号、绑定地址</td></tr>
+<tr><td>Connection timed out</td><td>无响应</td><td>防火墙、NAT、IP、对端状态</td></tr>
+<tr><td>Connection reset</td><td>收到 RST</td><td>服务崩溃、超时、代理</td></tr>
+<tr><td>Name resolution failed</td><td>DNS 失败</td><td>DNS 服务器、域名、hosts</td></tr>
+<tr><td>Certificate verify failed</td><td>TLS 证书问题</td><td>时间、根证书、域名、链</td></tr>
+<tr><td>413 Payload Too Large</td><td>请求体太大</td><td>服务端限制、分片上传</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 id="appendix-s6"><span class="n">A.6</span>术语表</h3>
+<div class="term-grid">
+<div class="term"><b>封装</b><span>每层给数据加自己的头部。</span></div>
+<div class="term"><b>MTU</b><span>链路层最大载荷，以太网通常 1500。</span></div>
+<div class="term"><b>CIDR</b><span>用 /n 表示网络前缀长度。</span></div>
+<div class="term"><b>默认网关</b><span>跨子网流量的下一跳。</span></div>
+<div class="term"><b>ARP</b><span>IPv4 地址到 MAC 的解析。</span></div>
+<div class="term"><b>NAT</b><span>改写 IP/端口，实现地址共享。</span></div>
+<div class="term"><b>三次握手</b><span>TCP 建立连接的双向确认。</span></div>
+<div class="term"><b>TIME_WAIT</b><span>主动关闭方等待 2MSL，保证可靠关闭。</span></div>
+<div class="term"><b>QoS</b><span>MQTT 的消息交付保证等级。</span></div>
+<div class="term"><b>Broker</b><span>MQTT 的消息中转服务器。</span></div>
+<div class="term"><b>SLAAC</b><span>IPv6 无状态地址自动配置。</span></div>
+<div class="term"><b>TLS</b><span>提供加密、完整性与身份验证的协议。</span></div>
+</div>
+
+<h3 id="appendix-s7"><span class="n">A.7</span>上线前检查清单</h3>
+<ul class="checklist">
+<li>设备能拿到 IP，网关与 DNS 正确</li>
+<li>断网/重启后能自动重连，且有退避</li>
+<li>所有外发数据都有超时，不会永久阻塞</li>
+<li>凭据不硬编码，支持轮换/吊销</li>
+<li>TLS 校验证书与域名，设备时间可用</li>
+<li>关键请求有重试与幂等设计</li>
+<li>抓包验证过完整连接与消息流程</li>
+<li>长时间运行无内存/连接泄漏</li>
+</ul>
+
+<footer class="ch-foot"><span>附录 · 速查与排错</span><a href="#map">回到课程地图 ↑</a></footer>
+</section>
+  </main>
+
+  <aside class="rail" id="rail" aria-label="本讲目录">
+    <p class="rail-kicker">本讲目录</p>
+    <p class="rail-title" id="railTitle">课程地图</p>
+    <ol class="rail-list" id="railList"></ol>
+    <div class="rail-progress">
+      <b id="railPct">0%</b>
+      <span>本册阅读进度</span>
+    </div>
+  </aside>
+</div>
+
+<footer class="foot">
+  <div class="foot-in">
+    <div><b>计算机网络教程</b> · 嵌入式学习路径 第 5 册 / 共 5 册<br>单文件离线教程，可直接双击打开，无需联网。</div>
+    <div class="foot-links"><a href="#map">课程地图</a><a href="#top">回到顶部</a><span>© <span id="year">2026</span></span></div>
+  </div>
+</footer>
+
+<button class="totop" id="toTop" type="button" aria-label="回到顶部">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</button>
+
+<div class="searchbox" id="searchBox" role="dialog" aria-modal="true" aria-label="搜索本册内容">
+  <div class="search-panel">
+    <div class="search-top">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="searchInput" type="search" placeholder="搜索概念、API、错误信息……" autocomplete="off" aria-label="搜索关键词">
+      <kbd>Esc</kbd>
+    </div>
+    <div class="search-res" id="searchRes"></div>
+  </div>
+</div>
+
+<script>
+/* 嵌入式学习路径 · 系列教程共享脚本（无外部依赖） */
+(function () {
+  'use strict';
+  var doc = document, root = doc.documentElement;
+  var $ = function (s, c) { return (c || doc).querySelector(s); };
+  var $$ = function (s, c) { return Array.prototype.slice.call((c || doc).querySelectorAll(s)); };
+
+  /* ---------- 主题 ---------- */
+  var THEME_KEY = 'emb-tut-theme';
+  function readTheme() {
+    try { var v = localStorage.getItem(THEME_KEY); if (v === 'dark' || v === 'light') return v; } catch (e) {}
+    return 'light';
+  }
+  function applyTheme(t) {
+    root.setAttribute('data-theme', t);
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+    var btn = $('#themeBtn');
+    if (btn) {
+      btn.setAttribute('aria-pressed', t === 'dark' ? 'true' : 'false');
+      btn.setAttribute('aria-label', t === 'dark' ? '切换到浅色模式' : '切换到深色模式');
+      btn.title = btn.getAttribute('aria-label');
+      var sun = $('.ic-sun', btn), moon = $('.ic-moon', btn);
+      if (sun && moon) { sun.style.display = t === 'dark' ? 'none' : ''; moon.style.display = t === 'dark' ? '' : 'none'; }
+    }
+  }
+  applyTheme(readTheme());
+  var themeBtn = $('#themeBtn');
+  if (themeBtn) themeBtn.addEventListener('click', function () {
+    applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  /* ---------- 侧栏抽屉 ---------- */
+  var sidebar = $('#sidebar'), scrim = $('#scrim'), menuBtn = $('#menuBtn');
+  function setDrawer(open) {
+    if (!sidebar) return;
+    sidebar.classList.toggle('open', open);
+    if (scrim) scrim.classList.toggle('on', open);
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    doc.body.classList.toggle('no-scroll', open && window.innerWidth <= 1024);
+  }
+  if (menuBtn) menuBtn.addEventListener('click', function () { setDrawer(!sidebar.classList.contains('open')); });
+  if (scrim) scrim.addEventListener('click', function () { setDrawer(false); });
+  window.addEventListener('resize', function () { if (window.innerWidth > 1024) setDrawer(false); });
+  $$('#sidebar a').forEach(function (a) { a.addEventListener('click', function () { if (window.innerWidth <= 1024) setDrawer(false); }); });
+
+  /* ---------- 阅读进度 + 回到顶部 ---------- */
+  var bar = $('#progressBar'), toTop = $('#toTop');
+  function onScroll() {
+    var h = doc.documentElement.scrollHeight - window.innerHeight;
+    var y = window.pageYOffset || doc.documentElement.scrollTop;
+    if (bar) bar.style.width = (h > 0 ? Math.min(100, (y / h) * 100) : 0) + '%';
+    if (toTop) toTop.classList.toggle('on', y > 700);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  onScroll();
+  if (toTop) toTop.addEventListener('click', function () {
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  });
+
+  /* ---------- 目录高亮 + 右栏本讲目录 ---------- */
+  var links = $$('.toc a');
+  var chapters = $$('.ch');
+  var railTitle = $('#railTitle'), railList = $('#railList'), railPct = $('#railPct');
+  var railCh = null;
+
+  function buildRail(ch) {
+    if (!railList || !railTitle) return;
+    var h2 = ch.querySelector('h2');
+    railTitle.textContent = h2 ? h2.textContent.trim() : '';
+    var hs = $$('h3', ch);
+    if (!hs.length) { railList.innerHTML = '<li><a href="#' + ch.id + '">本讲内容</a></li>'; return; }
+    railList.innerHTML = hs.map(function (h) {
+      var num = h.querySelector('.n');
+      var label = h.textContent.replace(/\s+/g, ' ').trim();
+      if (num) { label = num.textContent.trim() + '\u3000' + label.replace(num.textContent.trim(), '').trim(); }
+      return '<li><a href="#' + h.id + '">' + label + '</a></li>';
+    }).join('');
+  }
+
+  function updateNav() {
+    if (!links.length || !chapters.length) return;
+    var y = (window.pageYOffset || doc.documentElement.scrollTop) + 150;
+    var cur = null;
+    chapters.forEach(function (c) { if (c.offsetTop <= y) cur = c; });
+
+    if (cur) {
+      links.forEach(function (a) {
+        var on = a.getAttribute('href') === '#' + cur.id;
+        a.classList.toggle('active', on);
+        if (on) a.setAttribute('aria-current', 'true'); else a.removeAttribute('aria-current');
+      });
+      if (railList && cur.id !== railCh) { buildRail(cur); railCh = cur.id; }
+      var active = null;
+      var hs = $$('h3', cur);
+      hs.forEach(function (h) { if (h.getBoundingClientRect().top <= 150) active = h; });
+      if (!active && hs.length) active = hs[0];
+      $$('.rail-list a').forEach(function (a) {
+        a.classList.toggle('active', !!active && a.getAttribute('href') === '#' + active.id);
+      });
+    } else if (railTitle && railList) {
+      railTitle.textContent = '课程地图';
+      railList.innerHTML = '<li><a href="#ch01">从第 01 讲开始</a></li>';
+      links.forEach(function (a) { a.classList.remove('active'); });
+    }
+
+    if (railPct) {
+      var h = doc.documentElement.scrollHeight - window.innerHeight;
+      var top = window.pageYOffset || doc.documentElement.scrollTop;
+      railPct.textContent = (h > 0 ? Math.min(100, Math.round(top / h * 100)) : 0) + '%';
+    }
+  }
+
+  var navTick = false;
+  function onNavScroll() {
+    if (navTick) return;
+    navTick = true;
+    requestAnimationFrame(function () { updateNav(); navTick = false; });
+  }
+  window.addEventListener('scroll', onNavScroll, { passive: true });
+  window.addEventListener('resize', onNavScroll);
+  updateNav();
+
+  /* 直接带 #锚点 打开时，等布局（含右栏）稳定后再对齐一次 */
+  if (location.hash && location.hash.length > 1) {
+    setTimeout(function () {
+      var el = doc.getElementById(location.hash.slice(1));
+      if (el) { el.scrollIntoView({ block: 'start' }); updateNav(); }
+    }, 60);
+  }
+
+  /* ---------- 复制代码 ---------- */
+  function copyText(text, btn) {
+    function ok() {
+      var old = btn.textContent;
+      btn.textContent = '已复制';
+      btn.classList.add('ok');
+      setTimeout(function () { btn.textContent = old; btn.classList.remove('ok'); }, 1500);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, function () { fallback(); });
+    } else { fallback(); }
+    function fallback() {
+      var ta = doc.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      doc.body.appendChild(ta);
+      ta.select();
+      var done = false;
+      try { done = doc.execCommand('copy'); } catch (e) { done = false; }
+      doc.body.removeChild(ta);
+      if (done) ok(); else { btn.textContent = '请手动选择'; setTimeout(function () { btn.textContent = '复制'; }, 1600); }
+    }
+  }
+  doc.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('.copy') : null;
+    if (!btn) return;
+    var box = btn.closest('.code');
+    var code = box && box.querySelector('pre code');
+    if (code) copyText((code.textContent || '').replace(/\n$/, ''), btn);
+  });
+
+  /* ---------- 测验 ---------- */
+  doc.addEventListener('click', function (e) {
+    var opt = e.target.closest ? e.target.closest('.quiz .opt') : null;
+    if (!opt) return;
+    var quiz = opt.closest('.quiz');
+    if (quiz.dataset.done === '1') return;          /* 已答对，忽略后续点击 */
+    var ans = parseInt(quiz.getAttribute('data-answer'), 10);
+    var idx = parseInt(opt.getAttribute('data-i'), 10);
+    var fb = quiz.querySelector('[data-fb]');
+    $$('.opt', quiz).forEach(function (o) { o.classList.remove('wrong'); });
+    if (idx === ans) {
+      opt.classList.add('right');
+      quiz.dataset.done = '1';
+      if (fb) { fb.classList.add('show'); fb.innerHTML = '<b>回答正确。</b> ' + fb.innerHTML; }
+    } else {
+      opt.classList.add('wrong');
+      if (fb) { fb.classList.add('show'); }
+    }
+  });
+
+  /* ---------- 搜索 ---------- */
+  var index = null;
+  function buildIndex() {
+    index = [];
+    chapters.forEach(function (ch) {
+      var h2 = ch.querySelector('h2');
+      var chTitle = h2 ? h2.textContent.trim() : ch.id;
+      var heads = $$('h3, h4', ch);
+      heads.forEach(function (h) {
+        var text = '', n = h.nextElementSibling, guard = 0;
+        while (n && guard < 6 && !/^H[234]$/.test(n.tagName)) {
+          text += ' ' + n.textContent.replace(/\s+/g, ' ').trim();
+          n = n.nextElementSibling; guard++;
+        }
+        index.push({ id: h.id, title: h.textContent.replace(/\s+/g, ' ').trim(), ch: chTitle, text: text.slice(0, 700) });
+      });
+      if (!heads.length) {
+        index.push({ id: ch.id, title: chTitle, ch: chTitle, text: ch.textContent.replace(/\s+/g, ' ').slice(0, 700) });
+      }
+    });
+  }
+  var sbox = $('#searchBox'), sInput = $('#searchInput'), sRes = $('#searchRes');
+  var sel = -1, results = [];
+  function openSearch() {
+    if (!sbox) return;
+    if (!index) buildIndex();
+    sbox.classList.add('on');
+    doc.body.classList.add('no-scroll');
+    setTimeout(function () { sInput.focus(); sInput.select(); }, 30);
+    render('');
+  }
+  function closeSearch() {
+    if (!sbox) return;
+    sbox.classList.remove('on');
+    doc.body.classList.remove('no-scroll');
+    sel = -1;
+  }
+  function esc(s) { return s.replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function render(q) {
+    if (!sRes) return;
+    q = q.trim().toLowerCase();
+    results = !q ? index.slice(0, 8) : index.filter(function (it) {
+      return (it.title + ' ' + it.text + ' ' + it.ch).toLowerCase().indexOf(q) >= 0;
+    }).slice(0, 20);
+    sel = results.length ? 0 : -1;
+    if (!results.length) { sRes.innerHTML = '<div class="sr-empty">没有找到匹配的章节。试试更短的关键词，例如“指针”“队列”“CRC”。</div>'; return; }
+    sRes.innerHTML = results.map(function (it, i) {
+      var snippet = it.text.replace(/\s+/g, ' ').trim().slice(0, 78);
+      return '<button class="sr-item' + (i === 0 ? ' sel' : '') + '" data-id="' + esc(it.id) + '"><b>' + esc(it.title) +
+        '</b><span>' + esc(it.ch) + (snippet ? ' · ' + esc(snippet) : '') + '</span></button>';
+    }).join('');
+  }
+  function go(id) {
+    var el = doc.getElementById(id);
+    if (el) { closeSearch(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+  }
+  if (sInput) {
+    sInput.addEventListener('input', function () { render(sInput.value); });
+    sInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { closeSearch(); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!results.length) return;
+        sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + results.length) % results.length;
+        $$('.sr-item', sRes).forEach(function (b, i) { b.classList.toggle('sel', i === sel); });
+        var cur = $$('.sr-item', sRes)[sel]; if (cur) cur.scrollIntoView({ block: 'nearest' });
+      }
+      if (e.key === 'Enter' && sel >= 0 && results[sel]) { go(results[sel].id); }
+    });
+  }
+  if (sRes) sRes.addEventListener('click', function (e) {
+    var b = e.target.closest('.sr-item'); if (b) go(b.getAttribute('data-id'));
+  });
+  if (sbox) sbox.addEventListener('click', function (e) { if (e.target === sbox) closeSearch(); });
+  var sBtn = $('#searchBtn');
+  if (sBtn) sBtn.addEventListener('click', openSearch);
+  doc.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
+    else if (e.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(doc.activeElement.tagName)) { e.preventDefault(); openSearch(); }
+    else if (e.key === 'Escape') { closeSearch(); setDrawer(false); }
+  });
+
+  /* ---------- 年份 ---------- */
+  var y = $('#year'); if (y) y.textContent = new Date().getFullYear();
+})();
+
+/* 第 5 册交互实验 */
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
+  function ip2int(s) {
+    var p = s.trim().split('.');
+    if (p.length !== 4) return null;
+    var n = 0;
+    for (var i = 0; i < 4; i++) {
+      var v = parseInt(p[i], 10);
+      if (isNaN(v) || v < 0 || v > 255) return null;
+      n = (n * 256) + v;
+    }
+    return n >>> 0;
+  }
+  function int2ip(n) {
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.');
+  }
+  function bin8(n) { return (n & 255).toString(2).padStart(8, '0'); }
+
+  /* ---------- 1. 封装 ---------- */
+  (function () {
+    var canvas = $('encapCanvas'), out = $('encapOut');
+    if (!canvas || !out) return;
+    var step = 0, dir = 'send';
+    var layers = [
+      { name: '应用数据', color: '#e0e7ff', border: '#818cf8', text: '#26348f', desc: 'HTTP / MQTT 消息' },
+      { name: 'TCP 头', color: '#dcfce7', border: '#4ade80', text: '#166534', desc: '端口、序号、确认号、窗口' },
+      { name: 'IP 头', color: '#fef3c7', border: '#fbbf24', text: '#92400e', desc: '源/目的 IP、TTL、协议' },
+      { name: '以太网头', color: '#ede9fe', border: '#c4b5fd', text: '#5b21b6', desc: '源/目的 MAC、类型' }
+    ];
+    function render() {
+      var n = dir === 'send' ? step : 4 - step;
+      var h = '<div style="display:flex;flex-wrap:wrap;align-items:stretch;gap:2px">';
+      for (var i = 0; i < 4; i++) {
+        var show = i >= 4 - n;
+        if (!show) continue;
+        var L = layers[i];
+        h += '<div style="flex:1 1 110px;min-width:90px;padding:9px 7px;border:1px solid ' + L.border + ';background:' + L.color + ';border-radius:6px;text-align:center">' +
+          '<div style="font-size:11.5px;font-weight:700;color:' + L.text + '">' + L.name + '</div>' +
+          '<div style="font-size:9.5px;color:#475569;margin-top:3px;line-height:1.4">' + L.desc + '</div></div>';
+      }
+      h += '</div>';
+      canvas.innerHTML = h;
+      var msg = dir === 'send'
+        ? ['应用层产生数据 "Hello"', '传输层加 TCP 头（端口/序号）', '网络层加 IP 头（地址/TTL）', '链路层加以太网头与 FCS，发出'][step]
+        : ['收到帧，链路层校验 FCS 并剥掉以太网头', '网络层检查目的 IP，剥掉 IP 头', '传输层按端口交付，剥掉 TCP 头', '应用层拿到 "Hello"'][step];
+      out.textContent = (dir === 'send' ? '封装 ' : '解封装 ') + step + '/4\n' + msg;
+    }
+    function advance(d) {
+      if (d !== dir) { dir = d; step = 0; }
+      step = Math.min(4, step + 1);
+      render();
+    }
+    on($('encapSend'), 'click', function () { advance('send'); });
+    on($('encapRecv'), 'click', function () { advance('recv'); });
+    on($('encapReset'), 'click', function () { dir = 'send'; step = 0; render(); });
+    render();
+  })();
+
+  /* ---------- 2. 子网 ---------- */
+  (function () {
+    var out = $('snOut');
+    if (!out) return;
+    function run() {
+      var ip = ip2int($('snIp').value);
+      var p = parseInt($('snPrefix').value, 10);
+      if (ip === null || isNaN(p) || p < 0 || p > 32) { out.textContent = '请输入合法的 IPv4 地址与 0–32 的前缀。'; return; }
+      var mask = p === 0 ? 0 : (0xFFFFFFFF << (32 - p)) >>> 0;
+      var net = (ip & mask) >>> 0;
+      var bcast = (net | (~mask >>> 0)) >>> 0;
+      var count = Math.pow(2, 32 - p);
+      var usable = p >= 31 ? count : Math.max(0, count - 2);
+      var first = p >= 31 ? net : net + 1;
+      var last = p >= 31 ? bcast : bcast - 1;
+      out.textContent = [
+        'IP          ' + int2ip(ip) + '   ' + [24, 16, 8, 0].map(function (s) { return bin8(ip >>> s); }).join(' '),
+        '掩码 /' + p + '    ' + int2ip(mask) + '   ' + [24, 16, 8, 0].map(function (s) { return bin8(mask >>> s); }).join(' '),
+        '网络地址    ' + int2ip(net),
+        '广播地址    ' + int2ip(bcast),
+        '可用范围    ' + int2ip(first) + ' – ' + int2ip(last),
+        '地址总数    ' + count,
+        '可用主机    ' + usable,
+        '',
+        p <= 30 ? '前 ' + p + ' 位是网络号，后 ' + (32 - p) + ' 位是主机号。' : '点对点/单主机特殊前缀，规则与常规子网不同。'
+      ].join('\n');
+    }
+    ['input', 'change'].forEach(function (ev) { on($('snIp'), ev, run); on($('snPrefix'), ev, run); });
+    on($('snGo'), 'click', run);
+    run();
+  })();
+
+  /* ---------- 3. 路由 ---------- */
+  (function () {
+    var canvas = $('routeCanvas'), out = $('routeOut');
+    if (!canvas || !out) return;
+    var hops = [
+      { from: 'PC 192.168.1.10', to: '网关 192.168.1.1', smac: 'AA:PC', dmac: 'AA:GW', ttl: 64, note: 'PC 查路由：目的不在本子网，交给默认网关' },
+      { from: '路由器 R1', to: '路由器 R2', smac: 'BB:R1', dmac: 'BB:R2', ttl: 63, note: 'R1 查表：下一跳 R2，改 MAC，TTL-1' },
+      { from: '路由器 R2', to: '服务器 10.0.0.5', smac: 'CC:R2', dmac: 'CC:SRV', ttl: 62, note: 'R2 发现目的在本子网，ARP 服务器，最后一跳' },
+      { from: '服务器', to: '应用', smac: '—', dmac: '—', ttl: 62, note: '逐层解封装，数据交给应用' }
+    ];
+    var i = 0;
+    function render() {
+      var h = '<div style="display:grid;gap:5px;font-family:Consolas,monospace;font-size:11px">';
+      hops.forEach(function (hp, k) {
+        var on = k === i;
+        h += '<div style="padding:6px 8px;border-radius:6px;border:1px solid ' + (on ? '#0369a1' : '#e2e8f0') +
+          ';background:' + (on ? '#f0f9ff' : '#fff') + ';color:' + (k > i ? '#94a3b8' : '#334155') + '">' +
+          '<b>' + hp.from + ' → ' + hp.to + '</b><br>' +
+          'srcMAC=' + hp.smac + '  dstMAC=' + hp.dmac + '  TTL=' + hp.ttl + '</div>';
+      });
+      h += '</div>';
+      canvas.innerHTML = h;
+      out.textContent = '第 ' + i + ' 跳\n' + hops[i].note + '\n（源/目的 IP 始终是 192.168.1.10 → 10.0.0.5）';
+    }
+    on($('routeStep'), 'click', function () { if (i < hops.length - 1) i++; render(); });
+    on($('routeReset'), 'click', function () { i = 0; render(); });
+    render();
+  })();
+
+  /* ---------- 4. TCP ---------- */
+  (function () {
+    var canvas = $('tcpCanvas'), out = $('tcpOut');
+    if (!canvas || !out) return;
+    var steps = [
+      { c: 'CLOSED', s: 'LISTEN', pkt: '客户端准备连接', seq: '—', ack: '—' },
+      { c: 'SYN_SENT', s: 'LISTEN', pkt: '① SYN seq=x', seq: 'x=1000', ack: '—' },
+      { c: 'SYN_SENT', s: 'SYN_RCVD', pkt: '② SYN+ACK seq=y ack=x+1', seq: 'y=5000', ack: '1001' },
+      { c: 'ESTABLISHED', s: 'ESTABLISHED', pkt: '③ ACK ack=y+1', seq: '1001', ack: '5001' },
+      { c: 'ESTABLISHED', s: 'ESTABLISHED', pkt: '④ 数据 500 字节', seq: '1001–1500', ack: '5001' },
+      { c: 'ESTABLISHED', s: 'ESTABLISHED', pkt: '⑤ ACK 1501', seq: '5001', ack: '1501' },
+      { c: 'FIN_WAIT_1', s: 'ESTABLISHED', pkt: '⑥ FIN seq=1501', seq: '1501', ack: '5001' },
+      { c: 'FIN_WAIT_2', s: 'CLOSE_WAIT', pkt: '⑦ ACK 1502', seq: '5001', ack: '1502' },
+      { c: 'FIN_WAIT_2', s: 'LAST_ACK', pkt: '⑧ FIN seq=5001', seq: '5001', ack: '1502' },
+      { c: 'TIME_WAIT', s: 'CLOSED', pkt: '⑨ ACK 5002', seq: '1502', ack: '5002' }
+    ];
+    var i = 0;
+    function render() {
+      var st = steps[i];
+      var h = '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        '<div style="flex:1 1 120px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:8px;padding:8px 10px">' +
+        '<div style="font-size:10.5px;color:#64748b">客户端状态</div><div style="font-family:Consolas,monospace;font-size:12px;color:#075985;font-weight:700">' + st.c + '</div></div>' +
+        '<div style="flex:2 1 220px;border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 10px">' +
+        '<div style="font-size:10.5px;color:#64748b">当前报文</div><div style="font-family:Consolas,monospace;font-size:12px;color:#1e293b">' + st.pkt + '</div></div>' +
+        '<div style="flex:1 1 120px;border:1px solid #bae6fd;background:#f0f9ff;border-radius:8px;padding:8px 10px">' +
+        '<div style="font-size:10.5px;color:#64748b">服务器状态</div><div style="font-family:Consolas,monospace;font-size:12px;color:#075985;font-weight:700">' + st.s + '</div></div>' +
+        '</div>';
+      canvas.innerHTML = h;
+      out.textContent = '步骤 ' + i + '/' + (steps.length - 1) + '\nseq=' + st.seq + '   ack=' + st.ack;
+    }
+    on($('tcpStep'), 'click', function () { if (i < steps.length - 1) i++; render(); });
+    on($('tcpReset'), 'click', function () { i = 0; render(); });
+    render();
+  })();
+
+  /* ---------- 5. MQTT ---------- */
+  (function () {
+    var canvas = $('mqCanvas'), out = $('mqOut');
+    if (!canvas || !out) return;
+    var subs = [], retained = null, log = [], online = true, msgId = 0;
+    function render() {
+      var h = '<div style="display:grid;gap:6px;font-family:Consolas,monospace;font-size:11px">' +
+        '<div style="padding:7px 9px;border:1px solid #fbbf24;background:#fffbeb;border-radius:6px;color:#92400e">Broker　retained=' +
+        (retained ? '"' + retained + '"' : '空') + '</div>' +
+        '<div style="padding:7px 9px;border:1px solid #cbd5e1;background:#fff;border-radius:6px;color:#334155">订阅者：' +
+        (subs.length ? subs.map(function (s, i) { return 'S' + (i + 1) + (s.online ? '' : '(离线)'); }).join('　') : '（暂无）') + '</div>' +
+        '<div style="padding:7px 9px;border:1px solid #cbd5e1;background:' + (online ? '#f0fdf4' : '#fef2f2') + ';border-radius:6px;color:' + (online ? '#166534' : '#991b1b') + '">发布者：' + (online ? '在线' : '已掉线') + '</div>' +
+        '</div>';
+      canvas.innerHTML = h;
+      out.textContent = log.length ? log.slice(-7).join('\n') : '选择一个 QoS，点“发布”。';
+    }
+    function push(s) { log.push(s); if (log.length > 20) log.shift(); }
+    on($('mqPub'), 'click', function () {
+      if (!online) { push('⚠ 发布者已掉线，无法发布（Broker 将发送遗嘱消息）'); render(); return; }
+      var q = $('mqQos').value;
+      var payload = '{"temp":' + (20 + Math.floor(Math.random() * 8)) + '}';
+      msgId++;
+      push('PUBLISH qos=' + q + ' id=' + msgId + ' payload=' + payload);
+      if (q === '1') push('  → Broker 回 PUBACK（可能重复投递）');
+      if (q === '2') {
+        push('  → Broker 回 PUBREC');
+        push('  → 发布者回 PUBREL');
+        push('  → Broker 回 PUBCOMP（恰好一次）');
+      }
+      if ($('mqRetain').checked) { retained = payload; push('  → 标记 retained，Broker 保存最后一条'); }
+      subs.forEach(function (s, i) {
+        if (s.online) push('  → 投递给 S' + (i + 1) + '：' + payload);
+        else push('  → S' + (i + 1) + ' 离线，按会话设置决定是否缓存');
+      });
+      render();
+    });
+    on($('mqSub'), 'click', function () {
+      subs.push({ online: true });
+      push('新订阅者 S' + subs.length + ' 订阅 device/+/telemetry');
+      if (retained) push('  → 立即收到 retained 消息：' + retained);
+      render();
+    });
+    on($('mqDrop'), 'click', function () {
+      online = false;
+      push('发布者异常断开 → Broker 发布遗嘱：device/esp32-001/status = offline');
+      render();
+    });
+    on($('mqOnline'), 'click', function () {
+      online = true;
+      push('发布者重新连接 Broker（Clean Session 按配置决定是否恢复订阅）');
+      render();
+    });
+    on($('mqReset'), 'click', function () {
+      subs = []; retained = null; log = []; online = true; msgId = 0;
+      render();
+    });
+    render();
+  })();
+})();
+
+</script>
+</body>
+</html>

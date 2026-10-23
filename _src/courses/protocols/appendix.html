@@ -1,0 +1,96 @@
+<h3><span class="n">A.1</span>五种总线横向对比</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th></th><th>UART</th><th>I²C</th><th>SPI</th><th>CAN</th><th>RS-485</th></tr></thead>
+<tbody>
+<tr><td>线数</td><td>2（TX/RX）</td><td>2（SCL/SDA）</td><td>4（+每从机 CS）</td><td>2（差分）</td><td>2（差分）</td></tr>
+<tr><td>拓扑</td><td>点对点</td><td>多设备总线</td><td>一主多从</td><td>多主总线</td><td>多点总线</td></tr>
+<tr><td>寻址</td><td>无</td><td>7/10 位地址</td><td>片选</td><td>标识符 + 滤波</td><td>由上层协议决定</td></tr>
+<tr><td>双工</td><td>全双工</td><td>半双工</td><td>全双工</td><td>半双工</td><td>半双工</td></tr>
+<tr><td>时钟</td><td>异步</td><td>同步</td><td>同步</td><td>位填充自同步</td><td>异步</td></tr>
+<tr><td>典型速率</td><td>9.6k–3M</td><td>100k–3.4M</td><td>1M–50M+</td><td>125k–1M（经典）</td><td>取决于收发器</td></tr>
+<tr><td>距离</td><td>短</td><td>短（板内）</td><td>短（板内）</td><td>几十米</td><td>可达 1200 m</td></tr>
+<tr><td>检错</td><td>可选校验</td><td>ACK</td><td>无</td><td>CRC + ACK + 多种检查</td><td>无（靠上层）</td></tr>
+<tr><td>典型用途</td><td>调试口、模块通信</td><td>传感器、EEPROM</td><td>Flash、屏幕、ADC</td><td>汽车、工业总线</td><td>工业现场总线</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.2</span>帧格式速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>总线</th><th>一帧的关键字段</th><th>边界怎么定</th></tr></thead>
+<tbody>
+<tr><td>UART</td><td>起始位 + 5–9 数据位 + 可选校验 + 1/1.5/2 停止位</td><td>起始位/停止位</td></tr>
+<tr><td>I²C</td><td>START + 地址(7/10)+R/W + ACK + 数据 + ACK + STOP</td><td>START/STOP</td></tr>
+<tr><td>SPI</td><td>CS 有效期间的任意位流</td><td>CS 上升沿</td></tr>
+<tr><td>CAN</td><td>SOF + ID + 控制 + 数据 + CRC + ACK + EOF</td><td>SOF/EOF</td></tr>
+<tr><td>Modbus RTU</td><td>地址 + 功能码 + 数据 + CRC16</td><td>3.5 字符静默</td></tr>
+<tr><td>自定义</td><td>帧头 + 长度 + 载荷 + CRC</td><td>长度字段</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.3</span>CRC 参数速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>名称</th><th>多项式</th><th>初值</th><th>输入/输出反转</th><th>结果异或</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td>CRC-16/MODBUS</td><td>0x8005</td><td>0xFFFF</td><td>是 / 是</td><td>0x0000</td><td>Modbus RTU</td></tr>
+<tr><td>CRC-16/CCITT-FALSE</td><td>0x1021</td><td>0xFFFF</td><td>否 / 否</td><td>0x0000</td><td>部分无线/存储</td></tr>
+<tr><td>CRC-16/XMODEM</td><td>0x1021</td><td>0x0000</td><td>否 / 否</td><td>0x0000</td><td>XMODEM</td></tr>
+<tr><td>CRC-32/ISO-HDLC</td><td>0x04C11DB7</td><td>0xFFFFFFFF</td><td>是 / 是</td><td>0xFFFFFFFF</td><td>以太网、ZIP</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>实现 CRC 时，最容易错的是“初值、反转、异或、字节序”这四个参数。先用一组已知数据验证（例如 <code class="i">"123456789"</code> 的 CRC-16/MODBUS 是 <code class="i">0x4B37</code>），再接到协议里。</p>
+</div>
+
+<h3><span class="n">A.4</span>故障对照表</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>现象</th><th>优先怀疑</th><th>验证</th></tr></thead>
+<tbody>
+<tr><td>完全无数据</td><td>供电、地、引脚复用、使能</td><td>示波器看空闲电平</td></tr>
+<tr><td>全是乱码</td><td>波特率/数据位/校验/停止位</td><td>逻辑分析仪解码</td></tr>
+<tr><td>偶发错字节</td><td>上升沿、干扰、共地、终端</td><td>示波器看边沿与振铃</td></tr>
+<tr><td>I²C NACK</td><td>地址、上电时序、上拉</td><td>扫描地址、看波形</td></tr>
+<tr><td>I²C BUSY 卡死</td><td>从机拉低 SDA</td><td>9 时钟恢复</td></tr>
+<tr><td>SPI 数据移一位</td><td>CPOL/CPHA 选错</td><td>对照从机手册的时序图</td></tr>
+<tr><td>SPI 读全 FF</td><td>CS、MISO、供电</td><td>示波器看 MISO 是否有驱动</td></tr>
+<tr><td>CAN 频繁错误</td><td>终端、波特率、共地</td><td>看 TEC/REC、波形幅值</td></tr>
+<tr><td>RS-485 收不到</td><td>A/B 接反、DE 控制、终端</td><td>差分探头看 A-B</td></tr>
+<tr><td>Modbus 不响应</td><td>地址、功能码、CRC 字节序</td><td>抓帧逐字节比对</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.5</span>术语表</h3>
+<div class="term-grid">
+<div class="term"><b>波特率</b><span>每秒符号数；UART 中等于每秒比特数。</span></div>
+<div class="term"><b>显性/隐性</b><span>CAN 中 0 为显性（能覆盖隐性 1）。</span></div>
+<div class="term"><b>开漏</b><span>只能拉低、不能主动拉高，需外加上拉。</span></div>
+<div class="term"><b>ACK</b><span>接收方确认；I²C 第 9 个时钟拉低，CAN 在 ACK 槽拉低。</span></div>
+<div class="term"><b>时钟拉伸</b><span>I²C 从机拉低 SCL 让主机等待。</span></div>
+<div class="term"><b>位填充</b><span>CAN 连续 5 个相同电平后插入相反电平，用于同步。</span></div>
+<div class="term"><b>终端电阻</b><span>总线两端的匹配电阻，抑制反射。</span></div>
+<div class="term"><b>粘包</b><span>一次收到多帧，需要循环解析。</span></div>
+<div class="term"><b>半包</b><span>一帧分多次到达，需要保存中间状态。</span></div>
+<div class="term"><b>重同步</b><span>检测到错误后重新寻找帧头。</span></div>
+<div class="term"><b>差分</b><span>用两根线的电压差表示信号，抗共模干扰。</span></div>
+<div class="term"><b>共模电压</b><span>两根线对地的平均电压，收发器有允许范围。</span></div>
+</div>
+
+<h3><span class="n">A.6</span>设计检查清单</h3>
+<ul class="checklist">
+<li>物理层：电平、上拉/终端、共地、走线长度都确认过</li>
+<li>时序：波特率误差、采样点、建立/保持时间在规格内</li>
+<li>分帧：长度字段有上限校验，帧头不会与载荷冲突</li>
+<li>校验：CRC 参数（初值/反转/异或/字节序）与对端一致</li>
+<li>错误：CRC 错、长度错、超时、NACK 都有明确处理</li>
+<li>并发：中断与主循环共享数据有保护</li>
+<li>测试：分片、粘包、噪声、边界、长时间运行都跑过</li>
+<li>调试：板上留了测试点、日志和错误计数</li>
+</ul>

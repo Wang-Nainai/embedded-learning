@@ -1,0 +1,223 @@
+<h3><span class="n">2.1</span>变量到底是什么</h3>
+<p>变量不是数学里的未知数 <code class="i">x</code>。它由四样东西组成：<strong>一个名字</strong>、<strong>一个类型</strong>、<strong>一块存储位置</strong>、<strong>当前的值</strong>。类型决定这块内存有多宽、里面的 0/1 该怎么解释。</p>
+<p>同样 4 个字节 <code class="i">0x41 0x42 0x43 0x44</code>，按 <code class="i">int</code> 读是 <code class="i">1145258561</code>，按 <code class="i">char[4]</code> 读是 <code class="i">"ABCD"</code>。内存本身没有类型，<strong>类型是你和编译器之间的约定</strong>。</p>
+
+<h3><span class="n">2.2</span>基本类型与 sizeof</h3>
+<p>C 只保证“相对大小”，不保证绝对字节数：<code class="i">char</code> 恰好 1 字节（1 字节不一定 8 位，但在主流平台上就是 8 位），<code class="i">short ≤ int ≤ long ≤ long long</code>。想知道你机器上的真实大小，用 <code class="i">sizeof</code> 测，不要背。</p>
+<codeblock lang="C11" file="sizes.c">
+#include <stdio.h>
+
+int main(void)
+{
+    printf("char        %zu\n", sizeof(char));
+    printf("short       %zu\n", sizeof(short));
+    printf("int         %zu\n", sizeof(int));
+    printf("long        %zu\n", sizeof(long));
+    printf("long long   %zu\n", sizeof(long long));
+    printf("float       %zu\n", sizeof(float));
+    printf("double      %zu\n", sizeof(double));
+    printf("pointer     %zu\n", sizeof(void *));
+    return 0;
+}
+</codeblock>
+<outblock>
+char        1
+short       2
+int         4
+long        4
+long long   8
+float       4
+double      8
+pointer     8
+</outblock>
+<p>上面是一次 64 位 Windows + Clang 的<strong>实际输出</strong>。注意 <code class="i">long</code> 只有 4 字节：Windows 采用 LLP64 模型（long 仍是 32 位），而 64 位 Linux / macOS 采用 LP64（long 是 8 字节）。同一份代码换个系统，<code class="i">sizeof(long)</code> 就变了。</p>
+<p>这就是为什么跨平台代码更愿意用 <code class="i">&lt;stdint.h&gt;</code> 里的 <code class="i">int32_t</code>、<code class="i">uint16_t</code>——它们明确要求“恰好这么多位”，编译器不支持就编不过，而不是悄悄换个宽度。在 32 位平台或某些嵌入式编译器上，<code class="i">int</code> 也可能是 2 字节，指针是 4 字节。</p>
+<div class="note law">
+<b>标准怎么说</b>
+<p><code class="i">sizeof</code> 的结果类型是 <code class="i">size_t</code>，一种无符号整数类型，打印时用 <code class="i">%zu</code>。用 <code class="i">%d</code> 打印 <code class="i">size_t</code> 在 64 位平台上是未定义行为，常见后果是输出被截断或显示成负数。</p>
+</div>
+
+<h3><span class="n">2.3</span>整数：补码、范围与溢出</h3>
+<p>现代计算机用<strong>补码</strong>表示有符号整数。以 8 位为例：<code class="i">0000 0001</code> 是 1，<code class="i">1111 1111</code> 是 -1，<code class="i">1000 0000</code> 是 -128。补码的好处是减法可以当加法做，硬件只需要一套加法器。</p>
+<div class="table-wrap">
+<table>
+<caption>常见整数类型在 32/64 位主流平台上的范围</caption>
+<thead><tr><th>类型</th><th>位数</th><th>最小值</th><th>最大值</th></tr></thead>
+<tbody>
+<tr><td><code>signed char</code></td><td>8</td><td>-128</td><td>127</td></tr>
+<tr><td><code>unsigned char</code></td><td>8</td><td>0</td><td>255</td></tr>
+<tr><td><code>short</code></td><td>16</td><td>-32 768</td><td>32 767</td></tr>
+<tr><td><code>int</code></td><td>32</td><td>-2 147 483 648</td><td>2 147 483 647</td></tr>
+<tr><td><code>unsigned int</code></td><td>32</td><td>0</td><td>4 294 967 295</td></tr>
+<tr><td><code>long long</code></td><td>64</td><td>-9.22×10<sup>18</sup></td><td>9.22×10<sup>18</sup></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lab" id="lab-int">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>这个数放得进去吗？</h4>
+    <p>选一个类型，输入一个十进制数，看它在内存里的位模式、是否越界，以及越界后会发生什么。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>类型
+        <select id="intType">
+          <option value="s8">signed char（8 位）</option>
+          <option value="u8">unsigned char（8 位）</option>
+          <option value="s16">short（16 位）</option>
+          <option value="u16">unsigned short（16 位）</option>
+          <option value="s32" selected>int（32 位）</option>
+          <option value="u32">unsigned int（32 位）</option>
+          <option value="s64">long long（64 位）</option>
+        </select>
+      </label>
+      <label>数值 <input id="intVal" type="text" value="2147483647" size="14" inputmode="numeric"></label>
+      <button class="lab-btn pri" type="button" id="intGo">查看</button>
+    </div>
+    <div class="lab-read" id="intOut" aria-live="polite"></div>
+    <p class="lab-note">位模式按“高位在左”显示。负数用补码：把绝对值的二进制取反再加 1。</p>
+  </div>
+</div>
+
+<p>关键区别只有一句话：<strong>无符号溢出是良定义的（按 2<sup>N</sup> 取模回绕），有符号溢出是未定义行为</strong>。</p>
+<codeblock lang="C11" file="overflow.c">
+#include <stdio.h>
+#include <limits.h>
+
+int main(void)
+{
+    unsigned int u = UINT_MAX;
+    u = u + 1;                 /* 良定义：回绕到 0 */
+    printf("unsigned wrap: %u\n", u);
+
+    int i = INT_MAX;
+    /* i + 1 是有符号溢出：未定义行为，不要写这种代码 */
+    printf("INT_MAX = %d, INT_MAX+1 不能依赖任何结果\n", i);
+    return 0;
+}
+</codeblock>
+<outblock>
+unsigned wrap: 0
+INT_MAX = 2147483647, INT_MAX+1 不能依赖任何结果
+</outblock>
+<div class="note bad">
+<b>易错</b>
+<p>“有符号溢出会变成负数”是一个流传很广的半真命题。它在你机器上可能确实回绕，但标准没有保证，开启 <code class="i">-O2</code> 后编译器可以假设溢出不会发生，从而删掉你的检查。要检测溢出，请在运算<strong>之前</strong>比较边界，而不是算完再判断。</p>
+</div>
+<codeblock lang="C11" file="safe_add.c">
+#include <stdio.h>
+#include <limits.h>
+
+int add_checked(int a, int b, int *out)
+{
+    if ((b > 0 && a > INT_MAX - b) || (b < 0 && a < INT_MIN - b)) {
+        return -1;              /* 会溢出，拒绝计算 */
+    }
+    *out = a + b;
+    return 0;
+}
+
+int main(void)
+{
+    int r = 0;
+    if (add_checked(INT_MAX, 1, &r) != 0) {
+        printf("overflow rejected\n");
+    }
+    return 0;
+}
+</codeblock>
+<outblock>
+overflow rejected
+</outblock>
+
+<h3><span class="n">2.4</span>浮点数：为什么 0.1 + 0.2 不等于 0.3</h3>
+<p><code class="i">float</code> 和 <code class="i">double</code> 按 IEEE 754 存储：1 位符号、若干位指数、若干位尾数。<code class="i">float</code> 只有 24 位有效二进制位，大约 7 位十进制有效数字；<code class="i">double</code> 有 53 位，大约 15–16 位十进制有效数字。0.1 在二进制里是无限循环小数，只能存一个近似值。</p>
+<codeblock lang="C11" file="float_cmp.c">
+#include <stdio.h>
+#include <math.h>
+
+int main(void)
+{
+    double a = 0.1 + 0.2;
+    printf("%.17f\n", a);              /* 0.30000000000000004 */
+    printf("a == 0.3 ? %d\n", a == 0.3);
+
+    double eps = 1e-9;
+    printf("close enough ? %d\n", fabs(a - 0.3) < eps);
+    return 0;
+}
+</codeblock>
+<outblock>
+0.30000000000000004
+a == 0.3 ? 0
+close enough ? 1
+</outblock>
+<ul>
+<li>比较浮点数要用“误差小于容差”，而不是 <code class="i">==</code>。容差取多大取决于量级：金额用分（整数）存，比用 <code class="i">double</code> 存元更稳。</li>
+<li><code class="i">float</code> 的有效数字少，累加几千次以后误差会明显。需要高精度累加时用 <code class="i">double</code>，或者 Kahan 求和。</li>
+<li><code class="i">NaN != NaN</code> 永远为真。判断 NaN 用 <code class="i">isnan()</code>，不要用 <code class="i">x == x</code> 之外的写法。</li>
+</ul>
+
+<h3><span class="n">2.5</span>常量与字面量</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>写法</th><th>含义</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>42</code></td><td>十进制 int</td><td>超过 int 范围时类型会提升为 long / long long。</td></tr>
+<tr><td><code>0x2A</code></td><td>十六进制</td><td>调试寄存器、协议字段时最常用。</td></tr>
+<tr><td><code>0b101010</code></td><td>二进制</td><td>C23 才进入标准；GCC/Clang 早就作为扩展支持。</td></tr>
+<tr><td><code>052</code></td><td>八进制 42</td><td>前导 0 是八进制！<code>010</code> 是 8 不是 10。</td></tr>
+<tr><td><code>42U</code> / <code>42L</code> / <code>42ULL</code></td><td>指定无符号 / long / unsigned long long</td><td>移位和掩码时经常必须加。</td></tr>
+<tr><td><code>3.14</code> / <code>3.14f</code></td><td>double / float</td><td>不加 f 的浮点字面量是 double。</td></tr>
+<tr><td><code>'A'</code> / <code>'\n'</code></td><td>字符常量，类型是 int</td><td>在 C 里 <code>'A'</code> 的类型是 int，不是 char。</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>不要写“魔法数字”。给常量起名字，并用 <code class="i">const</code> 或 <code class="i">enum</code> 表达意图：<code class="i">const int MAX_USERS = 64;</code> 比在十个地方写 <code class="i">64</code> 更容易维护。注意 <code class="i">const</code> 变量在 C 里默认是外部链接，放在头文件里定义会重复定义，正确做法是头文件写 <code class="i">extern const int MAX_USERS;</code>，某个 .c 里定义。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 2 讲</div>
+<div class="pb">
+<ol>
+<li>用 <code class="i">sizeof</code> 打印你机器上各类型的大小，和表里的值对比。</li>
+<li>把 <code class="i">unsigned char c = 255; c = c + 1;</code> 打印出来，解释结果。</li>
+<li>写一个程序，输入两个 <code class="i">int</code>，输出它们的和，并在相加前判断是否会溢出。</li>
+<li>解释 <code class="i">float f = 16777217;</code> 存进去再打印，为什么得到 16777216。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 结果是 0。运算时 <code class="i">c</code> 先被提升为 <code class="i">int</code>，255+1=256，赋值回 <code class="i">unsigned char</code> 时按 256 取模，得 0。注意“提升”发生在运算中，“截断”发生在赋值时。</p>
+<p><b>3.</b> 用第 2.3 节的 <code class="i">add_checked</code> 思路：先判断 <code class="i">b &gt; 0 &amp;&amp; a &gt; INT_MAX - b</code> 或 <code class="i">b &lt; 0 &amp;&amp; a &lt; INT_MIN - b</code>。</p>
+<p><b>4.</b> <code class="i">float</code> 只有 24 位有效位，能精确表示的最大连续整数是 2<sup>24</sup>=16777216。16777217 需要 25 位，只能舍入到最近的偶整数 16777216。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">unsigned char c = 250; c += 10;</code> 之后 <code class="i">c</code> 的值是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>260</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>-6</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>4</span></button>
+</div>
+<div class="fb" data-fb>无符号运算按 2<sup>8</sup>=256 取模：260 mod 256 = 4。如果 <code class="i">c</code> 是 <code class="i">signed char</code>，260 超出范围，赋值时的转换结果由实现定义（常见是 -6），同样不该依赖。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>类型决定宽度和解释方式；<code class="i">sizeof</code> 是唯一可靠的测量手段。</li>
+<li>无符号溢出按模回绕；有符号溢出是未定义行为，必须在运算前检查。</li>
+<li>浮点数是近似值，比较要用容差；金额优先用整数最小单位存储。</li>
+<li>注意八进制前导 0、<code class="i">U/L</code> 后缀和 <code class="i">size_t</code> 的格式符。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出 int / unsigned / long long 的典型范围</li>
+<li>我能解释补码和回绕</li>
+<li>我知道为什么不能用 == 比较浮点数</li>
+</ul>
+</div>

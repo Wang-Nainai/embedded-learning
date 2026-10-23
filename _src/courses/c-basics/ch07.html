@@ -1,0 +1,233 @@
+<h3><span class="n">7.1</span>内存是带编号的格子</h3>
+<p>把内存想成一排格子，每个格子 1 字节，每个格子有一个编号，这个编号就是<strong>地址</strong>。一个 <code class="i">int</code> 占 4 个格子，它的地址是第一个格子的编号。</p>
+<p><strong>指针就是一个变量，里面存的不是普通数值，而是地址。</strong>所以指针有两层信息：它自己住在哪（<code class="i">&amp;p</code>），它指向哪（<code class="i">p</code>）。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 260" role="img" aria-labelledby="fig7t fig7d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig7t">变量、指针与地址的关系</title>
+<desc id="fig7d">变量 a 位于地址 0x1000，值为 42；指针 p 位于地址 0x2000，里面存着 0x1000；对 p 解引用就得到 a 的值 42。</desc>
+<rect width="820" height="260" fill="#fbfdff"/>
+<text x="30" y="30" font-size="13" font-weight="700" fill="#334155">int a = 42;　int *p = &amp;a;</text>
+
+<rect x="50" y="62" width="250" height="96" rx="10" fill="#eef2ff" stroke="#a5b4fc"/>
+<text x="66" y="84" font-size="12" fill="#475569">地址 0x1000　变量 a</text>
+<text x="175" y="126" font-size="30" font-weight="800" fill="#26348f" text-anchor="middle">42</text>
+<text x="66" y="148" font-size="11.5" fill="#64748b">4 字节：2A 00 00 00（小端）</text>
+
+<rect x="50" y="186" width="250" height="56" rx="10" fill="#ecfdf5" stroke="#6ee7b7"/>
+<text x="66" y="208" font-size="12" fill="#065f46">地址 0x2000　指针 p</text>
+<text x="175" y="232" font-size="16" font-weight="800" fill="#065f46" text-anchor="middle">0x1000</text>
+
+<path d="M310 214 C 380 214, 360 110, 306 110" fill="none" stroke="#0f766e" stroke-width="2" marker-end="url(#a7)"/>
+<defs><marker id="a7" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#0f766e"/></marker></defs>
+<text x="352" y="166" font-size="12" fill="#0f766e" font-weight="700">p 指向 a</text>
+
+<rect x="480" y="62" width="310" height="180" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="496" y="84" font-size="12.5" font-weight="700" fill="#334155">三个表达式，三种含义</text>
+<text x="496" y="110" font-size="12.5" fill="#1e293b">a　　→ 42（变量的值）</text>
+<text x="496" y="136" font-size="12.5" fill="#1e293b">&amp;a　 → 0x1000（a 的地址）</text>
+<text x="496" y="162" font-size="12.5" fill="#1e293b">p　　→ 0x1000（p 里存的地址）</text>
+<text x="496" y="188" font-size="12.5" fill="#1e293b">*p　 → 42（顺着地址取到的值）</text>
+<text x="496" y="214" font-size="12.5" fill="#1e293b">&amp;p　 → 0x2000（指针自己的地址）</text>
+</svg>
+<figcaption>指针存的是地址；解引用是“顺着地址去取那个对象”。</figcaption>
+</figure>
+
+<h3><span class="n">7.2</span>取地址与解引用</h3>
+<codeblock lang="C11" file="ptr_basic.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int a = 42;
+    int *p = &a;          /* p 保存 a 的地址 */
+
+    printf("a   = %d\n", a);
+    printf("&a  = %p\n", (void *)&a);
+    printf("p   = %p\n", (void *)p);
+    printf("*p  = %d\n", *p);
+
+    *p = 100;             /* 通过指针改写 a */
+    printf("a   = %d\n", a);
+    return 0;
+}
+</codeblock>
+<outblock>
+a   = 42
+&a  = 000000B6F4BFFC24
+p   = 000000B6F4BFFC24
+*p  = 42
+a   = 100
+</outblock>
+<p>地址的具体数值每次运行都可能不同（地址空间布局随机化），所以不要把它写死在代码里，也不要比较两个不相关对象的地址大小。</p>
+<div class="note law">
+<b>标准怎么说</b>
+<p><code class="i">%p</code> 要求参数是 <code class="i">void *</code>，所以打印其他类型的指针要先转换。把 <code class="i">int *</code> 直接传给 <code class="i">%p</code> 在可变参数函数里属于类型不匹配，严格说是未定义行为，虽然大多数平台“碰巧能用”。</p>
+</div>
+
+<h3><span class="n">7.3</span>指针类型为什么重要</h3>
+<p>既然地址都是一个整数，为什么还要区分 <code class="i">int *</code> 和 <code class="i">char *</code>？因为类型决定了两件事：<strong>解引用时读几个字节</strong>，以及<strong>指针加 1 时前进几个字节</strong>。</p>
+<codeblock lang="C11" file="ptr_type.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int a[3] = {10, 20, 30};
+    int *pi = a;
+    char *pc = (char *)a;       /* 强制转换：现在按字节看同一块内存 */
+
+    printf("pi     = %p, pi+1   = %p\n", (void *)pi, (void *)(pi + 1));
+    printf("pc     = %p, pc+1   = %p\n", (void *)pc, (void *)(pc + 1));
+    printf("*pi    = %d\n", *pi);
+    printf("*pc    = %d（只读第一个字节）\n", *pc);
+    return 0;
+}
+</codeblock>
+<outblock>
+pi     = 0000007A1F9FF8E0, pi+1   = 0000007A1F9FF8E4
+pc     = 0000007A1F9FF8E0, pc+1   = 0000007A1F9FF8E1
+*pi    = 10
+*pc    = 10（只读第一个字节）
+</outblock>
+<p><code class="i">pi + 1</code> 前进了 4 字节（一个 <code class="i">int</code>），<code class="i">pc + 1</code> 前进了 1 字节。<strong>指针算术的单位是“元素”，不是“字节”</strong>。</p>
+
+<div class="lab" id="lab-ptr">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>让指针在数组上走一遍</h4>
+    <p>数组 <code class="i">int a[5] = {10,20,30,40,50}</code>，指针 <code class="i">p</code> 从 <code class="i">a</code> 开始。观察 <code class="i">p</code> 的地址、<code class="i">*p</code> 的值，以及越界后会发生什么。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn" type="button" id="ptrPrev">p--</button>
+      <button class="lab-btn pri" type="button" id="ptrNext">p++</button>
+      <button class="lab-btn" type="button" id="ptrReset">p = a</button>
+    </div>
+    <div class="lab-canvas" id="ptrCanvas"></div>
+    <div class="lab-read" id="ptrOut" aria-live="polite"></div>
+    <p class="lab-note">C 只保证“指向同一数组（或末尾后一个位置）的指针可以比较和相减”。走出这个范围再解引用就是未定义行为。</p>
+  </div>
+</div>
+
+<h3><span class="n">7.4</span>指针运算的合法边界</h3>
+<p>指针可以加、减整数，也可以两个同类型指针相减。但这一切只在<strong>同一个数组（或紧邻末尾的后一个位置）</strong>内有定义。</p>
+<codeblock lang="C11" file="ptr_arith.c · 片段">
+int a[5] = {1, 2, 3, 4, 5};
+int *p = a;
+int *q = a + 5;          /* 指向末尾后一个位置：合法，可以比较，不能解引用 */
+
+ptrdiff_t n = q - p;     /* 5：两个指针之间隔了 5 个元素 */
+int last = *(q - 1);     /* 5：合法，q-1 指向 a[4] */
+
+/* 下面这些都没有定义 */
+int x = *(a + 5);        /* 越界解引用 */
+int y = *(a - 1);        /* 越界解引用 */
+if (a < &some_other_var) /* 不相关对象的地址比较没有意义 */
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>遍历数组时，用下标 <code class="i">a[i]</code> 通常比裸指针更容易读；只有在需要“滑动窗口”“解析缓冲区”时才用指针。无论哪种写法，都要显式保存长度，并在每次移动后检查边界。</p>
+</div>
+
+<h3><span class="n">7.5</span>三种“坏指针”</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>名字</th><th>怎么来的</th><th>后果</th><th>怎么防</th></tr></thead>
+<tbody>
+<tr><td>空指针</td><td><code>int *p = NULL;</code></td><td>解引用直接崩溃（多数平台）</td><td>解引用前判断 <code>p != NULL</code></td></tr>
+<tr><td>野指针</td><td><code>int *p;</code> 未初始化</td><td>指向随机地址，行为不可预测</td><td>定义时就初始化：<code>int *p = NULL;</code></td></tr>
+<tr><td>悬空指针</td><td>指向已 <code>free</code> 的内存，或已返回的局部变量</td><td>读写已释放内存，可能“看起来正常”</td><td>释放后立刻置 <code>NULL</code>；明确所有权</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="dangling.c">
+#include <stdlib.h>
+
+int *make(void)
+{
+    int *p = malloc(sizeof *p);
+    if (p != NULL) {
+        *p = 7;
+    }
+    return p;               /* 合法：堆内存活到 free 为止 */
+}
+
+int main(void)
+{
+    int *p = make();
+    if (p == NULL) {
+        return 1;
+    }
+    free(p);
+    p = NULL;               /* 防止后续误用 */
+    /* free(p);  再来一次是双重释放：未定义行为 */
+    return 0;
+}
+</codeblock>
+
+<h3><span class="n">7.6</span>const 与指针：三种组合</h3>
+<codeblock lang="C11" file="const_ptr.c · 片段">
+int value = 1;
+int other = 2;
+
+/* 1. 指向常量的指针：不能通过 p 改值，但 p 可以换指向 */
+const int *p1 = &value;
+/* *p1 = 10;   错误 */
+p1 = &other;   /* 正确 */
+
+/* 2. 常量指针：p 不能换指向，但可以通过 p 改值 */
+int *const p2 = &value;
+*p2 = 10;      /* 正确 */
+/* p2 = &other; 错误 */
+
+/* 3. 两者都不能改 */
+const int *const p3 = &value;
+</codeblock>
+<p>读法：从变量名往右读，<code class="i">const</code> 修饰它左边的东西；如果 <code class="i">const</code> 在最左边，就修饰 <code class="i">*</code> 指向的对象。<strong>函数参数里写 <code class="i">const char *s</code> 是在承诺“我不会改你的字符串”</strong>，这是 C 里最重要的接口约定之一。</p>
+<div class="note bad">
+<b>易错</b>
+<p><code class="i">const</code> 只约束“通过这个指针不能改”，不保证对象真的在只读内存里。别人手里可能还有一个非 const 指针指向同一块内存。第 2 册会专门讲 <code class="i">const</code> 与 Flash 的关系，不要提前把它当成“一定放进 ROM”。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 7 讲</div>
+<div class="pb">
+<ol>
+<li>写 <code class="i">void swap(int *a, int *b)</code>，并解释为什么参数是指针。</li>
+<li>用指针遍历 <code class="i">int a[6]</code>，输出所有元素和它们的地址。</li>
+<li>解释 <code class="i">int *p = a + 5;</code> 对 <code class="i">int a[5]</code> 是否合法，能不能 <code class="i">*p</code>。</li>
+<li>下面两行分别能不能编译？为什么？<br><code class="i">const int *p = &amp;x; *p = 1;</code><br><code class="i">int *const q = &amp;x; *q = 1;</code></li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 因为 C 只有值传递，传指针才能让函数拿到调用者的内存地址，从而改写原变量。</p>
+<p><b>2.</b> <code class="i">for (int *p = a; p &lt; a + 6; p++) printf("%d %p\n", *p, (void *)p);</code>。用“尾后指针”做上界是常见写法。</p>
+<p><b>3.</b> 合法，它指向最后一个元素的下一个位置，可以用于比较和作为循环终点，但<strong>不能解引用</strong>。</p>
+<p><b>4.</b> 第一行第二句编译失败（不能通过指向常量的指针改值）；第二行合法（指针本身是常量，但指向的值可改）。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">int a[5]; int *p = a; p + 1</code> 比 <code class="i">p</code> 大多少字节？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>1 字节</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>4 字节（一个 int）</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>8 字节（一个指针）</span></button>
+</div>
+<div class="fb" data-fb>指针算术以“所指类型的大小”为单位。<code class="i">int</code> 在主流平台是 4 字节，所以 <code class="i">p+1</code> 前进 4 字节，正好指向 <code class="i">a[1]</code>。若 <code class="i">p</code> 是 <code class="i">char *</code>，才前进 1 字节。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>指针存地址；<code class="i">&amp;</code> 取地址，<code class="i">*</code> 顺着地址取对象。</li>
+<li>指针类型决定解引用宽度和步长。</li>
+<li>指针算术只在同一数组内有定义，尾后位置可比较但不可解引用。</li>
+<li>空指针、野指针、悬空指针是三类最常见的事故源。</li>
+<li><code class="i">const int *</code> 与 <code class="i">int *const</code> 约束的东西不同。</li>
+</ul>
+<ul class="checklist">
+<li>我能说出 <code class="i">a</code>、<code class="i">&amp;a</code>、<code class="i">p</code>、<code class="i">*p</code>、<code class="i">&amp;p</code> 的区别</li>
+<li>我知道 <code class="i">p+1</code> 走多少字节由类型决定</li>
+<li>我会在 free 之后把指针置空</li>
+</ul>
+</div>

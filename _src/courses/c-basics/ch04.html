@@ -1,0 +1,231 @@
+<h3><span class="n">4.1</span>if 的本质：只关心“是不是 0”</h3>
+<p>C 没有真正的布尔类型（C99 的 <code class="i">_Bool</code> 是后来补的）。条件表达式的规则只有一条：<strong>结果为 0 就是假，非 0 就是真</strong>。所以 <code class="i">if (1)</code>、<code class="i">if (42)</code>、<code class="i">if ('a')</code> 都成立。</p>
+<codeblock lang="C11" file="grade.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int score = 0;
+    if (scanf("%d", &score) != 1) {      /* scanf 返回成功读入的项数 */
+        printf("输入不是整数\n");
+        return 1;
+    }
+
+    if (score >= 90) {
+        printf("A\n");
+    } else if (score >= 80) {
+        printf("B\n");
+    } else if (score >= 60) {
+        printf("C\n");
+    } else {
+        printf("D\n");
+    }
+    return 0;
+}
+</codeblock>
+<outblock label="输入 85 时的输出">
+B
+</outblock>
+<div class="note bad">
+<b>易错</b>
+<p><strong>悬空 else</strong>：<code class="i">else</code> 总是和最近的、尚未配对的 <code class="i">if</code> 结合。下面这段代码的本意是“x 大于 0 且 y 大于 0 才打印”，实际却变成了“x 大于 0 时，如果 y 不大于 0 就打印”。加花括号是唯一可靠的解决办法。</p>
+<codeblock lang="C11" file="dangling_else.c · 片段">
+if (x > 0)
+    if (y > 0)
+        printf("both positive\n");
+else
+    printf("x <= 0\n");     /* 这个 else 属于内层 if！ */
+</codeblock>
+</div>
+
+<h3><span class="n">4.2</span>switch：适合“一个值，多种情况”</h3>
+<p><code class="i">switch</code> 的括号里必须是整数类型（包括 <code class="i">char</code>、枚举），<code class="i">case</code> 后面必须是编译期常量。它比一长串 <code class="i">else if</code> 更清楚，也更容易让编译器生成跳转表。</p>
+<codeblock lang="C11" file="menu.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int cmd = 2;
+    switch (cmd) {
+    case 1:
+        printf("read\n");
+        break;
+    case 2:
+    case 3:                  /* 2 和 3 共用一段处理：故意穿透 */
+        printf("write\n");
+        break;
+    default:
+        printf("unknown\n");
+        break;
+    }
+    return 0;
+}
+</codeblock>
+<outblock>
+write
+</outblock>
+<ul>
+<li><strong>穿透（fallthrough）</strong>是特性不是 bug：没有 <code class="i">break</code> 就会继续执行下一个 <code class="i">case</code>。共用逻辑时刻意利用它，其他情况一定写 <code class="i">break</code>。</li>
+<li><code class="i">default</code> 不是必需的，但建议写。它能让“漏了某种情况”变得可见。</li>
+<li>在 <code class="i">case</code> 里定义变量要加花括号，否则可能跳过初始化，编译器会报 <code class="i">jump to case label crosses initialization</code>。</li>
+</ul>
+
+<h3><span class="n">4.3</span>三种循环，各有各的场合</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>写法</th><th>什么时候用</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>for (初始化; 条件; 步进)</code></td><td>次数已知，或有一目了然的计数器</td><td>三段都可省略，但别写出 <code>for(;;)</code> 却忘了 <code>break</code></td></tr>
+<tr><td><code>while (条件)</code></td><td>次数未知，先判断再执行</td><td>循环体可能一次都不执行</td></tr>
+<tr><td><code>do { } while (条件);</code></td><td>至少执行一次，例如“先读一次再判断”</td><td>注意结尾的分号</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="loops.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int sum = 0;
+    for (int i = 0; i < 5; i++) {
+        sum += i;
+    }
+    printf("sum=%d\n", sum);       /* 0+1+2+3+4 = 10 */
+
+    int n = 0;
+    while (n < 3) {
+        printf("while %d\n", n);
+        n++;
+    }
+
+    int tries = 0;
+    do {
+        printf("do-while %d\n", tries);
+        tries++;
+    } while (tries < 2);
+
+    return 0;
+}
+</codeblock>
+<outblock>
+sum=10
+while 0
+while 1
+while 2
+do-while 0
+do-while 1
+</outblock>
+
+<div class="lab" id="lab-loop">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>for 循环到底执行了几次</h4>
+    <p>把循环拆成“初始化 → 判断 → 循环体 → 步进”四步，单步走一遍。重点看条件在什么时候变成假。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>上界 n <input id="loopN" type="number" value="5" min="0" max="9"></label>
+      <button class="lab-btn pri" type="button" id="loopStep">单步</button>
+      <button class="lab-btn" type="button" id="loopRun">跑完</button>
+      <button class="lab-btn" type="button" id="loopReset">重置</button>
+    </div>
+    <div class="lab-read" id="loopOut" aria-live="polite"></div>
+    <p class="lab-note">循环执行 n 次，但条件判断执行了 n+1 次——最后一次判断为假，循环才结束。</p>
+  </div>
+</div>
+
+<h3><span class="n">4.4</span>break、continue 与 goto</h3>
+<ul>
+<li><code class="i">break</code>：立刻跳出<strong>最内层</strong>的 switch 或循环。</li>
+<li><code class="i">continue</code>：跳过本次循环剩余部分，直接进入下一次的条件判断（<code class="i">for</code> 会先执行步进）。</li>
+<li><code class="i">goto</code>：无条件跳转（可以向前也可以向后）。现代代码里几乎只有一个合理用途——从多层嵌套中统一跳到错误处理标签。</li>
+</ul>
+<codeblock lang="C11" file="goto_cleanup.c · 片段（错误处理骨架）">
+#include <stdlib.h>
+
+int work(void)
+{
+    int ret = -1;
+    char *buf = malloc(256);
+    if (buf == NULL) {
+        goto out;                 /* 没分配成功，直接返回 */
+    }
+    if (init_device() != 0) {
+        goto out_free;
+    }
+    ret = 0;
+out_free:
+    free(buf);
+out:
+    return ret;
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>这种“单入口、单出口、集中清理”的写法在 C 项目里很常见（Linux 内核大量使用）。它比在每个失败分支里重复 <code class="i">free</code> 更不容易漏。但不要用 <code class="i">goto</code> 往回跳，那会把控制流变成一团乱麻。</p>
+</div>
+
+<h3><span class="n">4.5</span>边界：循环最容易错的地方</h3>
+<codeblock lang="C11" file="bounds.c · 片段">
+/* 错误 1：多跑一次，访问 data[10] 越界 */
+for (int i = 0; i <= 10; i++) { sum += data[i]; }
+
+/* 错误 2：少跑一次，最后一个元素没处理 */
+for (int i = 0; i < 10 - 1; i++) { sum += data[i]; }
+
+/* 错误 3：无符号倒序，i >= 0 永远成立 */
+for (unsigned int i = 10; i >= 0; i--) { }
+
+/* 错误 4：浮点计数器累积误差 */
+for (double d = 0.0; d != 1.0; d += 0.1) { }   /* 可能永远不结束 */
+
+/* 正确：用整数计数，用 < 上界 */
+for (int i = 0; i < 10; i++) { sum += data[i]; }
+</codeblock>
+<div class="note good">
+<b>正确做法</b>
+<p>写循环前先问三个问题：<strong>第一次</strong>处理哪个元素？<strong>最后一次</strong>处理哪个？<strong>空集合</strong>时会不会出错？把这三个边界想清楚，比事后调试快得多。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 4 讲</div>
+<div class="pb">
+<ol>
+<li>写程序打印 1–100 中所有能被 3 或 5 整除的数，每行 5 个。</li>
+<li>用 <code class="i">switch</code> 实现一个简单计算器：输入两个数和运算符，输出结果，处理除零。</li>
+<li>下面的循环输出什么？<code class="i">for (int i = 0; i &lt; 5; i++) { if (i == 2) continue; printf("%d", i); }</code></li>
+<li>把 4.5 节的四个错误逐一改对，并说明每个错误的后果。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 用 <code class="i">for (int i = 1; i &lt;= 100; i++)</code> 判断 <code class="i">i % 3 == 0 || i % 5 == 0</code>，用一个计数器控制每输出 5 个换行。</p>
+<p><b>2.</b> 注意 <code class="i">switch</code> 只能对整数做分支，所以先读运算符字符，再在 <code class="i">case '+'</code> 里计算；除法前判断除数是否为 0。</p>
+<p><b>3.</b> 输出 <code class="i">0134</code>。<code class="i">continue</code> 跳过了 <code class="i">printf</code>，但 <code class="i">i++</code> 仍会执行。</p>
+<p><b>4.</b> 错误 1 越界读；错误 2 漏掉最后一个元素；错误 3 无符号回绕导致死循环；错误 4 浮点误差导致条件永远不精确成立，应改成整数计数或 <code class="i">d &lt; 1.0</code> 加容差。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">for (int i = 0; i &lt; 3; i++)</code> 的循环体执行几次？条件判断几次？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>3 次，3 次</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>3 次，4 次</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>4 次，4 次</span></button>
+</div>
+<div class="fb" data-fb>i=0、1、2 时条件成立，各执行一次循环体；i=3 时条件为假，循环结束。所以循环体 3 次，条件判断 4 次。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>条件只看“是不是 0”，不要依赖非 0 的具体值。</li>
+<li><code class="i">switch</code> 的穿透要显式控制，每个 <code class="i">case</code> 想清楚要不要 <code class="i">break</code>。</li>
+<li>循环选型看“次数是否已知、是否至少执行一次”。</li>
+<li>边界错误是循环的头号 bug，先想清楚首项、末项和空集合。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出没有悬空 else 的分支</li>
+<li>我知道 <code class="i">continue</code> 在 for 和 while 里的差异</li>
+<li>我不会用浮点数做循环计数器</li>
+</ul>
+</div>

@@ -1,0 +1,241 @@
+<h3><span class="n">7.1</span>指针复习：这次关注“指向什么”</h3>
+<p>第 1 册讲过：指针存地址，类型决定步长和解引用宽度。到了嵌入式，指针多了一个新任务——<strong>指向代码</strong>。函数在内存里也有地址，也可以被指针指向。</p>
+<codeblock lang="C11" file="func_ptr_basic.c">
+#include <stdio.h>
+
+int add(int a, int b) { return a + b; }
+int sub(int a, int b) { return a - b; }
+
+int main(void)
+{
+    int (*op)(int, int) = add;     /* 函数指针：参数和返回值必须匹配 */
+    printf("%d\n", op(3, 4));      /* 7 */
+
+    op = sub;                      /* 指向另一个函数 */
+    printf("%d\n", op(3, 4));      /* -1 */
+
+    printf("%d\n", (*op)(3, 4));   /* 也可以显式解引用，等价 */
+    return 0;
+}
+</codeblock>
+<outblock>
+7
+-1
+-1
+</outblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>函数名在表达式中会转换成“指向函数的指针”（除 <code class="i">sizeof</code> 和 <code class="i">&amp;</code> 外）。所以 <code class="i">op = add</code> 和 <code class="i">op = &amp;add</code> 等价，<code class="i">op(3,4)</code> 和 <code class="i">(*op)(3,4)</code> 也等价。两种写法都对，选一种统一即可。</p>
+</div>
+
+<h3><span class="n">7.2</span>typedef 是函数指针的救命稻草</h3>
+<codeblock lang="C11" file="callback.h">
+#ifndef CALLBACK_H
+#define CALLBACK_H
+
+#include <stdint.h>
+
+/* 事件类型 */
+typedef enum {
+    UART_EV_RX_READY,
+    UART_EV_TX_DONE,
+    UART_EV_ERROR
+} uart_event_t;
+
+/* 回调签名：事件 + 用户上下文指针 */
+typedef void (*uart_cb_t)(uart_event_t ev, void *ctx);
+
+typedef struct {
+    uart_cb_t on_event;
+    void     *ctx;
+} uart_listener_t;
+
+void uart_subscribe(uart_listener_t *l);
+
+#endif
+</codeblock>
+<codeblock lang="C11" file="callback.c">
+#include "callback.h"
+
+static uart_listener_t *g_listener;
+
+void uart_subscribe(uart_listener_t *l)
+{
+    g_listener = l;
+}
+
+/* 中断或驱动内部调用 */
+static void uart_emit(uart_event_t ev)
+{
+    if (g_listener != NULL && g_listener->on_event != NULL) {
+        g_listener->on_event(ev, g_listener->ctx);
+    }
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p><code class="i">void *ctx</code> 是回调设计的标准套路：它让同一个回调函数可以服务多个实例。回调里第一件事通常是把 <code class="i">ctx</code> 转回具体类型：<code class="i">my_dev_t *dev = ctx;</code>。没有它，你就得为每个实例写一个回调。</p>
+</div>
+
+<h3><span class="n">7.3</span>函数指针表：把 if-else 变成查表</h3>
+<codeblock lang="C11" file="cmd_table.c">
+#include <stdio.h>
+#include <string.h>
+
+typedef int (*cmd_fn)(int argc, char **argv);
+
+static int cmd_help(int argc, char **argv) { (void)argc; (void)argv; printf("help\n"); return 0; }
+static int cmd_reset(int argc, char **argv) { (void)argc; (void)argv; printf("reset\n"); return 0; }
+
+typedef struct {
+    const char *name;
+    cmd_fn      fn;
+    const char *help;
+} command_t;
+
+static const command_t g_cmds[] = {
+    {"help",  cmd_help,  "显示帮助"},
+    {"reset", cmd_reset, "重启设备"},
+};
+
+int main(void)
+{
+    const char *input = "reset";
+    for (size_t i = 0; i < sizeof g_cmds / sizeof g_cmds[0]; i++) {
+        if (strcmp(input, g_cmds[i].name) == 0) {
+            return g_cmds[i].fn(0, NULL);
+        }
+    }
+    printf("unknown command\n");
+    return 1;
+}
+</codeblock>
+<outblock>
+reset
+</outblock>
+<p>命令表的三个好处：新增命令只加一行、不会忘记更新分支、可以自动生成帮助信息。<strong>代价</strong>是每个命令都要有相同的签名，参数解析要统一。</p>
+
+<h3><span class="n">7.4</span>不透明指针：把实现藏起来</h3>
+<codeblock lang="C11" file="sensor.h">
+#ifndef SENSOR_H
+#define SENSOR_H
+
+#include <stdint.h>
+
+/* 只声明，不定义：调用者无法知道结构体里有什么 */
+typedef struct sensor sensor_t;
+
+sensor_t *sensor_create(uint8_t bus, uint8_t addr);
+void      sensor_destroy(sensor_t *s);
+int       sensor_read(sensor_t *s, int32_t *out);
+
+#endif
+</codeblock>
+<codeblock lang="C11" file="sensor.c">
+#include "sensor.h"
+#include <stdlib.h>
+
+struct sensor {
+    uint8_t bus;
+    uint8_t addr;
+    int32_t last;
+};
+
+sensor_t *sensor_create(uint8_t bus, uint8_t addr)
+{
+    sensor_t *s = malloc(sizeof *s);
+    if (s == NULL) {
+        return NULL;
+    }
+    s->bus = bus;
+    s->addr = addr;
+    s->last = 0;
+    return s;
+}
+
+void sensor_destroy(sensor_t *s) { free(s); }
+
+int sensor_read(sensor_t *s, int32_t *out)
+{
+    if (s == NULL || out == NULL) {
+        return -1;
+    }
+    *out = s->last;      /* 真实实现会去读硬件 */
+    return 0;
+}
+</codeblock>
+<p>这种设计叫<strong>不透明指针</strong>（opaque pointer）。调用者只能通过 <code class="i">sensor_*</code> 函数操作对象，无法直接改字段。好处是：实现可以随时改，ABI 稳定；坏处是多了一次堆分配，且调用者必须记得 <code class="i">destroy</code>。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>资源受限时，可以用“静态对象池 + 句柄”替代 <code class="i">malloc</code>：<code class="i">sensor_create</code> 从固定数组里取一个槽位，返回索引或指针。这样既有封装，又不依赖堆。</p>
+</div>
+
+<h3><span class="n">7.5</span>签名不匹配：编译器不一定救你</h3>
+<codeblock lang="C11" file="wrong_cb.c · 片段">
+void my_cb(int code);                 /* 只有一个参数 */
+
+/* 期望 void (*)(uart_event_t, void *) */
+uart_listener_t l = { (uart_cb_t)my_cb, NULL };   /* 强制转换：编译器闭嘴了 */
+</codeblock>
+<p>强制转换函数指针可以绕过类型检查，但调用时的参数传递方式由真实签名决定。参数个数或类型不一致，行为未定义——在 x86 上可能“碰巧能跑”，在 ARM 上可能直接跑飞。</p>
+<div class="note bad">
+<b>易错</b>
+<p>不要把函数指针转成 <code class="i">void *</code> 再转回来。ISO C 不保证函数指针能放进对象指针；POSIX 才要求两者大小相同。需要泛型回调时，用 <code class="i">void (*)(void *)</code> 这种明确的签名，而不是硬转。</p>
+</div>
+
+<h3><span class="n">7.6</span>回调的三个工程问题</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>问题</th><th>场景</th><th>对策</th></tr></thead>
+<tbody>
+<tr><td>悬空回调</td><td>注册回调的对象已销毁，驱动仍持有函数指针</td><td>销毁前注销；驱动侧保存 <code>ctx</code> 并校验有效性</td></tr>
+<tr><td>上下文错误</td><td>在中断里调用会阻塞的回调</td><td>文档写明回调运行在哪个上下文；中断里只置标志</td></tr>
+<tr><td>重入</td><td>回调里又调用了会触发同一回调的 API</td><td>明确是否可重入；必要时加状态标志或队列</td></tr>
+</tbody>
+</table>
+</div>
+<p>这三条比语法更重要。函数指针本身很简单，难的是<strong>约定</strong>：谁在什么上下文、什么时候调用、能不能阻塞、对象活多久。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 7 讲</div>
+<div class="pb">
+<ol>
+<li>写一个 <code class="i">typedef</code>，表示“接受两个 int、返回 int”的函数指针，并用它实现加减乘除四则运算表。</li>
+<li>给回调加上 <code class="i">ctx</code> 参数，让同一个回调服务两个不同的设备实例。</li>
+<li>解释不透明指针为什么能让 ABI 更稳定。</li>
+<li>为什么中断上下文里不应该调用可能阻塞的回调？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">typedef int (*binop)(int, int);</code>，然后 <code class="i">static const struct { const char *name; binop fn; } table[] = {...};</code>。</p>
+<p><b>2.</b> 回调签名加 <code class="i">void *ctx</code>，注册时把设备指针存进 <code class="i">listener.ctx</code>，回调内部转回具体类型。</p>
+<p><b>3.</b> 调用者只依赖函数签名，不依赖结构体大小和布局；实现内部增删字段不会导致调用者重新编译。</p>
+<p><b>4.</b> 中断上下文不能被阻塞，也不能等待调度；阻塞会导致中断响应延迟，甚至死锁。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">int (*op)(int, int)</code> 中，<code class="i">op</code> 是什么？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>一个返回 int 的函数</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>一个指向“接受两个 int、返回 int 的函数”的指针</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>一个接受两个 int 指针的函数</span></button>
+</div>
+<div class="fb" data-fb>读法是“从名字往外读”：<code class="i">(*op)</code> 说明 op 是指针，右边 <code class="i">(int,int)</code> 是参数，左边 <code class="i">int</code> 是返回类型。用 <code class="i">typedef int (*binop)(int,int);</code> 会清楚得多。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>函数指针让 C 能在运行时选择行为：回调、命令表、状态机表。</li>
+<li><code>typedef</code> 能显著提高可读性。</li>
+<li>回调要带 <code>void *ctx</code>，并明确上下文与生命周期。</li>
+<li>不透明指针隐藏实现、稳定 ABI，代价是分配与销毁。</li>
+<li>签名不匹配的强制转换是未定义行为，别做。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出函数指针的 typedef</li>
+<li>我能用命令表替代长 switch</li>
+<li>我知道回调的三个工程风险</li>
+</ul>
+</div>

@@ -1,0 +1,145 @@
+<h3><span class="n">3.1</span>IP 地址 = 网络号 + 主机号</h3>
+<p>IPv4 地址 32 位，写成四段十进制（<code class="i">192.168.1.10</code>）。它由两部分组成：<strong>网络号</strong>（在哪个网络）和<strong>主机号</strong>（网络里的哪台设备）。分界线由<strong>子网掩码</strong>决定。</p>
+<codeblock lang="text" file="一个 /24 的例子">
+IP     192.168.1.10    11000000 10101000 00000001 00001010
+掩码   255.255.255.0   11111111 11111111 11111111 00000000
+网络号 192.168.1.0     前 24 位相同
+广播   192.168.1.255   主机号全 1
+可用   192.168.1.1 – 192.168.1.254
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>地址段</th><th>用途</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>10.0.0.0/8</td><td>私有</td><td>企业内网，可用地址最多</td></tr>
+<tr><td>172.16.0.0/12</td><td>私有</td><td>172.16–172.31</td></tr>
+<tr><td>192.168.0.0/16</td><td>私有</td><td>家庭/小型办公最常见</td></tr>
+<tr><td>127.0.0.0/8</td><td>回环</td><td>127.0.0.1 指本机</td></tr>
+<tr><td>169.254.0.0/16</td><td>链路本地</td><td>DHCP 失败时自动配置</td></tr>
+<tr><td>224.0.0.0/4</td><td>组播</td><td>视频、路由协议、mDNS</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">3.2</span>CIDR：用 /n 表示掩码</h3>
+<p><code class="i">/24</code> 表示前 24 位是网络号，等价于 <code class="i">255.255.255.0</code>。常见换算：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>前缀</th><th>掩码</th><th>地址数</th><th>可用主机数</th></tr></thead>
+<tbody>
+<tr><td>/24</td><td>255.255.255.0</td><td>256</td><td>254</td></tr>
+<tr><td>/25</td><td>255.255.255.128</td><td>128</td><td>126</td></tr>
+<tr><td>/26</td><td>255.255.255.192</td><td>64</td><td>62</td></tr>
+<tr><td>/27</td><td>255.255.255.224</td><td>32</td><td>30</td></tr>
+<tr><td>/28</td><td>255.255.255.240</td><td>16</td><td>14</td></tr>
+<tr><td>/30</td><td>255.255.255.252</td><td>4</td><td>2（点对点链路）</td></tr>
+</tbody>
+</table>
+</div>
+<p>主机数 = 2<sup>(32-n)</sup> - 2，减去网络地址和广播地址。 exceptions：/31 点对点链路（RFC 3021）可用 2 个地址，/32 表示单个主机路由。</p>
+
+<div class="lab" id="lab-subnet">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>子网计算器</h4>
+    <p>输入 IP 和前缀，实时得到网络号、广播地址、可用范围与主机数，并显示二进制对齐过程。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>IP <input id="snIp" type="text" value="192.168.1.10" style="width:130px"></label>
+      <label>前缀 <input id="snPrefix" type="number" value="24" min="0" max="32" style="width:64px"></label>
+      <button class="lab-btn pri" type="button" id="snGo">计算</button>
+    </div>
+    <div class="lab-read" id="snOut" aria-live="polite"></div>
+    <p class="lab-note">网络地址 = IP 与掩码按位与；广播地址 = 网络地址 | ~掩码。这两个地址不能分配给主机。</p>
+  </div>
+</div>
+
+<h3><span class="n">3.3</span>划分子网：为什么要借位</h3>
+<p>一个 /24 有 254 个可用地址。如果只有 20 台设备，剩下的地址就浪费了，而且所有设备在同一个广播域里。划分子网就是<strong>从主机号里借几位当网络号</strong>。</p>
+<codeblock lang="text" file="把 192.168.1.0/24 划成 4 个 /26">
+子网 1：192.168.1.0/26    可用 .1  – .62
+子网 2：192.168.1.64/26   可用 .65 – .126
+子网 3：192.168.1.128/26  可用 .129 – .190
+子网 4：192.168.1.192/26  可用 .193 – .254
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>规划地址时按“未来 2–3 年的设备数”留余量。把生产设备、办公设备、访客网络分到不同子网，既方便管理，也方便做访问控制。</p>
+</div>
+
+<h3><span class="n">3.4</span>默认网关：出网找谁</h3>
+<p>主机发数据前先判断：目的 IP 和我在同一个子网吗？</p>
+<ul>
+<li><strong>是</strong>：直接 ARP 找对方 MAC，发给它。</li>
+<li><strong>否</strong>：发给默认网关（路由器的内网地址），由它继续转发。</li>
+</ul>
+<codeblock lang="bash" file="查看本机地址与路由（Linux / Windows）">
+ip addr                     # Linux：地址与掩码
+ip route                    # Linux：默认网关
+ipconfig                    # Windows：地址、掩码、网关
+route print                 # Windows：路由表
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>“能上局域网、不能上网”最常见的原因是<strong>默认网关没配</strong>或配错，其次是 DNS 配错。先 <code class="i">ping 网关</code>，再 <code class="i">ping 8.8.8.8</code>，最后 <code class="i">ping 域名</code>，三步就能定位。</p>
+</div>
+
+<h3><span class="n">3.5</span>IPv4 头部关键字段</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>字段</th><th>作用</th><th>常见值</th></tr></thead>
+<tbody>
+<tr><td>版本 / 头长度</td><td>IPv4、头部多少字节</td><td>4 / 5（20 字节）</td></tr>
+<tr><td>总长度</td><td>整个 IP 包长度</td><td>≤ MTU（通常 1500）</td></tr>
+<tr><td>标识 / 标志 / 片偏移</td><td>分片与重组</td><td>DF、MF</td></tr>
+<tr><td>TTL</td><td>剩余跳数，每经路由器减 1</td><td>64 / 128 / 255</td></tr>
+<tr><td>协议</td><td>上层协议</td><td>6=TCP，17=UDP，1=ICMP</td></tr>
+<tr><td>源/目的 IP</td><td>寻址</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 3 讲</div>
+<div class="pb">
+<ol>
+<li>192.168.10.130/26 的网络号、广播地址、可用范围是什么？</li>
+<li>为什么 /24 的可用主机数是 254 而不是 256？</li>
+<li>一台设备 IP 是 192.168.1.10/24，网关是 192.168.2.1，能上网吗？</li>
+<li>169.254.x.x 地址说明什么？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> /26 的块大小是 64，130 落在 128–191 这一段：网络号 192.168.10.128，广播 192.168.10.191，可用 129–190。</p>
+<p><b>2.</b> 网络地址（主机号全 0）和广播地址（全 1）不能分配给主机。</p>
+<p><b>3.</b> 不能。网关不在同一子网，主机无法 ARP 到网关，包发不出去。</p>
+<p><b>4.</b> DHCP 没拿到地址，系统自动配了链路本地地址；通常意味着 DHCP 服务器不可达。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：192.168.1.100/25 的网络地址是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>192.168.1.0</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>192.168.1.128</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>192.168.1.100</span></button>
+</div>
+<div class="fb" data-fb>/25 把最后一个字节分成 0–127 和 128–255 两段；100 落在前一段，所以网络地址是 192.168.1.0，广播是 192.168.1.127。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>IP = 网络号 + 主机号，掩码决定分界。</li>
+<li>CIDR 用 /n 表示前缀，主机数 = 2^(32-n) - 2。</li>
+<li>网络地址与广播地址不能分配给主机。</li>
+<li>同子网直接 ARP，跨子网交给默认网关。</li>
+<li>私有地址不能直接出现在公网。</li>
+</ul>
+<ul class="checklist">
+<li>我能手算子网范围</li>
+<li>我能解释默认网关的作用</li>
+<li>我知道 169.254 意味着什么</li>
+</ul>
+</div>

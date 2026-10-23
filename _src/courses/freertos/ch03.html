@@ -1,0 +1,153 @@
+<h3><span class="n">3.1</span>任务只有四种状态</h3>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 330" role="img" aria-labelledby="fig3t fig3d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig3t">FreeRTOS 任务状态迁移</title>
+<desc id="fig3d">任务在运行、就绪、阻塞、挂起四种状态之间迁移；阻塞有超时，挂起没有超时，必须显式恢复。</desc>
+<rect width="820" height="330" fill="#fbfdff"/>
+<g font-size="12">
+<rect x="60" y="60" width="150" height="52" rx="9" fill="#dcfce7" stroke="#4ade80"/>
+<text x="135" y="92" fill="#166534" text-anchor="middle" font-weight="700">Running 运行</text>
+
+<rect x="330" y="60" width="150" height="52" rx="9" fill="#e0e7ff" stroke="#818cf8"/>
+<text x="405" y="92" fill="#26348f" text-anchor="middle" font-weight="700">Ready 就绪</text>
+
+<rect x="600" y="60" width="160" height="52" rx="9" fill="#fef3c7" stroke="#fbbf24"/>
+<text x="680" y="92" fill="#92400e" text-anchor="middle" font-weight="700">Blocked 阻塞</text>
+
+<rect x="330" y="230" width="150" height="52" rx="9" fill="#f1f5f9" stroke="#94a3b8"/>
+<text x="405" y="262" fill="#334155" text-anchor="middle" font-weight="700">Suspended 挂起</text>
+</g>
+<g stroke="#64748b" stroke-width="1.6" fill="none" marker-end="url(#a3)">
+<path d="M210 78 C 260 78, 280 86, 326 86"/>
+<path d="M330 100 C 280 100, 250 100, 214 100"/>
+<path d="M480 86 C 530 86, 560 86, 596 86"/>
+<path d="M600 100 C 560 112, 500 140, 440 140 C 410 140, 405 130, 405 116"/>
+<path d="M680 112 C 680 160, 560 200, 484 246"/>
+<path d="M330 250 C 250 250, 180 220, 150 118"/>
+</g>
+<defs><marker id="a3" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#64748b"/></marker></defs>
+<g font-size="11" fill="#475569">
+<text x="252" y="70">被更高优先级抢占</text>
+<text x="250" y="122">时间片用完 / 让出</text>
+<text x="520" y="76">等待事件（带超时）</text>
+<text x="446" y="156">超时或事件到达</text>
+<text x="520" y="206">vTaskSuspend()</text>
+<text x="196" y="200">vTaskResume()</text>
+</g>
+<text x="60" y="312" font-size="11.5" fill="#64748b">只有 Running 的任务真正占用 CPU；同一时刻每个核只有一个 Running。</text>
+</svg>
+<figcaption>四状态迁移：阻塞带超时，挂起必须显式恢复。</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+<thead><tr><th>状态</th><th>含义</th><th>怎么进入</th><th>怎么离开</th></tr></thead>
+<tbody>
+<tr><td>Running</td><td>正在使用 CPU</td><td>被调度器选中</td><td>被抢占、阻塞、挂起、删除</td></tr>
+<tr><td>Ready</td><td>可运行，但没轮到</td><td>创建、被唤醒、被恢复</td><td>被调度、被挂起</td></tr>
+<tr><td>Blocked</td><td>在等事件或超时</td><td><code>vTaskDelay</code>、队列/信号量带超时的等待</td><td>事件到达、超时</td></tr>
+<tr><td>Suspended</td><td>被显式暂停</td><td><code>vTaskSuspend</code></td><td><code>vTaskResume</code>，无超时</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">3.2</span>调度器怎么选下一个任务</h3>
+<p>FreeRTOS 为每个优先级维护一个就绪列表，并用一个位图记录“哪些优先级有任务就绪”。调度时找<strong>最高的非空优先级</strong>，取该列表的第一个任务。</p>
+<div class="steps">
+<div><b>抢占</b>　如果新就绪的任务优先级高于当前任务，立刻切换（<code>configUSE_PREEMPTION = 1</code>）。</div>
+<div><b>时间片</b>　同优先级任务之间按 tick 轮转（<code>configUSE_TIME_SLICING = 1</code>）。</div>
+<div><b>阻塞</b>　当前任务阻塞时，调度器立刻选下一个就绪任务，不让 CPU 空转。</div>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>FreeRTOS 的优先级数值<strong>越大越高</strong>，0 是最低（空闲任务）。Cortex-M 的硬件中断优先级则相反：<strong>数值越小越高</strong>。这两套规则经常被混淆，配置中断优先级时要特别小心（第 9 讲展开）。</p>
+</div>
+
+<div class="lab" id="lab-sched">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>抢占式调度时间轴</h4>
+    <p>三个任务：H（优先级 3，每 4 tick 运行 1 tick）、M（优先级 2，每 8 tick 运行 2 tick）、L（优先级 1，始终就绪）。单步或播放，看 CPU 归谁。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="schedPlay">播放</button>
+      <button class="lab-btn" type="button" id="schedStep">单步</button>
+      <button class="lab-btn" type="button" id="schedReset">重置</button>
+      <span class="chip" id="schedTick">t = 0</span>
+    </div>
+    <div class="lab-canvas" id="schedCanvas"></div>
+    <div class="lab-read" id="schedOut" aria-live="polite"></div>
+    <p class="lab-note">H 一旦就绪就立刻抢占 M 和 L；同优先级才会轮转。L 只能捡空隙运行，这就是“低优先级饥饿”的雏形。</p>
+  </div>
+</div>
+
+<h3><span class="n">3.3</span>调度不是“硬实时保证”</h3>
+<p>FreeRTOS 是<strong>优先级抢占式</strong>内核，它能保证“更高优先级的就绪任务会先运行”，但不能保证“任务一定在某个时刻前完成”。原因至少有三类：</p>
+<ul>
+<li><strong>临界区</strong>：关中断期间，高优先级任务也无法运行。</li>
+<li><strong>中断延迟</strong>：中断响应受当前指令、优先级屏蔽影响。</li>
+<li><strong>执行时间波动</strong>：缓存、分支预测、DMA 争用都会让最坏执行时间大于平均值。</li>
+</ul>
+<div class="note law">
+<b>标准怎么说</b>
+<p>FreeRTOS 不声称自己是“硬实时认证内核”。要做硬实时分析，需要测量每个任务的最坏执行时间（WCET）、计算响应时间、考虑阻塞时间，并留足余量。RTOS 只是让这些分析<strong>可能</strong>，不是替你做完了。</p>
+</div>
+
+<h3><span class="n">3.4</span>优先级怎么分配</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>任务类型</th><th>建议优先级</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>安全/故障处理</td><td>最高</td><td>必须立刻响应，且执行时间短</td></tr>
+<tr><td>硬实时控制</td><td>高</td><td>截止期最紧，周期固定</td></tr>
+<tr><td>通信/协议栈</td><td>中</td><td>有一定实时性，但可容忍几十 ms</td></tr>
+<tr><td>数据处理/显示</td><td>低</td><td>计算量大，可被抢占</td></tr>
+<tr><td>日志/统计</td><td>最低（高于 idle）</td><td>后台工作，不能影响主逻辑</td></tr>
+</tbody>
+</table>
+</div>
+<p>经验法则：<strong>周期越短、截止期越紧，优先级越高</strong>（速率单调调度思想的简化版）。但优先级不是越多越好——层数太多会让分析变难，通常 4–6 层足够。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 3 讲</div>
+<div class="pb">
+<ol>
+<li>画出“任务从创建到第一次运行”经过的状态。</li>
+<li>同优先级的两个任务，如何保证一个不会长期霸占 CPU？</li>
+<li>为什么中断优先级数值和任务优先级数值的方向相反？</li>
+<li>一个任务每 10 ms 运行一次，每次 3 ms；另一个每 50 ms 运行一次，每次 8 ms。谁该优先级更高？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 创建后进入 Ready；调度器选中后进入 Running。</p>
+<p><b>2.</b> 打开 <code class="i">configUSE_TIME_SLICING</code>，同优先级任务在每个 tick 轮转；或者任务主动阻塞/让出。</p>
+<p><b>3.</b> 任务优先级是软件概念，数值越大越“重要”；Cortex-M 的中断优先级是硬件寄存器编码，数值越小优先级越高。这是两套独立规则。</p>
+<p><b>4.</b> 第一个：周期更短（10 ms），截止期更紧。用速率单调的思路，周期短的优先级高。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：一个任务调用 <code class="i">vTaskDelay(100)</code> 后处于什么状态？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>Blocked，超时后回到 Ready</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>Suspended，必须手动恢复</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>Running，只是不占用 CPU</span></button>
+</div>
+<div class="fb" data-fb><code class="i">vTaskDelay</code> 让任务进入阻塞态并设置超时；超时后自动回到就绪态，不需要手动恢复。挂起态才需要 <code class="i">vTaskResume</code>。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>四状态：Running、Ready、Blocked、Suspended。</li>
+<li>调度器总是运行最高优先级的就绪任务；同优先级按时间片轮转。</li>
+<li>任务优先级数值越大越高，中断优先级数值越小越高。</li>
+<li>RTOS 提供调度机制，不提供硬实时保证。</li>
+<li>优先级按周期与截止期分配，层数不宜过多。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出四状态迁移图</li>
+<li>我能解释抢占与时间片的区别</li>
+<li>我知道优先级反转的伏笔（下一讲展开）</li>
+</ul>
+</div>

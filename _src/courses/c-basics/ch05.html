@@ -1,0 +1,228 @@
+<h3><span class="n">5.1</span>函数是“契约”，不是“代码块”</h3>
+<p>函数把一段逻辑封装成一个<strong>可以按名字调用的接口</strong>：调用者只需要知道“传什么、返回什么”，不需要知道里面怎么实现。这是 C 语言里唯一的大规模复用手段，也是后面模块化、驱动接口的基础。</p>
+<codeblock lang="C11" file="add.c">
+#include <stdio.h>
+
+/* 函数声明（原型）：告诉编译器“有这么一个函数” */
+int add(int a, int b);
+
+int main(void)
+{
+    printf("%d\n", add(2, 3));
+    return 0;
+}
+
+/* 函数定义：真正的实现 */
+int add(int a, int b)
+{
+    return a + b;
+}
+</codeblock>
+<outblock>
+5
+</outblock>
+<p>声明可以出现多次，定义只能有一次（同一个程序中）。声明的作用是让编译器检查调用处的参数个数和类型；没有声明就调用，在老标准里会被当成“返回 int、参数未知”，这是很多诡异 bug 的来源。C99 起标准不再允许隐式声明（要求编译器给出诊断），但不少编译器默认只给警告；C23 起则直接报错。</p>
+
+<h3><span class="n">5.2</span>调用发生时，栈上发生了什么</h3>
+<p>每次函数调用，运行时都会在<strong>栈</strong>上分配一块区域，叫<strong>栈帧</strong>（stack frame）。里面通常放：返回地址、上一帧的栈底指针、参数、局部变量、以及需要保存的寄存器。函数返回时，整块栈帧被丢弃——这也是为什么局部变量在函数返回后就不存在了。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 330" role="img" aria-labelledby="fig5t fig5d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig5t">函数调用时的栈帧变化</title>
+<desc id="fig5d">main 的栈帧包含局部变量 a、b 与返回地址；调用 add 时在栈顶压入新的栈帧，包含参数副本 x、y 与返回地址；add 返回后其栈帧被弹出，main 的 a、b 不受影响。</desc>
+<rect x="0" y="0" width="820" height="330" fill="#fbfdff"/>
+<text x="30" y="30" font-size="13" font-weight="700" fill="#334155">高地址</text>
+<rect x="60" y="46" width="300" height="112" rx="10" fill="#eef2ff" stroke="#a5b4fc"/>
+<text x="76" y="68" font-size="13" font-weight="700" fill="#26348f">main 的栈帧</text>
+<rect x="76" y="78" width="120" height="30" rx="6" fill="#fff" stroke="#c7d2fe"/>
+<text x="136" y="98" font-size="12.5" fill="#1e293b" text-anchor="middle">a = 3</text>
+<rect x="206" y="78" width="120" height="30" rx="6" fill="#fff" stroke="#c7d2fe"/>
+<text x="266" y="98" font-size="12.5" fill="#1e293b" text-anchor="middle">b = 5</text>
+<rect x="76" y="114" width="250" height="30" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="201" y="134" font-size="12" fill="#475569" text-anchor="middle">返回地址 / 保存的寄存器</text>
+
+<rect x="60" y="176" width="300" height="112" rx="10" fill="#ecfdf5" stroke="#6ee7b7"/>
+<text x="76" y="198" font-size="13" font-weight="700" fill="#065f46">add 的栈帧（调用期间存在）</text>
+<rect x="76" y="208" width="120" height="30" rx="6" fill="#fff" stroke="#a7f3d0"/>
+<text x="136" y="228" font-size="12.5" fill="#1e293b" text-anchor="middle">x = 3（副本）</text>
+<rect x="206" y="208" width="120" height="30" rx="6" fill="#fff" stroke="#a7f3d0"/>
+<text x="266" y="228" font-size="12.5" fill="#1e293b" text-anchor="middle">y = 5（副本）</text>
+<rect x="76" y="244" width="250" height="30" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="201" y="264" font-size="12" fill="#475569" text-anchor="middle">返回地址 → main</text>
+
+<path d="M378 150 C 420 150, 420 220, 378 220" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#a5)"/>
+<defs><marker id="a5" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+
+<rect x="470" y="60" width="320" height="86" rx="10" fill="#fffbeb" stroke="#fcd34d"/>
+<text x="486" y="82" font-size="12.5" font-weight="700" fill="#92400e">值传递的含义</text>
+<text x="486" y="103" font-size="12" fill="#513c12">x、y 是 a、b 的副本，地址不同。</text>
+<text x="486" y="124" font-size="12" fill="#513c12">在 add 里改 x，不会改到 main 的 a。</text>
+
+<rect x="470" y="176" width="320" height="112" rx="10" fill="#fef3f2" stroke="#fecaca"/>
+<text x="486" y="198" font-size="12.5" font-weight="700" fill="#991b1b">函数返回之后</text>
+<text x="486" y="219" font-size="12" fill="#7f1d1d">add 的栈帧被整体丢弃，</text>
+<text x="486" y="240" font-size="12" fill="#7f1d1d">x、y 的生命周期结束。</text>
+<text x="486" y="264" font-size="12" fill="#7f1d1d">任何指向它们的指针都会悬空。</text>
+<text x="30" y="316" font-size="12" fill="#64748b">低地址（栈向低地址方向增长）</text>
+</svg>
+<figcaption>一次函数调用的栈帧：参数是副本，返回后栈帧消失。</figcaption>
+</figure>
+
+<div class="lab" id="lab-stack">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>swap 为什么改不了实参</h4>
+    <p>单步走完一次 <code class="i">swap(a, b)</code>。注意每一帧里的变量是独立的副本，返回后 main 的 a、b 原封不动。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="stackStep">下一步</button>
+      <button class="lab-btn" type="button" id="stackReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="stackCanvas"></div>
+    <div class="lab-read" id="stackOut" aria-live="polite"></div>
+    <p class="lab-note">想让 swap 真正交换，必须传地址：<code class="i">void swap(int *x, int *y)</code>，函数里用 <code class="i">*x</code> 改写目标内存。</p>
+  </div>
+</div>
+
+<h3><span class="n">5.3</span>值传递：C 只有一种参数传递方式</h3>
+<p>C 的函数参数<strong>永远是按值传递</strong>。所谓“传地址”，传的也是地址这个值（一份指针副本）。所以：</p>
+<codeblock lang="C11" file="swap.c">
+#include <stdio.h>
+
+void swap_wrong(int x, int y)      /* 只交换了副本 */
+{
+    int t = x; x = y; y = t;
+}
+
+void swap_ok(int *x, int *y)       /* 通过地址改写调用者的内存 */
+{
+    int t = *x; *x = *y; *y = t;
+}
+
+int main(void)
+{
+    int a = 3, b = 5;
+    swap_wrong(a, b);
+    printf("after wrong: a=%d b=%d\n", a, b);
+
+    swap_ok(&a, &b);
+    printf("after ok:    a=%d b=%d\n", a, b);
+    return 0;
+}
+</codeblock>
+<outblock>
+after wrong: a=3 b=5
+after ok:    a=5 b=3
+</outblock>
+<p>传大结构体时，按值传递会复制整个结构体（可能几十字节），既慢又容易让人误以为函数能修改原对象。经验规则：<strong>需要修改或结构体较大时传指针，只读且很小（如两个 int）时传值</strong>。</p>
+
+<h3><span class="n">5.4</span>返回值的三个坑</h3>
+<codeblock lang="C11" file="return_traps.c">
+/* 坑 1：返回局部数组的地址——函数返回后数组已销毁 */
+char *bad_name(void)
+{
+    char buf[32] = "temp";
+    return buf;                  /* 悬空指针，调用者一用就出错 */
+}
+
+/* 坑 2：返回局部结构体是合法的（按值复制），但别返回它的地址 */
+struct Point { int x, y; };
+struct Point make_point(int x, int y)
+{
+    struct Point p = { x, y };
+    return p;                    /* 合法：返回的是副本 */
+}
+
+/* 坑 3：函数声明了返回值却忘记 return */
+int maybe(void)
+{
+    int x = 1;                   /* 没有 return，调用者得到不确定值 */
+}
+</codeblock>
+<div class="note bad">
+<b>易错</b>
+<p>“返回局部变量的地址”在编译时通常只给一个 <code class="i">-Wreturn-local-addr</code> 警告，程序还能跑，直到某次调用把栈覆盖才崩溃——这种偶发崩溃最难查。要返回字符串，请让调用者传缓冲区进来，或者用 <code class="i">malloc</code> 分配（并约定谁来 <code class="i">free</code>）。</p>
+</div>
+
+<h3><span class="n">5.5</span>作用域、生命周期与 static 局部变量</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>回答的问题</th><th>例子</th></tr></thead>
+<tbody>
+<tr><td>作用域</td><td>名字在代码的哪些位置可见</td><td>块作用域、函数作用域、文件作用域</td></tr>
+<tr><td>生命周期</td><td>对象在运行时何时存在</td><td>自动存储期（栈）、静态存储期、动态分配</td></tr>
+<tr><td>链接属性</td><td>跨翻译单元能否看到这个名字</td><td>外部链接、内部链接（static）、无链接</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="scope.c">
+#include <stdio.h>
+
+int counter(void)
+{
+    static int n = 0;      /* 只初始化一次，函数返回后仍然存在 */
+    n++;
+    return n;
+}
+
+int main(void)
+{
+    printf("%d %d %d\n", counter(), counter(), counter());  /* 顺序未指定！ */
+    int a = counter();
+    int b = counter();
+    printf("%d %d\n", a, b);
+    return 0;
+}
+</codeblock>
+<outblock>
+1 2 3
+4 5
+</outblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>上面第一行 <code class="i">printf</code> 的输出顺序其实<strong>未指定</strong>：函数参数的求值顺序标准没有规定。示例里恰好是 1 2 3，但换编译器可能变成 3 2 1。凡是依赖求值顺序的代码都不可移植——第二行拆成两条语句才是正确写法。</p>
+</div>
+<p><code class="i">static</code> 在 C 里有三种含义：函数内的 <code class="i">static</code> 局部变量（静态存储期，只初始化一次）；文件作用域的 <code class="i">static</code> 函数/变量（内部链接，别的 .c 看不到）；以及 C99 的数组参数 <code class="i">static</code>（承诺至少有 n 个元素，日常很少用）。前两种最常用，第二种会在第 10 讲多文件时再次出现。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 5 讲</div>
+<div class="pb">
+<ol>
+<li>写一个函数 <code class="i">int max3(int a, int b, int c)</code>，返回三个数中的最大值。</li>
+<li>写 <code class="i">void minmax(const int *arr, int n, int *min, int *max)</code>，同时返回最小值和最大值。</li>
+<li>解释为什么 <code class="i">char *f(void){ char s[]="hi"; return s; }</code> 是错的，给出两种修正方案。</li>
+<li>用 <code class="i">static</code> 局部变量实现一个“最多被调用 5 次”的函数，第 6 次返回错误码。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 先假设 <code class="i">*min = *max = arr[0]</code>，再遍历更新。调用前要保证 <code class="i">n &gt; 0</code>，否则没有意义；也可以返回 <code class="i">int</code> 表示成功与否。</p>
+<p><b>3.</b> <code class="i">s</code> 是局部数组，函数返回后栈帧失效。方案一：调用者传缓冲区 <code class="i">void f(char *out, size_t n)</code>；方案二：<code class="i">malloc</code> 分配并约定调用者释放。</p>
+<p><b>4.</b> <code class="i">static int used = 0; if (used &gt;= 5) return -1; used++;</code>。注意这不是线程安全的，多任务环境下需要另加保护（第 3 册会讲）。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：函数返回局部数组的地址，最可能的后果是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>编译一定失败</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>数组会被自动复制到堆上</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>指针悬空，之后访问是未定义行为</span></button>
+</div>
+<div class="fb" data-fb>局部数组在栈上，函数返回后栈帧失效，返回的地址指向一块随时会被覆盖的内存。编译器通常只给警告，运行时可能“看起来正常”，直到栈被别的调用覆盖。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>声明让编译器检查调用，定义只能有一份。</li>
+<li>每次调用都会压栈，参数是副本，返回后栈帧销毁。</li>
+<li>C 只有值传递；“传地址”传的是指针的值。</li>
+<li>不要返回局部变量的地址；返回局部结构体的值是可以的。</li>
+<li><code class="i">static</code> 局部变量活到程序结束，只初始化一次。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出一次函数调用的栈帧</li>
+<li>我能解释 swap 为什么需要指针</li>
+<li>我知道函数参数求值顺序未指定</li>
+</ul>
+</div>

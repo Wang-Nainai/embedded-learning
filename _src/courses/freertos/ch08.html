@@ -1,0 +1,192 @@
+<h3><span class="n">8.1</span>事件组：等“多个条件同时满足”</h3>
+<p>事件组是一组二进制位，每个位代表一个事件。任务可以等待“任意一位置位”或“所有指定位置位”。它适合“传感器就绪 + 网络连接 + 配置加载完成，三者都好了才开始采集”这类条件。</p>
+<codeblock lang="C11" file="event_group.c">
+#include "FreeRTOS.h"
+#include "event_groups.h"
+
+#define BIT_SENSOR_READY  (1u << 0)
+#define BIT_NET_READY     (1u << 1)
+#define BIT_CONFIG_LOADED (1u << 2)
+
+static EventGroupHandle_t g_events;
+
+void app_init(void)
+{
+    g_events = xEventGroupCreate();
+    configASSERT(g_events != NULL);
+}
+
+static void startup_task(void *arg)
+{
+    (void)arg;
+    const EventBits_t need = BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED;
+
+    EventBits_t got = xEventGroupWaitBits(
+        g_events,
+        need,
+        pdTRUE,        /* 退出时清除这些位 */
+        pdTRUE,        /* 等待所有位都置位 */
+        pdMS_TO_TICKS(5000));
+
+    if ((got & need) == need) {
+        start_normal_operation();
+    } else {
+        handle_startup_timeout(got);     /* 超时：能知道还差哪一位 */
+    }
+}
+
+/* 任意上下文（含 ISR）都可以置位 */
+void sensor_isr(void)
+{
+    BaseType_t woken = pdFALSE;
+    xEventGroupSetBitsFromISR(g_events, BIT_SENSOR_READY, &woken);
+    portYIELD_FROM_ISR(woken);
+}
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>参数</th><th>含义</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>uxBitsToWaitFor</code></td><td>关心哪些位</td><td>至少一位</td></tr>
+<tr><td><code>xClearOnExit</code></td><td>满足后是否清零</td><td>清零适合“一次性启动条件”；不清零适合“持续状态”</td></tr>
+<tr><td><code>xWaitForAllBits</code></td><td>全部满足还是任一满足</td><td><code>pdTRUE</code> = AND，<code>pdFALSE</code> = OR</td></tr>
+<tr><td><code>xTicksToWait</code></td><td>最长等待</td><td>0 表示立即返回</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note impl">
+<b>实现细节</b>
+<p>事件组的可用位数取决于 <code class="i">configUSE_16_BIT_TICKS</code>：为 1 时只有 8 位可用，为 0 时有 24 位。高位被内核保留。不要假设一定有 32 位。</p>
+</div>
+
+<h3><span class="n">8.2</span>任务通知：更轻的一对一唤醒</h3>
+<p>每个任务都有一个 32 位通知值（或计数）。发送方直接“敲这个任务的门”，不需要创建任何内核对象。它比队列/信号量更快、更省 RAM。</p>
+<codeblock lang="C11" file="notify.c">
+/* 方式一：当作计数信号量用 */
+static void worker(void *arg)
+{
+    (void)arg;
+    for (;;) {
+        uint32_t count = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        /* count 是累积的通知次数（pdTRUE 表示取出后清零） */
+        for (uint32_t i = 0; i < count; i++) {
+            handle_one_event();
+        }
+    }
+}
+
+void give_from_task(TaskHandle_t h) { xTaskNotifyGive(h); }
+
+void give_from_isr(TaskHandle_t h)
+{
+    BaseType_t woken = pdFALSE;
+    vTaskNotifyGiveFromISR(h, &woken);
+    portYIELD_FROM_ISR(woken);
+}
+</codeblock>
+<codeblock lang="C11" file="notify_value.c">
+/* 方式二：传一个 32 位值 */
+static void worker2(void *arg)
+{
+    (void)arg;
+    uint32_t value = 0;
+    for (;;) {
+        if (xTaskNotifyWait(0, 0, &value, portMAX_DELAY) == pdTRUE) {
+            handle_value(value);
+        }
+    }
+}
+
+void send_value(TaskHandle_t h, uint32_t v)
+{
+    xTaskNotify(h, v, eSetValueWithOverwrite);   /* 覆盖旧值 */
+}
+</codeblock>
+
+<h3><span class="n">8.3</span>怎么选：事件组、通知还是队列</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>需求</th><th>首选</th><th>原因</th></tr></thead>
+<tbody>
+<tr><td>传结构体/多条数据</td><td>队列</td><td>有缓冲区，能排队</td></tr>
+<tr><td>等多个条件全部满足</td><td>事件组</td><td>位掩码天然表达“与/或”</td></tr>
+<tr><td>一对一唤醒，只要事件</td><td>任务通知</td><td>最快、最省 RAM</td></tr>
+<tr><td>多个任务等同一个事件</td><td>事件组或信号量</td><td>通知只能发给一个任务</td></tr>
+<tr><td>中断通知任务且要传数据</td><td>队列（FromISR）</td><td>通知只能带一个 32 位值</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>任务通知是<strong>一对一</strong>的：通知值存在目标任务的控制块里。如果多个生产者都向同一个任务发通知，它们会互相覆盖（除非用计数模式）。需要多对一时，用队列或事件组。</p>
+</div>
+
+<h3><span class="n">8.4</span>一个常见的启动同步写法</h3>
+<codeblock lang="C11" file="startup_sync.c">
+/* 三个初始化任务各自完成后置位；主任务等齐了再继续 */
+void init_sensor_task(void *arg)
+{
+    (void)arg;
+    sensor_init();
+    xEventGroupSetBits(g_events, BIT_SENSOR_READY);
+    vTaskDelete(NULL);
+}
+
+/* 主任务 */
+void supervisor_task(void *arg)
+{
+    (void)arg;
+    EventBits_t got = xEventGroupWaitBits(g_events,
+        BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED,
+        pdFALSE, pdTRUE, pdMS_TO_TICKS(3000));
+
+    if ((got & (BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED)) !=
+        (BIT_SENSOR_READY | BIT_NET_READY | BIT_CONFIG_LOADED)) {
+        enter_safe_mode();
+    }
+}
+</codeblock>
+<p>这里用 <code class="i">pdFALSE</code> 不清除位，因为“已就绪”是一个持续状态，其他任务也可能想查询它。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 8 讲</div>
+<div class="pb">
+<ol>
+<li>用事件组实现“按键按下且网络已连接”才发送数据。</li>
+<li>用任务通知实现“ISR 唤醒采样任务”，并统计通知次数。</li>
+<li>为什么任务通知不适合多个生产者向同一任务发送？</li>
+<li>事件组的位不够用时怎么办？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 两个位分别置位，<code class="i">xEventGroupWaitBits(..., pdTRUE, pdTRUE, timeout)</code> 等两位都满足。</p>
+<p><b>2.</b> ISR 调 <code class="i">vTaskNotifyGiveFromISR</code>；任务用 <code class="i">ulTaskNotifyTake(pdFALSE, ...)</code> 取累计值（不清零则继续累加）。</p>
+<p><b>3.</b> 通知值只有一个存储位置，后到的会覆盖先到的；计数模式也只能计数，不能区分来源。</p>
+<p><b>4.</b> 用多个事件组，或者改用队列/信号量组合；不要试图用位域硬塞超过 24 个事件。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：多个任务都要等“网络就绪”这一个事件，应该用？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>任务通知，逐个通知</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>事件组（或信号量广播）</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>每个任务各建一个队列</span></button>
+</div>
+<div class="fb" data-fb>任务通知是一对一的，无法广播给多个等待者。事件组的一个位可以被多个任务同时等待，适合“广播状态”。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>事件组用位表达多个条件，支持 AND/OR 等待。</li>
+<li>事件组位宽受配置限制，不是永远 32 位。</li>
+<li>任务通知最快最省，但只能一对一、只带一个 32 位值。</li>
+<li>传数据用队列，等条件用事件组，轻量唤醒用通知。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出事件组的 AND/OR 等待</li>
+<li>我能用通知实现 ISR 唤醒</li>
+<li>我知道通知的覆盖问题</li>
+</ul>
+</div>

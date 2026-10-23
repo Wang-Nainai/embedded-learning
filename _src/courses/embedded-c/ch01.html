@@ -1,0 +1,219 @@
+<h3><span class="n">1.1</span>两种程序，两种“出生方式”</h3>
+<p>你在电脑上运行程序时，操作系统已经替你做了一大堆准备：分配地址空间、加载可执行文件、初始化 C 运行库、把参数传给 <code class="i">main</code>。单片机上没有操作系统，<strong>上电那一刻，除了 Flash 里的机器码和一块未初始化的 SRAM，什么都没有</strong>。</p>
+<div class="table-wrap">
+<table>
+<caption>同一个 main，两种运行环境</caption>
+<thead><tr><th></th><th>PC（hosted）</th><th>MCU（freestanding）</th></tr></thead>
+<tbody>
+<tr><td>谁加载程序</td><td>操作系统</td><td>复位后从固定地址取指令</td></tr>
+<tr><td>谁初始化内存</td><td>加载器 + C 运行库</td><td>启动代码（startup）</td></tr>
+<tr><td>标准库</td><td>完整 libc</td><td>精简版（如 newlib-nano），很多函数不可用</td></tr>
+<tr><td>程序结束</td><td>返回操作系统</td><td>通常不允许返回，<code>main</code> 里是死循环</td></tr>
+<tr><td>地址空间</td><td>虚拟地址，由 MMU 映射</td><td>物理地址，直接对应 Flash / SRAM / 外设</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note law">
+<b>标准怎么说</b>
+<p>C 标准区分 <strong>hosted</strong> 和 <strong>freestanding</strong> 两种实现。freestanding 实现只需要提供极少数头文件（<code class="i">&lt;stddef.h&gt;</code>、<code class="i">&lt;stdint.h&gt;</code>、<code class="i">&lt;limits.h&gt;</code> 等），不保证有 <code class="i">printf</code>、文件系统或堆。这就是为什么在单片机上用 <code class="i">printf</code> 往往要重定向 <code class="i">_write</code>，而且浮点格式化会显著增加 Flash 占用。</p>
+</div>
+
+<h3><span class="n">1.2</span>从上电到 main：五步</h3>
+<div class="steps">
+<div><b>取向量表</b>　Cortex-M 在地址 0x00000000（或重映射后的 Flash 起始）取第一个字作为初始栈指针，第二个字作为复位入口地址。</div>
+<div><b>执行 Reset_Handler</b>　启动代码在这里运行，通常用汇编写成，还没进入 C 世界。</div>
+<div><b>复制 .data</b>　已初始化的全局/静态变量，初值存在 Flash，运行时必须复制到 SRAM，因为 SRAM 可写。</div>
+<div><b>清零 .bss</b>　未初始化（或初始化为 0）的全局/静态变量，按 C 标准必须是 0，启动代码把这块 SRAM 全部写 0。</div>
+<div><b>调用 main</b>　设置好栈之后跳进 <code class="i">main</code>。很多工程的 <code class="i">main</code> 末尾是 <code class="i">while (1)</code>，永不返回。</div>
+</div>
+
+<div class="lab" id="lab-boot">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>上电瞬间，Flash 和 SRAM 里发生了什么</h4>
+    <p>单步走完启动流程。注意 <code class="i">.data</code> 的初值一开始在 Flash 里，<code class="i">.bss</code> 一开始是随机的。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" id="bootStep">下一步</button>
+      <button class="lab-btn" type="button" id="bootReset">重新上电</button>
+    </div>
+    <div class="lab-canvas" id="bootCanvas"></div>
+    <div class="lab-read" id="bootOut" aria-live="polite"></div>
+    <p class="lab-note">这里的数值是示意。真实地址由芯片手册和链接脚本决定，不同型号完全不同。</p>
+  </div>
+</div>
+
+<h3><span class="n">1.3</span>内存映射：地址不是“内存”，是“硬件”</h3>
+<p>在 MCU 上，<strong>地址空间是一张统一的地图</strong>：一部分地址接 Flash，一部分接 SRAM，一部分接外设寄存器。往 <code class="i">0x40020014</code> 写一个数，可能不是“存起来”，而是立刻改变某个引脚的电平。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 320" role="img" aria-labelledby="fig1t fig1d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig1t">MCU 地址空间示意</title>
+<desc id="fig1d">低地址是 Flash 存放代码和常量，中间是 SRAM 存放变量和栈，高地址是外设寄存器区域，访问它们会直接控制硬件。</desc>
+<rect width="820" height="320" fill="#fbfdff"/>
+<text x="26" y="26" font-size="12" fill="#64748b">地址</text>
+<g font-size="12">
+<rect x="96" y="40" width="250" height="66" rx="8" fill="#e0e7ff" stroke="#a5b4fc"/>
+<text x="110" y="62" fill="#26348f" font-weight="700">0x0800 0000  Flash</text>
+<text x="110" y="82" fill="#475569">代码 .text、常量 .rodata、.data 初值</text>
+<text x="110" y="99" fill="#64748b" font-size="11">只读，掉电不丢</text>
+
+<rect x="96" y="116" width="250" height="82" rx="8" fill="#dcfce7" stroke="#86efac"/>
+<text x="110" y="138" fill="#166534" font-weight="700">0x2000 0000  SRAM</text>
+<text x="110" y="158" fill="#475569">.data、.bss、栈、堆</text>
+<text x="110" y="175" fill="#64748b" font-size="11">可读写，掉电丢失</text>
+<text x="110" y="191" fill="#64748b" font-size="11">容量通常只有几十到几百 KB</text>
+
+<rect x="96" y="208" width="250" height="66" rx="8" fill="#fef3c7" stroke="#fbbf24"/>
+<text x="110" y="230" fill="#92400e" font-weight="700">0x4000 0000  外设</text>
+<text x="110" y="250" fill="#475569">GPIO / UART / SPI / 定时器寄存器</text>
+<text x="110" y="267" fill="#64748b" font-size="11">读写有副作用，必须 volatile</text>
+</g>
+<rect x="400" y="40" width="390" height="234" rx="10" fill="#f8fafc" stroke="#cbd5e1"/>
+<text x="416" y="64" font-size="12.5" font-weight="700" fill="#334155">三条实用推论</text>
+<text x="416" y="92" font-size="12" fill="#1e293b">1. 变量放 SRAM，代码放 Flash，链接脚本决定边界。</text>
+<text x="416" y="118" font-size="12" fill="#1e293b">2. SRAM 很小，大数组会在链接时报 region overflow。</text>
+<text x="416" y="144" font-size="12" fill="#1e293b">3. 外设寄存器不能用普通变量指针访问，</text>
+<text x="428" y="166" font-size="12" fill="#1e293b">必须 volatile，且宽度必须匹配。</text>
+<text x="416" y="196" font-size="11.5" fill="#64748b">上面是 STM32 的典型布局，仅作示例。</text>
+<text x="416" y="216" font-size="11.5" fill="#64748b">ESP32、AVR、RISC-V 的地址完全不同，</text>
+<text x="416" y="236" font-size="11.5" fill="#64748b">但“Flash / RAM / 外设分区”这个思路是通用的。</text>
+<text x="416" y="260" font-size="11.5" fill="#0f766e">判断依据永远是芯片手册的 memory map。</text>
+</svg>
+<figcaption>MCU 的统一地址空间：同一个指针，可能指向 RAM，也可能指向一个硬件寄存器。</figcaption>
+</figure>
+
+<h3><span class="n">1.4</span>链接脚本：谁决定变量住在哪</h3>
+<p>PC 上由链接器默认脚本安排地址；裸机上通常要自己写（或用厂商提供的）链接脚本。它至少描述两件事：<strong>存储器区域</strong>和<strong>段如何摆放</strong>。</p>
+<codeblock lang="ld" file="link.ld · 片段（示意，非完整脚本）">
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 512K
+    RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+SECTIONS
+{
+    .text : {
+        KEEP(*(.isr_vector))      /* 向量表必须放在最前面 */
+        *(.text*)
+        *(.rodata*)
+    } > FLASH
+
+    .data : {
+        *(.data*)
+    } > RAM AT > FLASH           /* 运行在 RAM，初值存在 FLASH */
+
+    .bss : {
+        *(.bss*)
+        *(COMMON)
+    } > RAM
+}
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p><code class="i">&gt; RAM AT &gt; FLASH</code> 是理解启动代码的关键：<code class="i">.data</code> 段的<strong>运行地址</strong>在 RAM，<strong>加载地址</strong>在 Flash。启动代码要按这两个地址把初值搬过去。搬多少、从哪搬，由链接器生成的符号（如 <code class="i">_sdata</code>、<code class="i">_edata</code>、<code class="i">_sidata</code>）告诉启动代码。</p>
+</div>
+
+<h3><span class="n">1.5</span>交叉编译：在 x86 上生成 ARM 代码</h3>
+<p>你的电脑是 x86-64，目标板是 ARM Cortex-M。编译器本身跑在 x86 上，但生成的是 ARM 指令，这叫<strong>交叉编译</strong>。工具链前缀通常写明目标，例如 <code class="i">arm-none-eabi-gcc</code>。</p>
+<codeblock lang="bash" file="终端（示例：Cortex-M4）">
+arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -std=c11 \
+  -Wall -Wextra -O2 -g \
+  -ffunction-sections -fdata-sections \
+  -T link.ld -nostartfiles \
+  main.c startup.c -o app.elf
+
+arm-none-eabi-size app.elf        # 看 text / data / bss 占用
+arm-none-eabi-objdump -h app.elf  # 看各段地址与大小
+</codeblock>
+<div class="table-wrap">
+<table>
+<thead><tr><th>选项</th><th>作用</th></tr></thead>
+<tbody>
+<tr><td><code>-mcpu=</code> / <code>-mthumb</code></td><td>指定内核与指令集；选错会直接跑飞</td></tr>
+<tr><td><code>-nostartfiles</code></td><td>不使用工具链默认启动文件，改用工程自己的 startup</td></tr>
+<tr><td><code>-T link.ld</code></td><td>指定链接脚本</td></tr>
+<tr><td><code>-ffunction-sections -fdata-sections</code></td><td>每个函数/变量单独成段，配合 <code>--gc-sections</code> 删除未用代码</td></tr>
+<tr><td><code>-specs=nano.specs</code></td><td>使用 newlib-nano，显著减小 Flash 占用（GCC 工具链）</td></tr>
+<tr><td><code>-Wl,-Map=app.map</code></td><td>生成映射文件，查符号地址和空间占用</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">1.6</span>一个最小裸机程序的骨架</h3>
+<codeblock lang="C11" file="main.c · 平台相关（Cortex-M 示例）">
+#include <stdint.h>
+
+/* 这两个符号由链接脚本提供，声明成外部符号即可使用 */
+extern uint32_t _sdata, _edata, _sidata;
+extern uint32_t _sbss, _ebss;
+
+int main(void);          /* 由应用提供，启动代码只负责调用 */
+
+void Reset_Handler(void)
+{
+    /* 1. 复制 .data：从 Flash 的加载地址搬到 RAM */
+    uint32_t *src = &_sidata;
+    for (uint32_t *dst = &_sdata; dst < &_edata; ) {
+        *dst++ = *src++;
+    }
+
+    /* 2. 清零 .bss */
+    for (uint32_t *dst = &_sbss; dst < &_ebss; ) {
+        *dst++ = 0;
+    }
+
+    /* 3. 进入 C 世界 */
+    main();
+
+    for (;;) { }        /* main 不允许返回 */
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>实际工程里这段通常由厂商提供的 <code class="i">startup_*.s</code> 完成，还会初始化时钟、FPU、看门狗。你不需要背汇编，但必须知道它做了哪几件事——否则“全局变量初值不对”“未初始化变量不是 0”这类问题会很难查。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 1 讲</div>
+<div class="pb">
+<ol>
+<li>不看笔记，按顺序说出上电到 main 的五个步骤。</li>
+<li>为什么 <code class="i">.data</code> 的初值要放在 Flash，而不能直接留在 RAM？</li>
+<li>如果启动代码忘了清零 <code class="i">.bss</code>，哪些变量会出问题？举例说明。</li>
+<li>用 <code class="i">arm-none-eabi-size</code> 的输出解释：text、data、bss 分别对应什么，哪个占 RAM。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> RAM 掉电丢失，烧录器只能把数据写进非易失的 Flash；运行时才把初值复制到 RAM，因为变量需要可写。</p>
+<p><b>3.</b> 所有未显式初始化的全局/静态变量，以及显式初始化为 0 的变量。C 标准保证它们是 0；如果没清零，它们会是上电后的随机值（或上一次复位前的残留）。</p>
+<p><b>4.</b> text 是代码和常量，放 Flash；data 是已初始化且非 0 的全局/静态变量，运行时占 RAM（初值占 Flash）；bss 是零初始化变量，只占 RAM，不占 Flash 镜像。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：启动代码必须把 <code class="i">.data</code> 段从 Flash 复制到 RAM，根本原因是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>Flash 的读取速度太慢</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>链接器要求所有段都在 RAM</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>变量需要可写，而 Flash 在运行时不能像 RAM 那样写</span></button>
+</div>
+<div class="fb" data-fb>全局变量的初值必须保存在非易失存储器里（否则掉电就没了），但程序运行时要能修改它们，所以只能把初值放在 Flash，启动时复制到 RAM。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>MCU 没有操作系统代劳，启动代码负责建立 C 的运行环境。</li>
+<li>五步：取向量表 → Reset_Handler → 复制 .data → 清零 .bss → 调用 main。</li>
+<li>地址空间统一映射 Flash、SRAM 和外设，指针可以指向硬件。</li>
+<li>链接脚本决定段的地址；<code class="i">&gt; RAM AT &gt; FLASH</code> 解释了为什么要复制。</li>
+<li>交叉编译要选对 <code class="i">-mcpu</code>、启动文件和链接脚本。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出 Flash / SRAM / 外设的地址分区</li>
+<li>我能解释 .data 与 .bss 的区别</li>
+<li>我知道 hosted 与 freestanding 的差别</li>
+</ul>
+</div>

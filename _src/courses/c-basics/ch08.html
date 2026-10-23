@@ -1,0 +1,227 @@
+<h3><span class="n">8.1</span>“数组就是指针”错在哪里</h3>
+<p>这句话只在<strong>表达式求值</strong>时部分成立：数组名在大多数表达式里会转换成“指向首元素的指针”，这叫<strong>数组退化</strong>（array-to-pointer decay）。但数组本身和指针是两种不同的类型。</p>
+<div class="table-wrap">
+<table>
+<caption>int a[5] 与 int *p = a 的差别</caption>
+<thead><tr><th>对比项</th><th><code>a</code>（数组）</th><th><code>p</code>（指针）</th></tr></thead>
+<tbody>
+<tr><td>类型</td><td><code>int[5]</code></td><td><code>int *</code></td></tr>
+<tr><td><code>sizeof</code></td><td>20（整个数组）</td><td>8（指针本身）</td></tr>
+<tr><td>能否赋值</td><td>不能，<code>a = p</code> 编译错误</td><td>可以，<code>p = a</code> 合法</td></tr>
+<tr><td><code>&amp;</code> 的结果</td><td><code>int (*)[5]</code>，指向整个数组</td><td><code>int **</code>，指向指针变量</td></tr>
+<tr><td>存储位置</td><td>数组对象本身占 20 字节</td><td>指针变量占 8 字节，另有所指</td></tr>
+<tr><td>作为函数参数</td><td>退化为 <code>int *</code></td><td>本来就是 <code>int *</code></td></tr>
+</tbody>
+</table>
+</div>
+<div class="lab" id="lab-decay">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>同一块内存，两种身份</h4>
+    <p>切换 <code class="i">a</code> 与 <code class="i">p</code>，看类型、<code class="i">sizeof</code>、可赋值性和 <code class="i">&amp;</code> 的结果如何变化。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn pri" type="button" data-decay="a">看 a</button>
+      <button class="lab-btn" type="button" data-decay="p">看 p</button>
+    </div>
+    <div class="lab-canvas" id="decayCanvas"></div>
+    <div class="lab-read" id="decayOut" aria-live="polite"></div>
+  </div>
+</div>
+
+<h3><span class="n">8.2</span>退化的三个例外</h3>
+<p>数组名在下面三种场合<strong>不会</strong>退化成指针：</p>
+<div class="steps">
+<div><b><code>sizeof a</code></b>　得到整个数组的字节数，而不是指针大小。</div>
+<div><b><code>&amp;a</code></b>　得到“指向整个数组”的指针，类型是 <code>int (*)[5]</code>；<code>&amp;a + 1</code> 会跳过整个数组。</div>
+<div><b>用字符串字面量初始化字符数组</b>　<code>char s[] = "abc";</code> 是按数组规则初始化，不是指针赋值。</div>
+</div>
+<codeblock lang="C11" file="decay.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int a[5] = {1, 2, 3, 4, 5};
+    int *p = a;
+
+    printf("sizeof(a)   = %zu\n", sizeof(a));      /* 20 */
+    printf("sizeof(p)   = %zu\n", sizeof(p));      /* 8 */
+    printf("sizeof(*p)  = %zu\n", sizeof(*p));     /* 4：一个 int */
+    printf("a + 1       = %p\n", (void *)(a + 1));
+    printf("&a + 1      = %p\n", (void *)(&a + 1)); /* 跳过 20 字节 */
+    printf("差值        = %td 字节\n", (char *)(&a + 1) - (char *)a);
+    return 0;
+}
+</codeblock>
+<outblock>
+sizeof(a)   = 20
+sizeof(p)   = 8
+sizeof(*p)  = 4
+a + 1       = 000000C9B7BFF8E4
+&a + 1      = 000000C9B7BFF8F4
+差值        = 20 字节
+</outblock>
+<p><code class="i">a + 1</code> 走一个元素（4 字节），<code class="i">&amp;a + 1</code> 走整个数组（20 字节）。这就是“指向元素的指针”和“指向数组的指针”的区别。</p>
+
+<h3><span class="n">8.3</span>用指针遍历数组</h3>
+<codeblock lang="C11" file="ptr_loop.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int a[6] = {10, 20, 30, 40, 50, 60};
+
+    /* 写法 1：下标，最易读 */
+    for (int i = 0; i < 6; i++) {
+        printf("%d ", a[i]);
+    }
+    printf("\n");
+
+    /* 写法 2：指针 + 尾后位置 */
+    for (int *p = a; p < a + 6; p++) {
+        printf("%d ", *p);
+    }
+    printf("\n");
+
+    /* 写法 3：指针 + 计数，适合不知道尾指针的场合 */
+    int *q = a;
+    for (int n = 0; n < 6; n++) {
+        printf("%d ", q[n]);       /* 指针也可以下标，等价于 *(q+n) */
+    }
+    printf("\n");
+    return 0;
+}
+</codeblock>
+<outblock>
+10 20 30 40 50 60
+10 20 30 40 50 60
+10 20 30 40 50 60
+</outblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p><code class="i">a[i]</code> 的定义就是 <code class="i">*(a + i)</code>。因为加法满足交换律，<code class="i">a[i]</code> 和 <code class="i">i[a]</code> 等价——能编译，但没人这么写。理解这条定义，就能理解为什么下标本质上是指针算术。</p>
+</div>
+
+<h3><span class="n">8.4</span>数组参数：为什么长度总是丢</h3>
+<codeblock lang="C11" file="array_arg.c">
+#include <stdio.h>
+
+/* 下面三种写法在函数参数位置上完全等价 */
+void f1(int *a, int n);
+void f2(int a[], int n);
+void f3(int a[10], int n);   /* 这里的 10 会被忽略！ */
+
+void f1(int *a, int n)
+{
+    printf("函数内 sizeof(a) = %zu\n", sizeof(a));   /* 8，不是 40 */
+    for (int i = 0; i < n; i++) {
+        a[i] *= 2;                                    /* 改的是原数组 */
+    }
+}
+
+int main(void)
+{
+    int data[10] = {1, 2, 3};
+    f1(data, 10);
+    printf("%d\n", data[0]);       /* 2 */
+    return 0;
+}
+</codeblock>
+<outblock>
+函数内 sizeof(a) = 8
+2
+</outblock>
+<p>所以函数签名里写 <code class="i">int a[10]</code> 只是一种“文档性”写法，编译器根本不检查长度。这也是 C 的数组参数容易越界的原因：<strong>长度必须由调用者保证，或者用结构体把数组和长度包在一起</strong>。</p>
+<codeblock lang="C11" file="slice.c">
+struct slice {
+    int *data;
+    int len;
+};
+
+void process(struct slice s)
+{
+    for (int i = 0; i < s.len; i++) {
+        /* 使用 s.data[i] */
+    }
+}
+</codeblock>
+
+<h3><span class="n">8.5</span>指针数组与数组指针</h3>
+<p>这两个名字只差一个字，含义完全不同。读法仍然是“从名字往右读”：</p>
+<codeblock lang="C11" file="ptr_array.c · 片段">
+/* 指针数组：是一个数组，元素是指针 */
+const char *names[3] = {"Alice", "Bob", "Carol"};
+/* names[0] 的类型是 const char * */
+
+/* 数组指针：是一个指针，指向“含 3 个 int 的数组” */
+int (*row)[3];
+int matrix[2][3] = {{1, 2, 3}, {4, 5, 6}};
+row = matrix;            /* 指向第一行 */
+int x = row[1][2];       /* 6 */
+
+/* 函数指针数组：常见于命令表、状态机 */
+int (*ops[2])(int, int) = { add, sub };
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p><code class="i">char *argv[]</code> 就是指针数组，所以 <code class="i">main(int argc, char *argv[])</code> 里每个 <code class="i">argv[i]</code> 是一个字符串。写复杂声明时，<code class="i">typedef</code> 能救命：<code class="i">typedef int (*binop)(int, int);</code> 之后 <code class="i">binop ops[2];</code> 一眼就懂。</p>
+</div>
+
+<h3><span class="n">8.6</span>什么时候可以返回指针</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>返回什么</th><th>可以吗</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>局部变量的地址</td><td>不可以</td><td>栈帧已销毁，悬空</td></tr>
+<tr><td><code>static</code> 局部数组的地址</td><td>可以，但要小心</td><td>多次调用共享同一块，不可重入</td></tr>
+<tr><td>字符串字面量的地址</td><td>可以</td><td>静态存储期，只读，不要试图修改</td></tr>
+<tr><td><code>malloc</code> 得到的地址</td><td>可以</td><td>必须约定谁来 <code>free</code></td></tr>
+<tr><td>调用者传入的缓冲区</td><td>可以</td><td>最常见、最可控的设计</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 8 讲</div>
+<div class="pb">
+<ol>
+<li>写 <code class="i">void reverse(int *a, int n)</code>，用两个指针从两端向中间交换。</li>
+<li>写 <code class="i">int count_char(const char *s, char c)</code>，统计字符出现次数。</li>
+<li>解释为什么 <code class="i">void f(int a[10])</code> 里的 10 没有任何约束力。</li>
+<li><code class="i">int a[5]; printf("%zu", sizeof(&amp;a));</code> 输出多少？为什么？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">int *l = a, *r = a + n - 1; while (l &lt; r) { int t = *l; *l++ = *r; *r-- = t; }</code>。</p>
+<p><b>2.</b> 遍历到 <code class="i">*s == '\0'</code> 为止，相等就 <code class="i">count++</code>。参数用 <code class="i">const char *</code> 表明不修改。</p>
+<p><b>3.</b> 因为数组参数会退化为指针，编译器把它当作 <code class="i">int *</code>，长度信息在类型里已经不存在了。</p>
+<p><b>4.</b> 8（64 位平台）。<code class="i">&amp;a</code> 的类型是 <code class="i">int (*)[5]</code>，它仍然是一个指针，<code class="i">sizeof</code> 取的是指针大小，不是数组大小。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：<code class="i">int a[5];</code> 下面哪个表达式等于 20？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span><code>sizeof(a + 0)</code></span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span><code>sizeof(&amp;a[0])</code></span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span><code>sizeof(a)</code></span></button>
+</div>
+<div class="fb" data-fb><code class="i">a + 0</code> 已经退化为指针，得到 8；<code class="i">&amp;a[0]</code> 也是指针，8；只有 <code class="i">sizeof(a)</code> 作用在数组类型上，得到 5×4=20。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>数组名在大多数表达式里退化为首元素指针，但它本身不是指针。</li>
+<li><code class="i">sizeof(a)</code>、<code class="i">&amp;a</code>、字符串初始化是三个例外。</li>
+<li>数组传参必然丢长度，必须另传或封装成结构体。</li>
+<li><code class="i">a[i]</code> 等价于 <code class="i">*(a + i)</code>，指针也能用下标。</li>
+<li>返回指针前先问：这块内存活到调用者用完吗？</li>
+</ul>
+<ul class="checklist">
+<li>我能解释 <code class="i">sizeof(a)</code> 与 <code class="i">sizeof(p)</code> 的差异</li>
+<li>我知道 <code class="i">&amp;a + 1</code> 跳过多少字节</li>
+<li>我会用 typedef 简化函数指针声明</li>
+</ul>
+</div>

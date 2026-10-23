@@ -1,0 +1,425 @@
+<h3><span class="n">13.1</span>需求：先写清楚要做什么</h3>
+<p>做一个命令行通讯录，支持：添加联系人、按姓名查找、按姓名删除、列出全部、保存到文件、从文件加载。数据放在内存里，程序退出前可以保存。</p>
+<div class="grid2">
+<div class="card"><span class="tag">数据结构</span><h4>动态数组，而不是链表</h4><p>联系人数量不大，需要按姓名查找、遍历打印。动态数组内存连续、缓存友好、实现简单；链表在这里没有优势。</p></div>
+<div class="card"><span class="tag">模块划分</span><h4>接口与实现分离</h4><p><code>contact.h</code> 暴露类型和函数声明，<code>contact.c</code> 藏实现，<code>main.c</code> 只负责交互。</p></div>
+</div>
+<div class="note eng">
+<b>工程习惯</b>
+<p>先定接口，再写实现。接口稳定了，<code>main.c</code> 和 <code>contact.c</code> 可以并行开发，测试也可以直接针对接口写，不必经过菜单。</p>
+</div>
+
+<h3><span class="n">13.2</span>接口：contact.h</h3>
+<codeblock lang="C11" file="contact.h">
+#ifndef CONTACT_H
+#define CONTACT_H
+
+#include <stddef.h>
+
+#define NAME_MAX  24
+#define PHONE_MAX 16
+
+typedef struct {
+    char name[NAME_MAX];
+    char phone[PHONE_MAX];
+} Contact;
+
+typedef struct {
+    Contact *items;
+    size_t   count;
+    size_t   cap;
+} Book;
+
+void book_init(Book *b);
+void book_free(Book *b);
+
+int  book_add(Book *b, const char *name, const char *phone);
+int  book_remove(Book *b, const char *name);
+Contact *book_find(Book *b, const char *name);
+void book_list(const Book *b);
+
+int  book_save(const Book *b, const char *path);
+int  book_load(Book *b, const char *path);
+
+#endif /* CONTACT_H */
+</codeblock>
+<p>约定：所有返回 <code class="i">int</code> 的函数，0 表示成功，-1 表示失败；<code class="i">book_find</code> 返回指针，找不到返回 <code class="i">NULL</code>。这些约定要写在头文件注释里，调用者才不会猜。</p>
+
+<h3><span class="n">13.3</span>实现：contact.c</h3>
+<h4>先补一课：文件读写</h4>
+<p>项目要把通讯录保存到 <code class="i">contacts.txt</code>，用到 C 的文件 I/O。它只有四步：<code class="i">fopen</code> 打开、<code class="i">fprintf</code> / <code class="i">fgets</code> 读写、<code class="i">fclose</code> 关闭、检查每一步的返回值。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>模式</th><th>含义</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td><code>"r"</code></td><td>只读，文件必须存在</td><td>不存在返回 <code>NULL</code></td></tr>
+<tr><td><code>"w"</code></td><td>只写，创建或清空</td><td>会丢掉原内容</td></tr>
+<tr><td><code>"a"</code></td><td>追加</td><td>文件不存在则创建</td></tr>
+<tr><td><code>"rb"</code> / <code>"wb"</code></td><td>二进制读写</td><td>Windows 上文本模式会转换换行符</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="file_io.c">
+#include <stdio.h>
+
+int main(void)
+{
+    FILE *fp = fopen("demo.txt", "w");
+    if (fp == NULL) {
+        perror("fopen");              /* 打印失败原因 */
+        return 1;
+    }
+    if (fprintf(fp, "%s\t%d\n", "Ada", 42) < 0) {
+        fclose(fp);
+        return 1;
+    }
+    if (fclose(fp) != 0) {            /* 缓冲区落盘也可能失败 */
+        return 1;
+    }
+    return 0;
+}
+</codeblock>
+<p><code class="i">fgets</code> 读到 <code class="i">EOF</code> 或出错时返回 <code class="i">NULL</code>，并且会把换行符一起读进来；<code class="i">fprintf</code> 失败返回负数。<strong>每一个返回值都要检查</strong>，否则磁盘满、路径不存在时程序会“看起来正常但什么都没保存”。</p>
+<codeblock lang="C11" file="contact.c">
+#include "contact.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+void book_init(Book *b)
+{
+    b->items = NULL;
+    b->count = 0;
+    b->cap = 0;
+}
+
+void book_free(Book *b)
+{
+    free(b->items);
+    book_init(b);
+}
+
+/* 容量不足时翻倍；返回 0 成功，-1 失败 */
+static int book_reserve(Book *b, size_t need)
+{
+    if (need <= b->cap) {
+        return 0;
+    }
+    size_t cap = b->cap ? b->cap : 4;
+    while (cap < need) {
+        cap *= 2;
+    }
+    Contact *p = realloc(b->items, cap * sizeof *p);
+    if (p == NULL) {
+        return -1;
+    }
+    b->items = p;
+    b->cap = cap;
+    return 0;
+}
+
+int book_add(Book *b, const char *name, const char *phone)
+{
+    if (name == NULL || phone == NULL) {
+        return -1;
+    }
+    if (strlen(name) >= NAME_MAX || strlen(phone) >= PHONE_MAX) {
+        return -1;                       /* 放不下，拒绝而不是截断 */
+    }
+    if (book_find(b, name) != NULL) {
+        return -1;                       /* 姓名重复 */
+    }
+    if (book_reserve(b, b->count + 1) != 0) {
+        return -1;
+    }
+    Contact *c = &b->items[b->count];
+    snprintf(c->name, sizeof c->name, "%s", name);
+    snprintf(c->phone, sizeof c->phone, "%s", phone);
+    b->count++;
+    return 0;
+}
+
+Contact *book_find(Book *b, const char *name)
+{
+    for (size_t i = 0; i < b->count; i++) {
+        if (strcmp(b->items[i].name, name) == 0) {
+            return &b->items[i];
+        }
+    }
+    return NULL;
+}
+
+int book_remove(Book *b, const char *name)
+{
+    for (size_t i = 0; i < b->count; i++) {
+        if (strcmp(b->items[i].name, name) == 0) {
+            /* 用最后一个元素覆盖被删元素，避免搬移 */
+            b->items[i] = b->items[b->count - 1];
+            b->count--;
+            return 0;
+        }
+    }
+    return -1;
+}
+
+void book_list(const Book *b)
+{
+    if (b->count == 0) {
+        printf("（通讯录为空）\n");
+        return;
+    }
+    for (size_t i = 0; i < b->count; i++) {
+        printf("%-16s %s\n", b->items[i].name, b->items[i].phone);
+    }
+}
+
+int book_save(const Book *b, const char *path)
+{
+    FILE *fp = fopen(path, "w");
+    if (fp == NULL) {
+        return -1;
+    }
+    for (size_t i = 0; i < b->count; i++) {
+        if (fprintf(fp, "%s\t%s\n", b->items[i].name, b->items[i].phone) < 0) {
+            fclose(fp);
+            return -1;
+        }
+    }
+    return fclose(fp) == 0 ? 0 : -1;
+}
+
+int book_load(Book *b, const char *path)
+{
+    FILE *fp = fopen(path, "r");
+    if (fp == NULL) {
+        return -1;
+    }
+    char line[128];
+    while (fgets(line, sizeof line, fp) != NULL) {
+        char *tab = strchr(line, '\t');
+        if (tab == NULL) {
+            continue;                    /* 跳过格式不对的行 */
+        }
+        *tab = '\0';
+        char *phone = tab + 1;
+        size_t n = strlen(phone);
+        if (n > 0 && phone[n - 1] == '\n') {
+            phone[n - 1] = '\0';
+        }
+        (void)book_add(b, line, phone);  /* 重复或非法就跳过 */
+    }
+    fclose(fp);
+    return 0;
+}
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p><code class="i">strlen(name) &gt;= NAME_MAX</code> 的判断必须在复制之前，因为 <code class="i">snprintf</code> 虽然不会越界，但会<strong>静默截断</strong>。对“姓名”这种数据，截断比报错更糟——两个不同的人可能变成同一个名字。</p>
+</div>
+
+<h3><span class="n">13.4</span>交互层：main.c</h3>
+<codeblock lang="C11" file="main.c">
+#include "contact.h"
+
+#include <stdio.h>
+#include <string.h>
+
+static void read_line(char *buf, size_t n)
+{
+    if (fgets(buf, (int)n, stdin) == NULL) {
+        buf[0] = '\0';
+        return;
+    }
+    size_t len = strlen(buf);
+    if (len > 0 && buf[len - 1] == '\n') {
+        buf[len - 1] = '\0';
+    }
+}
+
+int main(void)
+{
+    Book book;
+    book_init(&book);
+    (void)book_load(&book, "contacts.txt");   /* 文件不存在也没关系 */
+
+    char line[128];
+    for (;;) {
+        printf("\n1) 添加  2) 查找  3) 删除  4) 列表  5) 保存  0) 退出\n> ");
+        fflush(stdout);
+        read_line(line, sizeof line);
+
+        if (strcmp(line, "0") == 0) {
+            break;
+        } else if (strcmp(line, "1") == 0) {
+            char name[NAME_MAX], phone[PHONE_MAX];
+            printf("姓名：");
+            read_line(name, sizeof name);
+            printf("电话：");
+            read_line(phone, sizeof phone);
+            printf("%s", book_add(&book, name, phone) == 0
+                   ? "已添加\n" : "添加失败（重名/过长/内存不足）\n");
+        } else if (strcmp(line, "2") == 0) {
+            printf("姓名：");
+            read_line(line, sizeof line);
+            Contact *c = book_find(&book, line);
+            if (c != NULL) {
+                printf("%s\t%s\n", c->name, c->phone);
+            } else {
+                printf("未找到\n");
+            }
+        } else if (strcmp(line, "3") == 0) {
+            printf("姓名：");
+            read_line(line, sizeof line);
+            printf(book_remove(&book, line) == 0 ? "已删除\n" : "未找到\n");
+        } else if (strcmp(line, "4") == 0) {
+            book_list(&book);
+        } else if (strcmp(line, "5") == 0) {
+            printf("%s", book_save(&book, "contacts.txt") == 0 ? "已保存\n" : "保存失败\n");
+        } else {
+            printf("未知命令\n");
+        }
+    }
+
+    book_free(&book);
+    return 0;
+}
+</codeblock>
+<codeblock lang="bash" file="终端">
+gcc -std=c11 -Wall -Wextra -Wpedantic -O2 -g main.c contact.c -o contacts
+./contacts
+</codeblock>
+<outblock label="一次真实会话（输入 → 输出）">
+1) 添加  2) 查找  3) 删除  4) 列表  5) 保存  0) 退出
+> 1
+姓名：Ada
+电话：13800000001
+已添加
+
+1) 添加  2) 查找  3) 删除  4) 列表  5) 保存  0) 退出
+> 1
+姓名：Bob
+电话：13800000002
+已添加
+
+1) 添加  2) 查找  3) 删除  4) 列表  5) 保存  0) 退出
+> 4
+Ada              13800000001
+Bob              13800000002
+
+1) 添加  2) 查找  3) 删除  4) 列表  5) 保存  0) 退出
+> 5
+已保存
+
+1) 添加  2) 查找  3) 删除  4) 列表  5) 保存  0) 退出
+> 0
+</outblock>
+
+<h3><span class="n">13.5</span>调试：从“跑不起来”到“知道为什么”</h3>
+<h4>第一步：把警告当错误看</h4>
+<codeblock lang="bash" file="终端">
+gcc -std=c11 -Wall -Wextra -Wpedantic -Werror -O2 main.c contact.c -o contacts
+</codeblock>
+<p>如果 <code class="i">-Werror</code> 让编译失败，先逐条修掉警告，再谈逻辑。常见警告与含义：</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>警告</th><th>通常意味着</th></tr></thead>
+<tbody>
+<tr><td><code>-Wuninitialized</code></td><td>变量没赋值就用了</td></tr>
+<tr><td><code>-Wsign-compare</code></td><td>有符号和无符号在比较，可能是逻辑错误</td></tr>
+<tr><td><code>-Wformat</code></td><td><code>printf</code> 的格式符和参数类型不匹配</td></tr>
+<tr><td><code>-Wshadow</code></td><td>内层变量遮蔽了外层同名变量</td></tr>
+<tr><td><code>-Wconversion</code></td><td>隐式窄化转换，可能丢数据（需手动开启）</td></tr>
+</tbody>
+</table>
+</div>
+
+<h4>第二步：用 GDB 看现场</h4>
+<codeblock lang="bash" file="终端">
+gcc -std=c11 -g -O0 main.c contact.c -o contacts
+gdb ./contacts
+</codeblock>
+<codeblock lang="text" file="GDB 常用命令">
+break book_add          # 在函数入口下断点
+run                     # 运行
+next                    # 执行下一行（不进入函数）
+step                    # 进入函数
+print b->count          # 打印表达式
+backtrace               # 查看调用栈
+watch b->count          # 变量变化时停下来
+continue                # 继续
+quit                    # 退出
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>崩溃时第一件事不是改代码，而是看 <code class="i">backtrace</code>：确认崩在哪个函数、调用链是什么、参数是否合理。90% 的段错误来自空指针、越界和释放后使用，而这三类在栈里通常一眼能看出来。</p>
+</div>
+
+<h4>第三步：边界测试清单</h4>
+<ul>
+<li>空通讯录直接列表、查找、删除。</li>
+<li>添加第 1 个、第 5 个（触发扩容）、第 100 个联系人。</li>
+<li>姓名恰好 23 个字符（能放下）和 24 个字符（应拒绝）。</li>
+<li>重复姓名、空姓名、只有空格的姓名。</li>
+<li>保存后再加载，数据是否一致；加载不存在的文件是否崩溃。</li>
+<li>用 ASan 跑一遍全部操作。</li>
+</ul>
+
+<h3><span class="n">13.6</span>知识地图：13 讲串成一条线</h3>
+<div class="table-wrap">
+<table>
+<caption>从“能编译”到“能维护”的四个阶段</caption>
+<thead><tr><th>阶段</th><th>讲次</th><th>核心问题</th><th>关键能力</th></tr></thead>
+<tbody>
+<tr><td>能跑起来</td><td>01–04</td><td>代码怎样变成程序？数据怎样表示？流程怎样控制？</td><td>工具链、类型、表达式、分支循环</td></tr>
+<tr><td>能组织</td><td>05–09</td><td>逻辑怎样复用？数据怎样成组？内存怎样寻址？</td><td>函数与栈、数组与字符串、指针、结构体</td></tr>
+<tr><td>能做工程</td><td>10–11</td><td>多文件怎样协作？内存怎样管理？</td><td>头文件与链接、动态内存、所有权</td></tr>
+<tr><td>能写数据结构</td><td>12–13</td><td>递归与链式结构怎样落地？项目怎样调试？</td><td>递归、链表、调试与边界测试</td></tr>
+</tbody>
+</table>
+</div>
+<p>如果只能记住五句话：<strong>类型决定解释方式；数组是连续内存；指针是地址加类型；堆内存要成对管理；编译器警告是最好的免费审查。</strong></p>
+
+<div class="practice">
+<div class="ph">项目练习 · 第 13 讲</div>
+<div class="pb">
+<ol>
+<li>给通讯录加“按电话前缀查找”功能，返回所有匹配项。</li>
+<li>把删除改成“保持原顺序”（搬移后面的元素），比较两种实现的代价。</li>
+<li>增加“修改电话”命令，并处理姓名不存在的情况。</li>
+<li>为 <code class="i">book_add</code> 写一组测试：正常、重名、姓名过长、电话过长、内存不足（可用宏模拟 malloc 失败）。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 新增 <code class="i">size_t book_find_prefix(const Book *b, const char *prefix, Contact *out, size_t max)</code>，返回匹配个数，调用者提供输出数组，避免函数内部分配。</p>
+<p><b>2.</b> 保序删除用 <code class="i">memmove(&amp;items[i], &amp;items[i+1], (count-i-1)*sizeof *items)</code>，时间复杂度 O(n)；覆盖法 O(1)，但顺序会变。数据量小时差别不大，接口语义要写清楚。</p>
+<p><b>3.</b> 先 <code class="i">book_find</code>，为空返回错误；否则用 <code class="i">snprintf</code> 写入并检查长度。</p>
+<p><b>4.</b> 测试要覆盖返回值、边界长度、重复姓名，以及分配失败时原数据是否保持不变（强异常安全）。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：项目里 <code class="i">book_remove</code> 用“最后一个元素覆盖被删元素”，代价是什么？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>时间复杂度变成 O(n)</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>联系人的顺序会改变</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>会造成内存泄漏</span></button>
+</div>
+<div class="fb" data-fb>覆盖法把最后一个元素搬到被删位置，时间 O(1)，但破坏了原有顺序。如果需要稳定顺序，就得用 <code class="i">memmove</code> 搬移，代价是 O(n)。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>先定接口再写实现，模块边界清晰，测试才有抓手。</li>
+<li>动态数组的扩容、失败回滚、所有权释放要一次设计对。</li>
+<li>输入长度检查必须在复制之前，拒绝比静默截断安全。</li>
+<li>调试顺序：警告 → 复现 → 断点/栈 → 边界测试 → sanitizer。</li>
+<li>项目的价值不在代码量，而在“能解释每个设计取舍”。</li>
+</ul>
+<ul class="checklist">
+<li>我能独立完成并运行这个项目</li>
+<li>我能说出三个可以改进的地方</li>
+<li>我能用 GDB 定位一次崩溃</li>
+</ul>
+</div>

@@ -1,0 +1,344 @@
+<h3><span class="n">12.1</span>递归：把大问题交给同类的小问题</h3>
+<p>递归函数就是“调用自己”的函数。写对它只需要三件事：</p>
+<div class="steps">
+<div><b>终止条件</b>　最小规模的问题直接给出答案，不再递归。没有它就会无限调用，直到栈溢出。</div>
+<div><b>规模递减</b>　每次递归都必须让问题更小，并且最终能到达终止条件。</div>
+<div><b>结果组合</b>　假设子问题已经算对，想清楚怎么用它拼出当前答案。</div>
+</div>
+<codeblock lang="C11" file="factorial.c">
+#include <stdio.h>
+
+long long factorial(int n)
+{
+    if (n < 0) {
+        return -1;                 /* 非法输入 */
+    }
+    if (n <= 1) {
+        return 1;                  /* 终止条件 */
+    }
+    return (long long)n * factorial(n - 1);   /* 规模递减 */
+}
+
+int main(void)
+{
+    for (int i = 0; i <= 10; i++) {
+        printf("%d! = %lld\n", i, factorial(i));
+    }
+    return 0;
+}
+</codeblock>
+<outblock>
+0! = 1
+1! = 1
+2! = 2
+3! = 6
+4! = 24
+5! = 120
+6! = 720
+7! = 5040
+8! = 40320
+9! = 362880
+10! = 3628800
+</outblock>
+<p>递归的执行过程就是<strong>不断压栈</strong>：<code class="i">factorial(4)</code> 调用 <code class="i">factorial(3)</code>，再调用 <code class="i">factorial(2)</code>……直到 <code class="i">factorial(1)</code> 返回，然后逐层乘回去。每一层都有自己的 <code class="i">n</code>，互不干扰。</p>
+
+<h3><span class="n">12.2</span>递归不一定快：斐波那契的教训</h3>
+<codeblock lang="C11" file="fib.c">
+#include <stdio.h>
+
+/* 直观但低效：同一子问题被重复计算无数次 */
+long long fib_naive(int n)
+{
+    if (n <= 1) return n;
+    return fib_naive(n - 1) + fib_naive(n - 2);
+}
+
+/* 迭代版本：O(n) 时间，O(1) 空间 */
+long long fib_iter(int n)
+{
+    long long a = 0, b = 1;
+    for (int i = 0; i < n; i++) {
+        long long t = a + b;
+        a = b;
+        b = t;
+    }
+    return a;
+}
+
+int main(void)
+{
+    printf("%lld %lld\n", fib_naive(20), fib_iter(20));
+    return 0;
+}
+</codeblock>
+<outblock>
+6765 6765
+</outblock>
+<p><code class="i">fib_naive(40)</code> 大约要做 3.3 亿次调用，而 <code class="i">fib_iter(40)</code> 只要 40 次循环。递归写法更接近数学定义，但不代表更高效。需要递归又要避免重复计算时，可以加<strong>记忆化</strong>（把算过的结果存起来）。</p>
+
+<h3><span class="n">12.3</span>递归的经典场景</h3>
+<codeblock lang="C11" file="hanoi.c">
+#include <stdio.h>
+
+void hanoi(int n, char from, char to, char via)
+{
+    if (n == 0) return;
+    hanoi(n - 1, from, via, to);
+    printf("%c -> %c\n", from, to);
+    hanoi(n - 1, via, to, from);
+}
+
+int main(void)
+{
+    hanoi(3, 'A', 'C', 'B');     /* 7 步 */
+    return 0;
+}
+</codeblock>
+<outblock>
+A -> C
+A -> B
+C -> B
+A -> C
+B -> A
+B -> C
+A -> C
+</outblock>
+<p>汉诺塔的递归结构非常清晰：先把上面 <code class="i">n-1</code> 个从 A 移到 B，把最大的从 A 移到 C，再把 <code class="i">n-1</code> 个从 B 移到 C。总步数是 2<sup>n</sup>-1，n=64 时约 1.8×10<sup>19</sup> 步——递归写法正确，但问题本身不可完成。</p>
+
+<h3><span class="n">12.4</span>栈深度：递归的硬限制</h3>
+<p>每层递归都占一个栈帧。栈空间通常只有几 MB（Windows 默认 1 MB，Linux 常见 8 MB），递归太深就会<strong>栈溢出</strong>，表现为程序直接崩溃，且往往没有有用的错误信息。</p>
+<codeblock lang="C11" file="depth.c">
+#include <stdio.h>
+
+int depth(int n)
+{
+    volatile char padding[1024];     /* 每层占 1 KB；volatile 防止优化删掉栈帧 */
+    padding[0] = (char)n;
+    if (n == 0) return 0;
+    return depth(n - 1) + 1;
+}
+
+int main(void)
+{
+    printf("%d\n", depth(100000));   /* 大概率栈溢出 */
+    return 0;
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>处理不确定深度的数据（如解析用户输入、遍历长链表）时，优先用迭代 + 显式栈，而不是递归。真要用递归，先估算最大深度，并给深度加一个上限保护。</p>
+</div>
+
+<h3><span class="n">12.5</span>链表：用指针把分散的节点串起来</h3>
+<p>数组要求元素连续存放，插入和删除要搬移大量数据。链表让每个节点单独 <code class="i">malloc</code>，用指针指向下一个节点——插入和删除只需要改几个指针。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 200" role="img" aria-labelledby="fig12t fig12d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig12t">单链表结构</title>
+<desc id="fig12d">头指针 head 指向第一个节点；每个节点包含数据域和 next 指针；最后一个节点的 next 为 NULL。</desc>
+<rect width="820" height="200" fill="#fbfdff"/>
+<text x="30" y="34" font-size="12.5" fill="#475569">head</text>
+<rect x="30" y="44" width="54" height="44" rx="8" fill="#e0e7ff" stroke="#818cf8"/>
+<text x="57" y="72" font-size="13" fill="#26348f" text-anchor="middle" font-weight="700">ptr</text>
+<path d="M86 66 L128 66" stroke="#475569" stroke-width="2" marker-end="url(#a12)"/>
+<defs><marker id="a12" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#475569"/></marker></defs>
+
+<g>
+<rect x="130" y="40" width="150" height="54" rx="9" fill="#eef2ff" stroke="#a5b4fc"/>
+<line x1="230" y1="40" x2="230" y2="94" stroke="#a5b4fc"/>
+<text x="180" y="72" font-size="15" fill="#1e293b" text-anchor="middle" font-weight="700">10</text>
+<text x="260" y="72" font-size="11" fill="#475569" text-anchor="middle">next</text>
+<path d="M282 67 L316 67" stroke="#475569" stroke-width="2" marker-end="url(#a12)"/>
+</g>
+<g>
+<rect x="318" y="40" width="150" height="54" rx="9" fill="#eef2ff" stroke="#a5b4fc"/>
+<line x1="418" y1="40" x2="418" y2="94" stroke="#a5b4fc"/>
+<text x="368" y="72" font-size="15" fill="#1e293b" text-anchor="middle" font-weight="700">20</text>
+<text x="448" y="72" font-size="11" fill="#475569" text-anchor="middle">next</text>
+<path d="M470 67 L504 67" stroke="#475569" stroke-width="2" marker-end="url(#a12)"/>
+</g>
+<g>
+<rect x="506" y="40" width="150" height="54" rx="9" fill="#eef2ff" stroke="#a5b4fc"/>
+<line x1="606" y1="40" x2="606" y2="94" stroke="#a5b4fc"/>
+<text x="556" y="72" font-size="15" fill="#1e293b" text-anchor="middle" font-weight="700">30</text>
+<text x="636" y="72" font-size="11" fill="#475569" text-anchor="middle">next</text>
+<path d="M658 67 L686 67" stroke="#475569" stroke-width="2" marker-end="url(#a12)"/>
+<text x="700" y="72" font-size="12" fill="#b91c1c" font-weight="700">NULL</text>
+</g>
+<text x="130" y="132" font-size="11.5" fill="#64748b">每个节点独立 malloc，地址不一定连续；靠 next 指针建立顺序。</text>
+<text x="130" y="156" font-size="11.5" fill="#64748b">删除 20：让 10 的 next 指向 30，再 free 掉 20 那个节点。</text>
+</svg>
+<figcaption>单链表：头指针 + 若干节点，最后一个节点的 next 为 NULL。</figcaption>
+</figure>
+<codeblock lang="C11" file="list.c">
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct Node {
+    int value;
+    struct Node *next;
+} Node;
+
+/* 头插：新节点成为新的头，O(1) */
+Node *push_front(Node *head, int value)
+{
+    Node *n = malloc(sizeof *n);
+    if (n == NULL) {
+        return head;                 /* 分配失败：保持原链表不变 */
+    }
+    n->value = value;
+    n->next = head;
+    return n;
+}
+
+/* 遍历：用临时指针，不要移动 head 本身 */
+void print_list(const Node *head)
+{
+    for (const Node *p = head; p != NULL; p = p->next) {
+        printf("%d ", p->value);
+    }
+    printf("\n");
+}
+
+/* 释放整条链表：必须先保存 next 再 free 当前节点 */
+void free_list(Node *head)
+{
+    while (head != NULL) {
+        Node *next = head->next;
+        free(head);
+        head = next;
+    }
+}
+
+int main(void)
+{
+    Node *head = NULL;
+    for (int i = 1; i <= 5; i++) {
+        head = push_front(head, i * 10);
+    }
+    print_list(head);                /* 50 40 30 20 10 */
+    free_list(head);
+    return 0;
+}
+</codeblock>
+<outblock>
+50 40 30 20 10
+</outblock>
+
+<div class="lab" id="lab-list">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>插入与删除，到底改了哪根指针</h4>
+    <p>操作一条 10 → 20 → 30 的链表。注意头插会改变 head，删除中间节点要先找到它的前驱。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <button class="lab-btn" type="button" data-list="head">头插 5</button>
+      <button class="lab-btn" type="button" data-list="mid">在 20 后插入 25</button>
+      <button class="lab-btn" type="button" data-list="del">删除 20</button>
+      <button class="lab-btn" type="button" data-list="reset">重置</button>
+    </div>
+    <div class="lab-canvas" id="listCanvas"></div>
+    <div class="lab-read" id="listOut" aria-live="polite"></div>
+    <p class="lab-note">删除节点后必须 <code class="i">free</code>，否则每删一次泄漏一个节点。</p>
+  </div>
+</div>
+
+<h3><span class="n">12.6</span>插入与删除的完整写法</h3>
+<codeblock lang="C11" file="list_ops.c · 片段（接上文）">
+/* 在值为 target 的节点后插入：需要先找到它 */
+int insert_after(Node *head, int target, int value)
+{
+    Node *p = head;
+    while (p != NULL && p->value != target) {
+        p = p->next;
+    }
+    if (p == NULL) {
+        return -1;                   /* 没找到 */
+    }
+    Node *n = malloc(sizeof *n);
+    if (n == NULL) {
+        return -1;
+    }
+    n->value = value;
+    n->next = p->next;               /* 先接后 */
+    p->next = n;                     /* 再接前 */
+    return 0;
+}
+
+/* 删除第一个值为 target 的节点：需要前驱指针 */
+Node *remove_value(Node *head, int target)
+{
+    Node **link = &head;             /* 指向“指向当前节点的指针” */
+    while (*link != NULL) {
+        Node *cur = *link;
+        if (cur->value == target) {
+            *link = cur->next;       /* 让前驱（或 head）跳过它 */
+            free(cur);
+            return head;
+        }
+        link = &cur->next;
+    }
+    return head;
+}
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p><code class="i">Node **link</code> 这种“二级指针”写法能统一处理“删除头节点”和“删除中间节点”，避免为头节点写一份特判。第一次看可能别扭，但在链表、树、哈希表里非常常用。</p>
+</div>
+
+<h3><span class="n">12.7</span>链表的四个常见错误</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误</th><th>后果</th><th>正确做法</th></tr></thead>
+<tbody>
+<tr><td>遍历时移动了 <code>head</code></td><td>链表头丢失，内存泄漏</td><td>用临时指针 <code>p = head</code></td></tr>
+<tr><td>先 <code>free</code> 再读 <code>p-&gt;next</code></td><td>访问已释放内存</td><td>先保存 <code>next</code></td></tr>
+<tr><td>插入时先接前再接后</td><td>后面的链子断了，泄漏</td><td>先 <code>n-&gt;next = p-&gt;next</code>，再 <code>p-&gt;next = n</code></td></tr>
+<tr><td>忘记释放整条链</td><td>每个节点泄漏</td><td>写配套的 <code>free_list</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 12 讲</div>
+<div class="pb">
+<ol>
+<li>写递归函数 <code class="i">int sum(int n)</code> 计算 1 到 n 的和，并写出迭代版本对比。</li>
+<li>写 <code class="i">size_t list_len(const Node *head)</code>，统计节点个数。</li>
+<li>实现“反转链表”（迭代版），画出三步指针变化。</li>
+<li>解释为什么 <code class="i">fib_naive(50)</code> 实际上跑不完。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 递归：<code class="i">if (n &lt;= 0) return 0; return n + sum(n - 1);</code>。迭代用一个累加变量即可。两者时间复杂度相同，但递归有栈开销。</p>
+<p><b>2.</b> 遍历计数，注意参数是 <code class="i">const Node *</code>，只读不改。</p>
+<p><b>3.</b> 维护 <code class="i">prev = NULL</code>、<code class="i">cur = head</code>；每轮先存 <code class="i">next = cur-&gt;next</code>，再 <code class="i">cur-&gt;next = prev</code>，然后 <code class="i">prev = cur; cur = next</code>；最后返回 <code class="i">prev</code>。</p>
+<p><b>4.</b> 调用次数约 4.07×10<sup>10</sup>（约 407 亿次）。即使每次调用只要 1 纳秒，也要约 41 秒；如果每次 100 纳秒，就超过 1 小时。递归深度只有 50，不会栈溢出，纯粹是时间爆炸。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：释放链表时，为什么必须先保存 <code class="i">next</code>？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>因为 next 指针本身占内存</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>因为 free 之后不能再读该节点的成员</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>因为 free 会自动释放整条链</span></button>
+</div>
+<div class="fb" data-fb><code class="i">free(p)</code> 之后 <code class="i">p</code> 指向的内存已经归还给堆管理器，再读 <code class="i">p-&gt;next</code> 是释放后使用（未定义行为）。所以要在 free 之前把 next 存到局部变量里。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>递归三要素：终止条件、规模递减、结果组合。</li>
+<li>递归深度受栈大小限制；朴素递归可能带来指数级重复计算。</li>
+<li>链表节点独立分配，靠 next 串联，头指针代表整条链。</li>
+<li>插入先接后、再接前；删除要先找前驱，free 前先存 next。</li>
+<li>有 create 就要有 destroy，所有权要成对设计。</li>
+</ul>
+<ul class="checklist">
+<li>我能写出正确的递归终止条件</li>
+<li>我能手写头插、遍历、删除、释放</li>
+<li>我知道遍历时不能移动 head</li>
+</ul>
+</div>

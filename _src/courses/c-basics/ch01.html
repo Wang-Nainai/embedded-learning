@@ -1,0 +1,153 @@
+<h3><span class="n">1.1</span>先搞清楚：计算机到底执行什么</h3>
+<p>你写的 <code class="i">hello.c</code> 是一个 UTF-8 文本文件，里面是给人看的字符。CPU 不认识 <code class="i">printf</code>，它只认识一串二进制编码的指令。两者之间隔着一个翻译过程，这个过程由<strong>工具链</strong>完成。</p>
+<div class="analogy">
+<b>打个比方</b>
+<p>你写的 <code class="i">.c</code> 像一份中文菜谱。预处理是把“参见另一本配方书”的内容抄进来；编译是把菜谱翻译成厨房操作步骤；汇编是把步骤编成机器能识别的动作编号；链接是把半成品、餐具和灶台配齐。四步都成功，菜才能上桌。</p>
+<p class="limit">类比的边界：编译器不会“执行”菜谱，链接器也不会尝味道。链接成功只说明所有符号都找到了，不说明程序逻辑正确。</p>
+</div>
+
+<h3><span class="n">1.2</span>四个阶段，各自负责什么</h3>
+<div class="steps">
+<div><b>预处理（Preprocessing）</b>　处理以 <code class="i">#</code> 开头的行：展开 <code class="i">#include</code>、替换宏、裁剪条件编译。输出仍然是 C 代码，通常叫翻译单元。</div>
+<div><b>编译（Compilation）</b>　做词法、语法、类型检查，把 C 代码翻译成汇编。绝大多数“语法错误”“类型不匹配”在这一步报出。</div>
+<div><b>汇编（Assembly）</b>　把汇编翻译成机器指令，生成目标文件 <code class="i">.o</code>（Windows 上是 <code class="i">.obj</code>）。目标文件里还有没填上的地址，叫重定位项。</div>
+<div><b>链接（Linking）</b>　合并多个目标文件和库，解析符号引用，分配最终地址，生成可执行文件。这一步报的是“找不到某个函数/变量”。</div>
+</div>
+
+<div class="lab" id="lab-build">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>每一步的产物长什么样</h4>
+    <p>点击阶段按钮，看同一个 <code class="i">hello.c</code> 在流水线各处的形态。注意：越往后，越接近机器。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl" id="buildCtl">
+      <button class="lab-btn pri" type="button" data-stage="0">源文件 .c</button>
+      <button class="lab-btn" type="button" data-stage="1">预处理 .i</button>
+      <button class="lab-btn" type="button" data-stage="2">汇编 .s</button>
+      <button class="lab-btn" type="button" data-stage="3">目标文件 .o</button>
+      <button class="lab-btn" type="button" data-stage="4">可执行文件</button>
+    </div>
+    <div class="lab-read" id="buildOut" aria-live="polite"></div>
+    <p class="lab-note">真实文件比这里长得多：一个 <code class="i">.i</code> 文件常常有几万行，因为系统头文件被整段展开了。</p>
+  </div>
+</div>
+
+<h3><span class="n">1.3</span>第一个程序：逐行读懂</h3>
+<codeblock lang="C11" file="hello.c">
+#include <stdio.h>
+
+int main(void)
+{
+    printf("Hello, C!\n");
+    return 0;
+}
+</codeblock>
+<outblock>
+Hello, C!
+</outblock>
+<ul>
+<li><code class="i">#include &lt;stdio.h&gt;</code> 让编译器看到 <code class="i">printf</code> 的<strong>声明</strong>。它不会把 <code class="i">printf</code> 的实现复制进来；实现躺在 C 运行库里，链接时才被接上。尖括号表示在系统头文件目录里找，双引号表示先在当前工程目录找。</li>
+<li><code class="i">int main(void)</code> 是宿主环境（hosted）的标准入口。返回类型必须是 <code class="i">int</code>，<code class="i">void</code> 表示不接受参数。<code class="i">void main()</code> 不是标准写法，换个编译器就可能出问题。</li>
+<li><code class="i">printf</code> 里的 <code class="i">\n</code> 是换行符，占一个字节。字符串字面量末尾还会由编译器自动补一个 <code class="i">'\0'</code>，所以 <code class="i">"Hello, C!\n"</code> 实际占 11 个字节。</li>
+<li><code class="i">return 0;</code> 把 0 返回给运行环境，表示正常结束。C99 起，<code class="i">main</code> 走到末尾等价于返回 0，但显式写出来更清楚。</li>
+</ul>
+
+<div class="note bad">
+<b>易错</b>
+<p>把 <code class="i">printf</code> 写成 <code class="i">print</code>、把分号写成中文分号、把 <code class="i">\n</code> 写成 <code class="i">/n</code>，是初学者最常见的三类错误。中文标点在编译器眼里是完全不同的字符，报错信息往往指向“看起来没问题”的那一行。</p>
+</div>
+
+<h3><span class="n">1.4</span>编译、运行与常用选项</h3>
+<p>打开终端，进入源文件所在目录。GCC 和 Clang 的用法基本一致：</p>
+<codeblock lang="bash" file="终端（bash / PowerShell）">
+gcc -std=c11 -Wall -Wextra -Wpedantic -O2 hello.c -o hello
+./hello            # Linux / macOS
+.\hello.exe        # Windows PowerShell
+</codeblock>
+<div class="table-wrap">
+<table>
+<caption>本教程默认使用的编译选项</caption>
+<thead><tr><th>选项</th><th>作用</th><th>为什么建议加</th></tr></thead>
+<tbody>
+<tr><td><code>-std=c11</code></td><td>按 C11 标准编译</td><td>避免编译器默认开启一堆扩展，减少“换个编译器就编不过”的情况。</td></tr>
+<tr><td><code>-Wall -Wextra</code></td><td>打开常用警告</td><td>未初始化、格式串不匹配、有符号比较等问题会在运行前暴露。</td></tr>
+<tr><td><code>-Wpedantic</code></td><td>对非标准扩展告警</td><td>帮你区分“标准 C”和“这个编译器恰好接受”。</td></tr>
+<tr><td><code>-O0 -g</code></td><td>不优化 + 调试信息</td><td>调试时变量不会被优化掉，断点行号也对得上。</td></tr>
+<tr><td><code>-O2</code></td><td>常用优化</td><td>发布版本使用；优化后单步调试可能“跳来跳去”，属正常现象。</td></tr>
+<tr><td><code>-Werror</code></td><td>把警告当错误</td><td>团队协作或 CI 中推荐；初学阶段先看清警告内容，别急着全开。</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>如果想亲眼看每个阶段的产物，可以让 GCC 停在中间：</p>
+<codeblock lang="bash" file="终端">
+gcc -std=c11 -E hello.c -o hello.i    # 只预处理
+gcc -std=c11 -S hello.c -o hello.s    # 编译到汇编
+gcc -std=c11 -c hello.c -o hello.o    # 汇编到目标文件
+gcc hello.o -o hello                  # 链接
+</codeblock>
+<div class="note law">
+<b>标准怎么说</b>
+<p>C 标准只规定程序的<strong>语义</strong>，不规定编译器必须生成什么指令、可执行文件必须是什么格式。<code class="i">.exe</code>、<code class="i">ELF</code>、<code class="i">.hex</code> 都是平台约定，不是 C 语言的一部分。这也解释了为什么同一段代码在 PC 和单片机上需要不同的工具链。</p>
+</div>
+
+<h3><span class="n">1.5</span>三类错误，三种排查方向</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类型</th><th>发生时间</th><th>典型信息</th><th>先查什么</th></tr></thead>
+<tbody>
+<tr><td>编译错误</td><td>翻译阶段</td><td><code>expected ';' before '}'</code><br><code>implicit declaration of function</code></td><td>报错行<strong>和它上一行</strong>；括号、分号、头文件、函数名拼写。</td></tr>
+<tr><td>链接错误</td><td>链接阶段</td><td><code>undefined reference to 'foo'</code><br><code>multiple definition of 'x'</code></td><td>函数有没有定义、源文件有没有参与编译、库的顺序和路径。</td></tr>
+<tr><td>运行时错误</td><td>程序运行中</td><td>段错误、结果不对、偶发崩溃</td><td>越界、空指针、未初始化、释放后使用；用调试器与检查工具。</td></tr>
+</tbody>
+</table>
+</div>
+<p>编译错误是最好处理的：编译器已经告诉你位置。链接错误次之：它说明“名字对不上”。真正耗时的是第三类——程序能跑，但结果是错的，甚至只在特定输入下崩溃。后面的第 6、7、11 讲会反复处理这类问题。</p>
+
+<div class="note good">
+<b>正确做法</b>
+<p>每次写完一小段就编译一次，不要攒两百行再按编译键。编译器是你最便宜、最快、最不知疲倦的代码审查员。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 1 讲</div>
+<div class="pb">
+<ol>
+<li>把 <code class="i">hello.c</code> 的字符串改成你的名字，重新编译运行。</li>
+<li>故意删掉 <code class="i">main</code> 后面的一个分号，观察报错行号指向哪里。</li>
+<li>故意把 <code class="i">printf</code> 改成 <code class="i">print</code>，看这是编译错误还是链接错误，并解释原因。</li>
+<li>用 <code class="i">-E</code> 生成 <code class="i">.i</code> 文件，搜索 <code class="i">printf</code>，看看它的声明长什么样。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>2.</b> 报错通常指向缺失分号的<strong>下一行</strong>，因为编译器要读到下一个记号才能确定上一句没结束。所以看到“expected ';'”时，先看上一行。</p>
+<p><b>3.</b> 是链接错误（严格说还会先出现隐式声明警告）。编译器允许“只声明未定义”的调用，直到链接阶段才发现没有 <code class="i">print</code> 这个符号。加 <code class="i">-Werror=implicit-function-declaration</code> 可以让它在编译期就失败。</p>
+<p><b>4.</b> 会看到类似 <code class="i">extern int printf (const char *__restrict __format, ...);</code> 的声明——只有接口，没有函数体。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：程序报 <code class="i">undefined reference to 'add'</code>，最可能的原因是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>add 函数的参数类型写错了</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>add 只有声明，没有参与链接的定义</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>add 函数里的局部变量没有初始化</span></button>
+</div>
+<div class="fb" data-fb>这是链接期的符号解析失败：编译器见过 <code class="i">add</code> 的声明，所以不报语法错；链接器在所有目标文件和库里找不到它的定义，于是报未定义引用。参数类型错误会在编译期报错，局部变量问题不会导致链接失败。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>C 程序要经过预处理、编译、汇编、链接四步才变成可执行文件。</li>
+<li>编译错误看语法和类型，链接错误看符号和文件清单，运行时错误看内存和逻辑。</li>
+<li>编译成功只证明“语法和符号没问题”，不证明程序正确。</li>
+<li>从第一天起就用 <code class="i">-Wall -Wextra</code> 编译，把警告当朋友。</li>
+</ul>
+<ul class="checklist">
+<li>我能不看笔记说出四个阶段的名字和产物</li>
+<li>我能独立编译并运行一个 .c 文件</li>
+<li>我能区分“未定义引用”和“语法错误”</li>
+</ul>
+</div>

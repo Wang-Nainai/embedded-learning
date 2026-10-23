@@ -1,0 +1,242 @@
+<h3><span class="n">6.1</span>数组：一块连续的内存 + 一个下标</h3>
+<p><code class="i">int a[5];</code> 让编译器留出 5 个连续的 <code class="i">int</code>，共 <code class="i">5 * sizeof(int)</code> 字节。<code class="i">a[0]</code> 是第一块，<code class="i">a[4]</code> 是最后一块。<strong>下标不是“第几个”的标签，而是“从首地址偏移多少个元素”</strong>。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 220" role="img" aria-labelledby="fig6t fig6d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig6t">数组在内存中的布局</title>
+<desc id="fig6d">int a[5] 占 20 个连续字节，a[0] 到 a[4] 依次排列，每个元素 4 字节；下标 i 的地址等于首地址加上 i 乘以 4。</desc>
+<rect width="820" height="220" fill="#fbfdff"/>
+<text x="30" y="34" font-size="13" font-weight="700" fill="#334155">int a[5] = {10, 20, 30, 40, 50};</text>
+<g font-size="12.5" text-anchor="middle">
+<rect x="40" y="58" width="130" height="52" rx="7" fill="#eef2ff" stroke="#a5b4fc"/>
+<text x="105" y="80" fill="#26348f" font-weight="700">a[0]</text><text x="105" y="99" fill="#1e293b">10</text>
+<rect x="180" y="58" width="130" height="52" rx="7" fill="#eef2ff" stroke="#a5b4fc"/>
+<text x="245" y="80" fill="#26348f" font-weight="700">a[1]</text><text x="245" y="99" fill="#1e293b">20</text>
+<rect x="320" y="58" width="130" height="52" rx="7" fill="#eef2ff" stroke="#a5b4fc"/>
+<text x="385" y="80" fill="#26348f" font-weight="700">a[2]</text><text x="385" y="99" fill="#1e293b">30</text>
+<rect x="460" y="58" width="130" height="52" rx="7" fill="#eef2ff" stroke="#a5b4fc"/>
+<text x="525" y="80" fill="#26348f" font-weight="700">a[3]</text><text x="525" y="99" fill="#1e293b">40</text>
+<rect x="600" y="58" width="130" height="52" rx="7" fill="#eef2ff" stroke="#a5b4fc"/>
+<text x="665" y="80" fill="#26348f" font-weight="700">a[4]</text><text x="665" y="99" fill="#1e293b">50</text>
+</g>
+<g font-size="11" fill="#64748b" text-anchor="middle">
+<text x="105" y="130">0x1000</text><text x="245" y="130">0x1004</text><text x="385" y="130">0x1008</text><text x="525" y="130">0x100C</text><text x="665" y="130">0x1010</text>
+</g>
+<path d="M105 140 L665 140" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#a6)"/>
+<defs><marker id="a6" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#94a3b8"/></marker></defs>
+<text x="385" y="162" font-size="12" fill="#475569" text-anchor="middle">地址递增方向（每个元素 +4 字节）</text>
+<text x="40" y="196" font-size="12" fill="#475569">a[i] 的地址 = 首地址 + i × sizeof(int)；编译器就是这样算出偏移的。</text>
+</svg>
+<figcaption>数组元素在内存中连续排列，下标本质是偏移量。</figcaption>
+</figure>
+
+<h3><span class="n">6.2</span>越界：不报错，但后果自负</h3>
+<p>C 不会在运行时检查下标。<code class="i">a[5]</code> 对 <code class="i">int a[5]</code> 来说是<strong>未定义行为</strong>：可能读到垃圾值，可能改掉相邻变量，也可能当场崩溃。三种结果都“正常”，因为标准没有规定应该发生什么。</p>
+
+<div class="lab" id="lab-array">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>越界写入，改到了谁</h4>
+    <p>下面模拟 <code class="i">int buf[4]</code> 后面紧挨着另一个变量 <code class="i">guard</code>。选一个下标写入，看看“越界一个元素”会发生什么。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>下标 <input id="arrIdx" type="range" min="-1" max="6" value="0" step="1"><span class="chip" id="arrIdxVal">0</span></label>
+      <label>写入值 <input id="arrVal" type="number" value="99" style="width:80px"></label>
+      <button class="lab-btn pri" type="button" id="arrWrite">写入</button>
+      <button class="lab-btn" type="button" id="arrReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="arrCanvas"></div>
+    <div class="lab-read" id="arrOut" aria-live="polite"></div>
+    <p class="lab-note">真实的变量排列由编译器决定，可能插入填充、可能顺序不同。这里只演示“越界会踩到别的对象”这一事实，具体踩到什么不可预测。</p>
+  </div>
+</div>
+
+<h3><span class="n">6.3</span>二维数组：数组的数组</h3>
+<p><code class="i">int m[3][4];</code> 是“3 个元素，每个元素是 <code class="i">int[4]</code>”。它在内存里仍然是<strong>连续的 12 个 int</strong>，按行优先（row-major）排列：先放完第 0 行，再放第 1 行。</p>
+<codeblock lang="C11" file="matrix.c">
+#include <stdio.h>
+
+int main(void)
+{
+    int m[3][4] = {
+        { 1,  2,  3,  4},
+        { 5,  6,  7,  8},
+        { 9, 10, 11, 12}
+    };
+
+    for (int r = 0; r < 3; r++) {
+        for (int c = 0; c < 4; c++) {
+            printf("%3d", m[r][c]);
+        }
+        printf("\n");
+    }
+
+    printf("sizeof(m)      = %zu\n", sizeof(m));        /* 48 */
+    printf("sizeof(m[0])   = %zu\n", sizeof(m[0]));     /* 16 */
+    printf("rows           = %zu\n", sizeof(m) / sizeof(m[0]));
+    return 0;
+}
+</codeblock>
+<outblock>
+  1  2  3  4
+  5  6  7  8
+  9 10 11 12
+sizeof(m)      = 48
+sizeof(m[0])   = 16
+rows           = 3
+</outblock>
+<p>把二维数组传给函数时，<strong>列数不能省</strong>：<code class="i">void f(int m[][4], int rows)</code>。因为编译器需要知道一行有多长，才能算出 <code class="i">m[r][c]</code> 的偏移。</p>
+
+<h3><span class="n">6.4</span>字符串：以 '\0' 结尾的字符数组</h3>
+<p>C 没有内置的“字符串类型”。所谓字符串，就是一段字符，最后跟一个值为 0 的字符 <code class="i">'\0'</code> 作为结束标记。所有字符串函数都靠这个标记判断“到哪里停”。</p>
+<codeblock lang="C11" file="string_basic.c">
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    char s1[] = "hello";        /* 6 个字节：h e l l o \0 */
+    char s2[8] = "hi";          /* 剩余字节补 0 */
+    char s3[3] = {'a', 'b', 'c'};  /* 没有 '\0'，不是字符串！ */
+    (void)s3;                      /* 本例不读取它，避免“未使用变量”警告 */
+
+    printf("sizeof(s1)=%zu strlen(s1)=%zu\n", sizeof(s1), strlen(s1));
+    printf("sizeof(s2)=%zu strlen(s2)=%zu\n", sizeof(s2), strlen(s2));
+    printf("s3 不是字符串，传给 strlen 是未定义行为\n");
+    return 0;
+}
+</codeblock>
+<outblock>
+sizeof(s1)=6 strlen(s1)=5
+sizeof(s2)=8 strlen(s2)=2
+s3 不是字符串，传给 strlen 是未定义行为
+</outblock>
+<div class="note bad">
+<b>易错</b>
+<p><code class="i">strlen</code> 数的是“<code class="i">'\0'</code> 之前有多少个字符”，<code class="i">sizeof</code> 数的是“这个数组占多少字节”。对指针用 <code class="i">sizeof</code> 得到的是指针本身的大小（8 字节），不是字符串长度。这两个值在数组和指针上完全不同，是考试和面试的高频陷阱。</p>
+</div>
+
+<h3><span class="n">6.5</span>字符串函数与安全写法</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>函数</th><th>作用</th><th>风险 / 建议</th></tr></thead>
+<tbody>
+<tr><td><code>strlen(s)</code></td><td>返回 <code>'\0'</code> 前的字符数</td><td>要求 <code>s</code> 必须以 <code>'\0'</code> 结尾</td></tr>
+<tr><td><code>strcpy(dst, src)</code></td><td>复制字符串</td><td>不检查目标容量，缓冲区溢出的经典来源</td></tr>
+<tr><td><code>strncpy(dst, src, n)</code></td><td>最多复制 n 字节</td><td>源串过长时<strong>不会补 <code>'\0'</code></strong>，需手动补</td></tr>
+<tr><td><code>snprintf(dst, n, fmt, ...)</code></td><td>格式化并限制长度</td><td>推荐；返回值可能大于 n，表示“被截断了”</td></tr>
+<tr><td><code>strcmp(a, b)</code></td><td>比较，相等返回 0</td><td>不要用 <code>==</code> 比较字符串内容</td></tr>
+<tr><td><code>strcat(dst, src)</code></td><td>拼接</td><td>同样不检查容量，优先用 <code>snprintf</code></td></tr>
+<tr><td><code>fgets(buf, n, stdin)</code></td><td>读一行，最多 n-1 字符</td><td>会保留换行符，需要自己去掉</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="C11" file="safe_string.c">
+#include <stdio.h>
+#include <string.h>
+
+int main(void)
+{
+    char name[16];
+
+    printf("请输入姓名：");
+    if (fgets(name, sizeof(name), stdin) == NULL) {
+        return 1;
+    }
+
+    /* fgets 会把换行符也读进来，去掉它 */
+    size_t len = strlen(name);
+    if (len > 0 && name[len - 1] == '\n') {
+        name[len - 1] = '\0';
+    }
+
+    printf("你好，%s（长度 %zu）\n", name, strlen(name));
+    return 0;
+}
+</codeblock>
+<outblock label="输入 Ada 时的输出">
+请输入姓名：你好，Ada（长度 3）
+</outblock>
+<div class="note good">
+<b>正确做法</b>
+<p>格式化字符串一律用 <code class="i">snprintf</code>，并且检查返回值：如果返回值 <code class="i">&gt;= n</code>，说明内容被截断，应该报错或扩大缓冲区，而不是假装成功。</p>
+<codeblock lang="C11" file="snprintf_check.c · 片段">
+char path[32];
+int n = snprintf(path, sizeof(path), "%s/%s", dir, file);
+if (n < 0 || (size_t)n >= sizeof(path)) {
+    /* 编码错误，或者被截断 */
+}
+</codeblock>
+</div>
+
+<h3><span class="n">6.6</span>数组作为函数参数：长度必须另传</h3>
+<codeblock lang="C11" file="array_param.c">
+#include <stdio.h>
+
+/* 下面两种写法完全等价：int *arr 和 int arr[] 都是指针 */
+int sum(const int *arr, int n)
+{
+    int s = 0;
+    for (int i = 0; i < n; i++) {
+        s += arr[i];
+    }
+    return s;
+}
+
+int main(void)
+{
+    int data[5] = {1, 2, 3, 4, 5};
+    printf("%d\n", sum(data, 5));
+    printf("函数内 sizeof(arr) 只有 %zu，拿不到数组长度\n", sizeof(int *));
+    return 0;
+}
+</codeblock>
+<outblock>
+15
+函数内 sizeof(arr) 只有 8，拿不到数组长度
+</outblock>
+<p>原因在下一讲会讲清楚：数组名在传参时<strong>退化</strong>成指向首元素的指针，长度信息丢失了。所以 C 的数组参数永远需要配一个长度，或者用一个约定的结束标记（字符串的 <code class="i">'\0'</code> 就是这种思路）。</p>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 6 讲</div>
+<div class="pb">
+<ol>
+<li>写一个函数，把数组逆序（原地交换），并打印前后结果。</li>
+<li>不用 <code class="i">strlen</code>，自己写一个 <code class="i">size_t my_strlen(const char *s)</code>。</li>
+<li>用 <code class="i">snprintf</code> 把 <code class="i">"2026"</code>、<code class="i">"10"</code>、<code class="i">"23"</code> 拼成 <code class="i">"2026-10-23"</code>，缓冲区只有 8 字节，观察返回值并解释。</li>
+<li>解释 <code class="i">char s[3] = "abc";</code> 在 C 里是否合法，<code class="i">s</code> 能不能当字符串用。</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> <code class="i">for (int i = 0, j = n - 1; i &lt; j; i++, j--) { int t = a[i]; a[i] = a[j]; a[j] = t; }</code>。注意 <code class="i">i &lt; j</code> 而不是 <code class="i">i &lt;= j</code>，中间元素不用换。</p>
+<p><b>2.</b> <code class="i">const char *p = s; while (*p) p++; return (size_t)(p - s);</code>。指针相减得到元素个数。</p>
+<p><b>3.</b> 合法但危险：C 允许用恰好占满数组的字符串字面量初始化，不补 <code class="i">'\0'</code>（C11 6.7.9p14）。此时 <code class="i">s</code> 不是字符串，传给 <code class="i">strlen</code> 会越界读。C++ 里这种写法直接编译失败。</p>
+<p><b>4.</b> 返回 10（本应写入的字符数，不含 <code class="i">'\0'</code>），但缓冲区只有 8 字节，只能放下 7 个字符加 <code class="i">'\0'</code>，所以内容被截断为 <code class="i">"2026-10"</code>。返回值 10 &gt;= 8 说明发生了截断。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="0">
+<p class="q">自测：<code class="i">char s[10] = "abc";</code> 则 <code class="i">sizeof(s)</code> 和 <code class="i">strlen(s)</code> 分别是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>10 和 3</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>4 和 3</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>3 和 3</span></button>
+</div>
+<div class="fb" data-fb><code class="i">sizeof</code> 是数组占的总字节数 10；<code class="i">strlen</code> 数到 <code class="i">'\0'</code> 前有 3 个字符。如果写成 <code class="i">char *p = s;</code>，<code class="i">sizeof(p)</code> 就变成指针大小 8 了。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>数组是连续内存，下标是偏移量，从 0 开始，越界是未定义行为。</li>
+<li>二维数组按行优先连续存放，传参时列数不能省。</li>
+<li>字符串必须以 <code class="i">'\0'</code> 结尾，<code class="i">strlen</code> 与 <code class="i">sizeof</code> 含义不同。</li>
+<li>优先使用 <code class="i">snprintf</code> / <code class="i">fgets</code>，并检查截断与返回值。</li>
+<li>数组传参会退化为指针，长度必须另传。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出 int a[5] 的内存布局</li>
+<li>我能解释越界为什么危险</li>
+<li>我会用 fgets + 去换行安全读取一行</li>
+</ul>
+</div>

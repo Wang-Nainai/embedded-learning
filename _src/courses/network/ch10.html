@@ -1,0 +1,125 @@
+<h3><span class="n">10.1</span>Wi-Fi 是共享介质</h3>
+<p>以太网交换机每个端口是独立的冲突域，Wi-Fi 则是一个<strong>共享的无线电空间</strong>：同一信道上的设备轮流发言，靠 CSMA/CA 避免冲突。所以“信号满格但很慢”很常见——不是信号问题，是大家在排队。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>概念</th><th>含义</th></tr></thead>
+<tbody>
+<tr><td>SSID</td><td>网络名字，可以多个 AP 共用一个</td></tr>
+<tr><td>BSSID</td><td>某个 AP 的 MAC 地址</td></tr>
+<tr><td>Station（STA）</td><td>终端设备，如手机、ESP32</td></tr>
+<tr><td>AP</td><td>接入点，提供无线接入</td></tr>
+<tr><td>信道</td><td>2.4 GHz 常用 1/6/11（互不重叠）</td></tr>
+<tr><td>RSSI</td><td>信号强度，约 -30 dBm 很强，-80 dBm 很弱</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">10.2</span>一次 Wi-Fi 连接经历什么</h3>
+<div class="steps">
+<div><b>扫描</b>　主动/被动发现 SSID 与加密方式。</div>
+<div><b>认证与关联</b>　与 AP 建立链路层关系。</div>
+<div><b>四次握手</b>　WPA2/WPA3 派生会话密钥，验证密码。</div>
+<div><b>DHCP</b>　拿到 IP、掩码、网关、DNS。</div>
+<div><b>联网</b>　DNS 解析、TCP 连接、应用协议。</div>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>“连上 Wi-Fi”不等于“能上网”。前者是链路层关联成功，后者还需要 DHCP 拿到地址、网关可达、DNS 可用。排障时按这四步逐层确认，不要一上来就重刷固件。</p>
+</div>
+
+<h3><span class="n">10.3</span>WPA2 与 WPA3</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th></th><th>WPA2-PSK</th><th>WPA3-SAE</th></tr></thead>
+<tbody>
+<tr><td>认证</td><td>预共享密钥（PSK）</td><td>SAE（对等同时认证）</td></tr>
+<tr><td>离线字典攻击</td><td>抓握手包可离线爆破</td><td>SAE 抵抗离线猜测</td></tr>
+<tr><td>前向保密</td><td>不支持</td><td>支持</td></tr>
+<tr><td>设备兼容性</td><td>几乎所有设备</td><td>较老设备可能不支持</td></tr>
+</tbody>
+</table>
+</div>
+<p>企业环境用 802.1X/EAP，每台设备一个凭据，便于审计与吊销；家庭/小项目用 PSK 足够，但密码要足够长。</p>
+
+<h3><span class="n">10.4</span>IPv6：地址多了，玩法也变了</h3>
+<p>IPv6 地址 128 位，通常写成 8 组十六进制。一个 /64 子网就有 2<sup>64</sup> 个地址，足够给每台设备分一个“公网地址”。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>类型</th><th>前缀</th><th>说明</th></tr></thead>
+<tbody>
+<tr><td>全球单播</td><td>2000::/3</td><td>公网可路由</td></tr>
+<tr><td>链路本地</td><td>fe80::/10</td><td>每块网卡自动生成，仅本地链路</td></tr>
+<tr><td>唯一本地</td><td>fc00::/7</td><td>类似私有地址</td></tr>
+<tr><td>回环</td><td>::1/128</td><td>本机</td></tr>
+<tr><td>组播</td><td>ff00::/8</td><td>ND、路由协议</td></tr>
+</tbody>
+</table>
+</div>
+<p>IPv6 通常不需要 NAT，设备用 SLAAC 自动配置地址（基于前缀 + 接口标识），用 ND（邻居发现）替代 ARP。这带来一个安全含义：<strong>设备可能直接暴露在公网</strong>，防火墙策略必须显式配置。</p>
+<div class="note eng">
+<b>工程习惯</b>
+<p>设备同时支持 IPv4/IPv6 时，优先使用 Happy Eyeballs 思路：并行尝试，谁先通用谁，避免“IPv6 配置了但不通”导致长时间等待。</p>
+</div>
+
+<h3><span class="n">10.5</span>联网安全：三件事不能省</h3>
+<div class="grid3">
+<div class="card"><span class="tag">传输</span><h4>加密</h4><p>用 TLS（MQTT 8883、HTTPS 443），不要明文传凭据。校验服务器证书与域名。</p></div>
+<div class="card"><span class="tag">身份</span><h4>认证</h4><p>每台设备独立凭据，支持吊销；不要所有设备共用一个密码。</p></div>
+<div class="card"><span class="tag">固件</span><h4>完整性</h4><p>OTA 包要签名，启动时校验；关闭调试口，防止被读出密钥。</p></div>
+</div>
+<div class="table-wrap">
+<table>
+<thead><tr><th>错误做法</th><th>风险</th><th>正确做法</th></tr></thead>
+<tbody>
+<tr><td>固件里硬编码 WiFi 密码/Token</td><td>固件泄露即全部设备失守</td><td>每台设备独立凭据，安全存储/安全芯片</td></tr>
+<tr><td>关闭 TLS 证书校验</td><td>中间人可篡改</td><td>内置根证书，校验证书链与域名</td></tr>
+<tr><td>OTA 不验签</td><td>可被刷入恶意固件</td><td>签名 + 启动校验 + 回滚保护</td></tr>
+<tr><td>开放调试口/串口 shell</td><td>物理接触即可控制</td><td>量产关闭或加认证</td></tr>
+<tr><td>默认密码不改</td><td>批量被控</td><td>首次配网强制改密</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 10 讲</div>
+<div class="pb">
+<ol>
+<li>“连上 Wi-Fi 但上不了网”，按顺序查哪四步？</li>
+<li>WPA3 相比 WPA2 主要改进了什么？</li>
+<li>IPv6 没有 NAT，对设备安全意味着什么？</li>
+<li>为什么不能把 WiFi 密码硬编码在固件里？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 关联是否成功 → 是否拿到 IP（DHCP）→ 网关是否可达 → DNS 是否可解析。</p>
+<p><b>2.</b> SAE 抵抗离线字典攻击，并提供前向保密。</p>
+<p><b>3.</b> 设备可能直接被公网访问，必须配置防火墙/安全组，不能依赖 NAT 当“天然防火墙”。</p>
+<p><b>4.</b> 固件可被提取，一处泄露会导致所有同型号设备失守；应使用每设备独立凭据并支持吊销。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="2">
+<p class="q">自测：IPv6 中替代 ARP 的机制是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>DHCPv6</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>NAT66</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>ND（邻居发现）</span></button>
+</div>
+<div class="fb" data-fb>IPv6 用 ICMPv6 的邻居发现（ND）完成地址解析、重复地址检测与路由器发现；ARP 在 IPv6 中不再使用。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>Wi-Fi 是共享介质，速率受信道与排队影响。</li>
+<li>连接成功不等于能上网，要逐层检查 DHCP/网关/DNS。</li>
+<li>WPA3 用 SAE 提升抗离线爆破能力。</li>
+<li>IPv6 地址充足、通常无 NAT，安全策略要显式配置。</li>
+<li>加密、认证、固件完整性是联网设备的三条底线。</li>
+</ul>
+<ul class="checklist">
+<li>我能按层次排查 Wi-Fi 联网问题</li>
+<li>我能说出 IPv6 与 IPv4 的主要差异</li>
+<li>我知道设备安全的三个基本要求</li>
+</ul>
+</div>

@@ -1,0 +1,152 @@
+<h3><span class="n">9.1</span>MQTT 解决“很多设备、很多订阅者”</h3>
+<p>HTTP 是“客户端问、服务器答”。如果 1000 台设备都要把数据送给 10 个订阅者，HTTP 会让每台设备分别推给每个订阅者，连接数和耦合度都爆炸。</p>
+<p>MQTT 引入 <strong>Broker</strong>：发布者只把消息发给 Broker，订阅者只从 Broker 收。双方不需要知道对方的存在，只约定<strong>主题</strong>。</p>
+<figure class="fig scroll">
+<svg viewBox="0 0 820 220" role="img" aria-labelledby="fig9t fig9d" font-family="Segoe UI, Microsoft YaHei, sans-serif">
+<title id="fig9t">MQTT 发布订阅模型</title>
+<desc id="fig9d">多个发布者把消息发到 Broker 的主题，多个订阅者按主题订阅，Broker 负责转发。</desc>
+<rect width="820" height="220" fill="#fbfdff"/>
+<g font-size="11" text-anchor="middle">
+<rect x="30" y="40" width="120" height="44" rx="8" fill="#e0e7ff" stroke="#818cf8"/><text x="90" y="67" fill="#26348f">设备 A</text>
+<rect x="30" y="130" width="120" height="44" rx="8" fill="#e0e7ff" stroke="#818cf8"/><text x="90" y="157" fill="#26348f">设备 B</text>
+<rect x="330" y="70" width="150" height="76" rx="10" fill="#fef3c7" stroke="#fbbf24"/><text x="405" y="100" fill="#92400e" font-weight="700">MQTT Broker</text><text x="405" y="122" fill="#78350f" font-size="10">主题路由</text>
+<rect x="640" y="30" width="150" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="715" y="57" fill="#166534">订阅者 1</text>
+<rect x="640" y="90" width="150" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="715" y="117" fill="#166534">订阅者 2</text>
+<rect x="640" y="150" width="150" height="44" rx="8" fill="#dcfce7" stroke="#4ade80"/><text x="715" y="177" fill="#166534">订阅者 3</text>
+</g>
+<g stroke="#64748b" stroke-width="1.5" fill="none" marker-end="url(#a9)">
+<path d="M150 62 L326 90"/><path d="M150 152 L326 126"/>
+<path d="M480 90 L636 54"/><path d="M480 104 L636 112"/><path d="M480 126 L636 170"/>
+</g>
+<defs><marker id="a9" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#64748b"/></marker></defs>
+</svg>
+<figcaption>发布者与订阅者通过 Broker 和主题解耦。</figcaption>
+</figure>
+<div class="note law">
+<b>标准怎么说</b>
+<p>MQTT 是<strong>应用层协议</strong>，跑在 TCP 之上（默认 1883，TLS 为 8883）。它不是“替代 TCP/IP 的底层传输”，也不负责 IP 寻址、路由和可靠字节流——那些仍然是 TCP/IP 的工作。</p>
+</div>
+
+<h3><span class="n">9.2</span>主题与通配符</h3>
+<codeblock lang="text" file="主题示例">
+home/livingroom/temperature
+home/kitchen/temperature
+device/esp32-001/status
+
+订阅：
+home/+/temperature       + 匹配一层
+home/#                   # 匹配多层（必须放在末尾）
+</codeblock>
+<p>主题是大小写敏感的，用 <code class="i">/</code> 分层。不要用 <code class="i">#</code> 订阅所有主题——消息量大时会压垮设备和 Broker。</p>
+
+<h3><span class="n">9.3</span>QoS：保证到什么程度</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>QoS</th><th>语义</th><th>交互</th><th>可能的结果</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>最多一次（发完就忘）</td><td>PUBLISH</td><td>可能丢，不会重复</td></tr>
+<tr><td>1</td><td>至少一次</td><td>PUBLISH → PUBACK</td><td>不丢，但可能重复（需要应用去重）</td></tr>
+<tr><td>2</td><td>恰好一次</td><td>PUBLISH → PUBREC → PUBREL → PUBCOMP</td><td>不丢不重，开销最大</td></tr>
+</tbody>
+</table>
+</div>
+<div class="note bad">
+<b>易错</b>
+<p>QoS 2 的“恰好一次”是<strong>在 Broker 与客户端之间</strong>的语义，不覆盖端到端业务。如果发布者重连后重发、或者业务本身重复执行，仍然可能产生重复副作用。关键操作要自己做幂等（例如带消息 ID 去重）。</p>
+</div>
+
+<h3><span class="n">9.4</span>保留消息、遗嘱消息与会话</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>功能</th><th>作用</th><th>注意</th></tr></thead>
+<tbody>
+<tr><td>Retained</td><td>Broker 保留该主题最后一条消息，新订阅者立刻收到</td><td>只保留一条；发空载荷可清除</td></tr>
+<tr><td>Will</td><td>客户端异常断开时，Broker 代发一条消息</td><td>正常断开（DISCONNECT）不触发</td></tr>
+<tr><td>Clean Session</td><td>为 0 时 Broker 保留订阅与离线消息</td><td>MQTT 5 用 Session Expiry 替代</td></tr>
+<tr><td>Keep Alive</td><td>客户端定期 PING，维持连接与 NAT 映射</td><td>超时 1.5 倍未收到任何包则断开</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lab" id="lab-mqtt">
+  <div class="lab-head">
+    <span class="badge">动手看</span>
+    <h4>发布、订阅与 QoS 流程</h4>
+    <p>选择 QoS，点“发布”，看消息经过 Broker 到达订阅者时需要几次交互。再试试保留消息与遗嘱消息。</p>
+  </div>
+  <div class="lab-body">
+    <div class="lab-ctl">
+      <label>QoS
+        <select id="mqQos"><option value="0">0</option><option value="1" selected>1</option><option value="2">2</option></select>
+      </label>
+      <label><input type="checkbox" id="mqRetain"> 保留消息</label>
+      <button class="lab-btn pri" type="button" id="mqPub">发布</button>
+      <button class="lab-btn" type="button" id="mqSub">新订阅者加入</button>
+      <button class="lab-btn" type="button" id="mqDrop">模拟掉线</button>
+      <button class="lab-btn" type="button" id="mqOnline">重新上线</button>
+      <button class="lab-btn" type="button" id="mqReset">重置</button>
+    </div>
+    <div class="lab-canvas" id="mqCanvas"></div>
+    <div class="lab-read" id="mqOut" aria-live="polite"></div>
+    <p class="lab-note">QoS 1 可能重复，QoS 2 用四次交互换“不重”；保留消息让新订阅者立刻拿到最后状态。</p>
+  </div>
+</div>
+
+<h3><span class="n">9.5</span>一个设备端的连接参数</h3>
+<codeblock lang="text" file="MQTT 连接参数（示例）">
+Broker    broker.example.com:8883（TLS）
+ClientID  esp32-001（必须唯一）
+Username  设备 ID
+Password  Token / 证书
+KeepAlive 60 秒
+Clean     0（保留会话）
+Will      device/esp32-001/status = "offline"（QoS 1, retained）
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>ClientID 重复会导致两个客户端互相踢下线，表现为“设备频繁掉线”。量产设备要用 MAC/芯片 ID 生成唯一 ClientID，并避免在重连时随机变化（否则会话丢失）。</p>
+</div>
+
+<div class="practice">
+<div class="ph">动手练习 · 第 9 讲</div>
+<div class="pb">
+<ol>
+<li>设计三个主题：设备状态、温度上报、控制指令。</li>
+<li>QoS 1 为什么会重复？应用层怎么处理？</li>
+<li>保留消息和遗嘱消息分别解决什么问题？</li>
+<li>为什么说 MQTT 不能替代 TCP/IP？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 例如 <code class="i">device/&lt;id&gt;/status</code>、<code class="i">device/&lt;id&gt;/telemetry</code>、<code class="i">device/&lt;id&gt;/cmd</code>；控制指令用 QoS 1 + 消息 ID 去重。</p>
+<p><b>2.</b> 发布者没收到 PUBACK 会重发，Broker 可能已处理过。应用层用消息 ID/时间戳做幂等。</p>
+<p><b>3.</b> 保留消息让新订阅者立刻获得最新状态；遗嘱消息让系统知道设备异常离线。</p>
+<p><b>4.</b> MQTT 依赖 TCP 提供可靠字节流与连接管理，自己只负责消息路由与语义；它不定义 IP 寻址、路由、链路传输。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：MQTT QoS 1 的语义是？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>最多一次，可能丢</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>至少一次，可能重复</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>恰好一次，绝不重复</span></button>
+</div>
+<div class="fb" data-fb>QoS 1 用 PUBACK 确认，没收到就重发，所以“至少一次”，代价是可能重复；QoS 2 才做到“恰好一次”。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>MQTT 用 Broker 和主题解耦发布者与订阅者。</li>
+<li>QoS 0/1/2 分别是最多一次、至少一次、恰好一次。</li>
+<li>保留消息、遗嘱消息、会话分别解决状态、离线通知与断线续传。</li>
+<li>MQTT 跑在 TCP 之上，不是传输层协议。</li>
+<li>ClientID 必须唯一，关键业务要自己做幂等。</li>
+</ul>
+<ul class="checklist">
+<li>我能画出发布/订阅流程</li>
+<li>我能解释三种 QoS 的代价</li>
+<li>我知道保留与遗嘱的适用场景</li>
+</ul>
+</div>

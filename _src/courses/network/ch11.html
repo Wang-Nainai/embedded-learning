@@ -1,0 +1,149 @@
+<h3><span class="n">11.1</span>五个命令解决大部分问题</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>命令</th><th>回答什么</th><th>典型用法</th></tr></thead>
+<tbody>
+<tr><td><code>ping</code></td><td>对方 IP 是否可达、往返时间、丢包</td><td><code>ping 192.168.1.1</code></td></tr>
+<tr><td><code>traceroute</code> / <code>tracert</code></td><td>路径在哪一跳断了</td><td><code>tracert example.com</code></td></tr>
+<tr><td><code>netstat</code> / <code>ss</code></td><td>本机监听/连接/端口状态</td><td><code>ss -lntp</code></td></tr>
+<tr><td><code>curl -v</code></td><td>HTTP 请求到底卡在哪</td><td><code>curl -v http://127.0.0.1:8080/</code></td></tr>
+<tr><td><code>dig</code> / <code>nslookup</code></td><td>域名解析结果与耗时</td><td><code>dig example.com</code></td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="bash" file="一次完整的本机排查">
+ping 127.0.0.1                 # 协议栈是否正常
+ping 192.168.1.1               # 网关是否可达
+ping 8.8.8.8                   # 公网 IP 是否可达
+nslookup example.com           # DNS 是否正常
+curl -v http://example.com     # 应用层是否响应
+ss -lntp                       # 本机监听端口
+</codeblock>
+
+<h3><span class="n">11.2</span>错误信息怎么读</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>现象</th><th>含义</th><th>先查</th></tr></thead>
+<tbody>
+<tr><td>Connection refused</td><td>对方可达，但端口没监听/被拒绝</td><td>服务是否启动、端口是否写错、防火墙</td></tr>
+<tr><td>Connection timed out</td><td>包发出去没有回应</td><td>路由、防火墙丢包、IP 写错、对方没开机</td></tr>
+<tr><td>No route to host</td><td>本地路由表找不到路径</td><td>网关/掩码配置</td></tr>
+<tr><td>Name or service not known</td><td>DNS 解析失败</td><td>DNS 配置、域名拼写</td></tr>
+<tr><td>TLS handshake failed</td><td>证书/协议/时间问题</td><td>设备时间、根证书、SNI</td></tr>
+<tr><td>Connection reset</td><td>对方或中间设备发了 RST</td><td>服务崩溃、防火墙、超时回收</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">11.3</span>抓包：看到真相</h3>
+<p>当 ping 通、端口也通，但应用就是不对，就该抓包了。Wireshark 能解码 TCP 流、HTTP、MQTT，直接看到“发了什么、回了什么”。</p>
+<codeblock lang="bash" file="命令行抓包（Linux / macOS）">
+sudo tcpdump -i any -n port 1883 -w mqtt.pcap
+sudo tcpdump -i any -n host 192.168.1.50 and port 80
+</codeblock>
+<div class="note eng">
+<b>工程习惯</b>
+<p>抓包要在<strong>两端同时抓</strong>（设备侧 + 服务器侧），才能区分“没发出去”“发出去了没收到”“收到了没处理”。只抓一端，很容易得出错误结论。</p>
+</div>
+
+<h3><span class="n">11.4</span>分层排查清单</h3>
+<div class="table-wrap">
+<table>
+<thead><tr><th>层</th><th>检查</th><th>工具</th></tr></thead>
+<tbody>
+<tr><td>链路</td><td>网线/Wi-Fi 关联、指示灯、VLAN</td><td>看灯、<code>ip link</code></td></tr>
+<tr><td>网络</td><td>IP/掩码/网关、ARP、路由</td><td><code>ip addr</code>、<code>ip route</code>、<code>arp -a</code></td></tr>
+<tr><td>传输</td><td>端口监听、防火墙、NAT</td><td><code>ss -lntp</code>、<code>nc -vz</code></td></tr>
+<tr><td>应用</td><td>协议格式、认证、超时</td><td><code>curl -v</code>、Wireshark、日志</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">11.5</span>综合项目：设备遥测上报</h3>
+<p>目标：设备通过 Wi-Fi 联网，周期采集数据，经 MQTT 上报；同时订阅控制主题，收到指令后执行并回复状态。全部可以在<strong>本机 + 局域网</strong>验证，不需要公网服务器。</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>模块</th><th>职责</th><th>失败时</th></tr></thead>
+<tbody>
+<tr><td>Wi-Fi 管理</td><td>连接、断线重连、信号监测</td><td>指数退避重连，状态上报</td></tr>
+<tr><td>MQTT 客户端</td><td>连接 Broker、发布、订阅、心跳</td><td>重连后重新订阅，补发离线数据</td></tr>
+<tr><td>采集</td><td>周期读取传感器</td><td>读数非法时丢弃并计数</td></tr>
+<tr><td>命令处理</td><td>解析控制指令、执行、回复</td><td>非法指令回复错误码</td></tr>
+<tr><td>看门狗</td><td>监控任务健康</td><td>关键任务卡死则复位</td></tr>
+</tbody>
+</table>
+</div>
+<codeblock lang="text" file="本机验证拓扑（无需公网）">
+[设备/模拟器] ──Wi-Fi/本机──> [Mosquitto Broker 192.168.1.x:1883]
+                                      │
+                                      ├──> [订阅者 mosquitto_sub]
+                                      └──> [控制发布 mosquitto_pub]
+</codeblock>
+<codeblock lang="bash" file="本机启动 Broker 与订阅（示例）">
+# 安装 mosquitto 后，本机启动
+mosquitto -p 1883 -v
+
+# 另开终端：订阅所有设备遥测
+mosquitto_sub -h 127.0.0.1 -t 'device/+/telemetry' -v
+
+# 发布一条控制指令
+mosquitto_pub -h 127.0.0.1 -t 'device/esp32-001/cmd' -m '{"led":1}'
+</codeblock>
+<div class="note impl">
+<b>实现细节</b>
+<p>如果没有真实设备，可以用 Python 的 <code class="i">paho-mqtt</code> 或 Node 的 <code class="i">mqtt</code> 包写一个模拟器，行为与设备一致：连接、发布、订阅、断线重连。这样协议与后端逻辑可以先在电脑上验证，再移植到固件。</p>
+</div>
+
+<h3><span class="n">11.6</span>验收标准</h3>
+<ul class="checklist">
+<li>设备上电后 10 秒内连上 Wi-Fi 与 Broker</li>
+<li>每 5 秒上报一次，断网后本地缓存，恢复后补发（或明确丢弃策略）</li>
+<li>收到控制指令后 1 秒内执行并回复</li>
+<li>Broker 重启后设备能自动重连并重新订阅</li>
+<li>连续运行 24 小时，内存/连接数不持续增长</li>
+<li>抓包能看到完整的 CONNECT/SUBSCRIBE/PUBLISH 流程</li>
+</ul>
+
+<div class="practice">
+<div class="ph">项目练习 · 第 11 讲</div>
+<div class="pb">
+<ol>
+<li>用 <code class="i">curl -v</code> 访问一个不存在的端口，观察错误信息。</li>
+<li>用 <code class="i">tracert</code> 看一次外网路径，指出第一跳是谁。</li>
+<li>设计断线重连策略：初始 1 秒，最大 60 秒，指数退避 + 抖动。</li>
+<li>如果设备时间不可用，HTTPS 证书校验会怎样？如何兜底？</li>
+</ol>
+<details class="qa"><summary>参考答案与思路</summary><div class="ans">
+<p><b>1.</b> 通常是 <code class="i">Connection refused</code>，说明 IP 可达但端口没有监听。</p>
+<p><b>2.</b> 第一跳通常是家里的路由器/网关；后续是运营商网关。</p>
+<p><b>3.</b> <code class="i">delay = min(60, 2^n)</code>，再加 0–1 秒随机抖动，避免所有设备同时重连造成风暴。</p>
+<p><b>4.</b> 证书有效期校验会失败（“not yet valid”）。兜底：首次联网用 NTP 校时；或使用较长有效期的证书 + 构建时间下限；不能直接关闭校验。</p>
+</div></details>
+</div>
+</div>
+
+<div class="quiz" data-answer="1">
+<p class="q">自测：<code class="i">Connection refused</code> 通常说明？</p>
+<div class="opts">
+<button class="opt" type="button" data-i="0"><b>A</b><span>网络完全不通</span></button>
+<button class="opt" type="button" data-i="1"><b>B</b><span>对方可达，但目标端口没有服务监听</span></button>
+<button class="opt" type="button" data-i="2"><b>C</b><span>DNS 解析失败</span></button>
+</div>
+<div class="fb" data-fb>收到 RST 才会“refused”，说明包到了对方、对方明确拒绝；完全不通通常是 timeout，DNS 失败则是名字解析错误。</div>
+</div>
+
+<div class="summary">
+<h3>本讲小结</h3>
+<ul>
+<li>ping/traceroute/netstat/curl/dig 能覆盖大部分排查。</li>
+<li>错误信息要分清 refused、timeout、DNS、TLS。</li>
+<li>抓包要两端同时抓，才能定位“哪一段丢了”。</li>
+<li>排查按链路 → 网络 → 传输 → 应用逐层进行。</li>
+<li>项目可在本机 + 局域网完整验证，不需要公网服务器。</li>
+</ul>
+<ul class="checklist">
+<li>我能用五个命令定位常见问题</li>
+<li>我能读懂 refused 与 timeout 的区别</li>
+<li>我能设计断线重连与补发策略</li>
+</ul>
+</div>

@@ -1,0 +1,142 @@
+<h3><span class="n">A.1</span>语法与类型速查</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>主题</th><th>写法</th><th>要点</th></tr></thead>
+<tbody>
+<tr><td>整型</td><td><code>signed char / short / int / long / long long</code></td><td>宽度用 <code>sizeof</code> 查；跨平台用 <code>&lt;stdint.h&gt;</code></td></tr>
+<tr><td>无符号</td><td><code>unsigned int u = 0u;</code></td><td>溢出按 2<sup>N</sup> 回绕，不报警告</td></tr>
+<tr><td>浮点</td><td><code>float f = 1.0f; double d = 1.0;</code></td><td>不要用 <code>==</code> 比较；金额用整数分</td></tr>
+<tr><td>字符</td><td><code>char c = 'A';</code></td><td><code>'A'</code> 的类型是 <code>int</code>，值为 65（ASCII 平台）</td></tr>
+<tr><td>字符串</td><td><code>char s[] = "hi";</code></td><td>占 3 字节，末尾自动补 <code>'\0'</code></td></tr>
+<tr><td>数组</td><td><code>int a[5] = {0};</code></td><td>下标 0–4；越界是未定义行为</td></tr>
+<tr><td>二维数组</td><td><code>int m[3][4];</code></td><td>行优先连续存放；传参时列数不能省</td></tr>
+<tr><td>指针</td><td><code>int *p = &amp;x;</code></td><td><code>*p</code> 取值，<code>p+1</code> 走一个 <code>int</code></td></tr>
+<tr><td>结构体</td><td><code>struct S { int a; };</code></td><td>用 <code>.</code> 访问，指针用 <code>-&gt;</code></td></tr>
+<tr><td>枚举</td><td><code>enum E { A, B = 3 };</code></td><td>本质是 int 常量，默认从 0 开始</td></tr>
+<tr><td>联合</td><td><code>union U { int i; float f; };</code></td><td>成员共用内存，大小取最大成员</td></tr>
+<tr><td>类型别名</td><td><code>typedef unsigned int u32;</code></td><td>不产生新类型，只起名字</td></tr>
+<tr><td>常量</td><td><code>const int N = 10;</code></td><td>C 里默认外部链接，放头文件要加 <code>extern</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.2</span>printf / scanf 格式符</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>类型</th><th>printf</th><th>scanf</th><th>备注</th></tr></thead>
+<tbody>
+<tr><td><code>int</code></td><td><code>%d</code></td><td><code>%d</code></td><td>最常用</td></tr>
+<tr><td><code>unsigned</code></td><td><code>%u</code></td><td><code>%u</code></td><td>不要用 <code>%d</code></td></tr>
+<tr><td><code>long</code></td><td><code>%ld</code></td><td><code>%ld</code></td><td>Windows 上 <code>long</code> 是 4 字节</td></tr>
+<tr><td><code>long long</code></td><td><code>%lld</code></td><td><code>%lld</code></td><td>64 位整数</td></tr>
+<tr><td><code>size_t</code></td><td><code>%zu</code></td><td><code>%zu</code></td><td>打印 <code>sizeof</code> 必须用这个</td></tr>
+<tr><td><code>double</code></td><td><code>%f</code> / <code>%.2f</code></td><td><code>%lf</code></td><td>scanf 读 double 必须加 <code>l</code></td></tr>
+<tr><td><code>char</code></td><td><code>%c</code></td><td><code>%c</code></td><td>读字符不会跳过空白</td></tr>
+<tr><td>字符串</td><td><code>%s</code></td><td><code>%7s</code></td><td>scanf 读字符串必须限宽，否则可能溢出</td></tr>
+<tr><td>指针</td><td><code>%p</code></td><td>—</td><td>参数要转成 <code>void *</code></td></tr>
+<tr><td>十六进制</td><td><code>%x</code> / <code>%08X</code></td><td><code>%x</code></td><td>调试寄存器、协议字段常用</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.3</span>常用标准库函数</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>头文件</th><th>函数</th><th>用途 / 注意</th></tr></thead>
+<tbody>
+<tr><td><code>stdio.h</code></td><td><code>printf / fprintf / snprintf</code></td><td>格式化输出；<code>snprintf</code> 限制长度，检查返回值是否被截断</td></tr>
+<tr><td><code>stdio.h</code></td><td><code>fgets(buf, n, stdin)</code></td><td>安全读一行，保留换行符</td></tr>
+<tr><td><code>stdio.h</code></td><td><code>fopen / fclose / fread / fwrite</code></td><td>文件操作；二进制模式记得加 <code>"rb"</code> / <code>"wb"</code></td></tr>
+<tr><td><code>stdlib.h</code></td><td><code>malloc / calloc / realloc / free</code></td><td>堆管理；检查 <code>NULL</code>，成对释放</td></tr>
+<tr><td><code>stdlib.h</code></td><td><code>strtol / strtod</code></td><td>字符串转数字，能检测非法输入</td></tr>
+<tr><td><code>stdlib.h</code></td><td><code>qsort(b, n, size, cmp)</code></td><td>通用排序；比较函数返回负/零/正</td></tr>
+<tr><td><code>stdlib.h</code></td><td><code>exit / abort</code></td><td><code>exit</code> 会刷新缓冲区并执行清理，<code>abort</code> 不会</td></tr>
+<tr><td><code>string.h</code></td><td><code>strlen / strcmp / strncmp</code></td><td>长度与比较；<code>strcmp</code> 相等返回 0</td></tr>
+<tr><td><code>string.h</code></td><td><code>memcpy / memmove / memset</code></td><td>内存块操作；重叠区域必须用 <code>memmove</code></td></tr>
+<tr><td><code>string.h</code></td><td><code>strchr / strstr</code></td><td>查找字符 / 子串，找不到返回 <code>NULL</code></td></tr>
+<tr><td><code>ctype.h</code></td><td><code>isdigit / isalpha / toupper</code></td><td>参数必须是 <code>unsigned char</code> 或 <code>EOF</code></td></tr>
+<tr><td><code>math.h</code></td><td><code>sqrt / fabs / pow</code></td><td>部分平台需要链接 <code>-lm</code></td></tr>
+<tr><td><code>limits.h</code></td><td><code>INT_MAX / INT_MIN / CHAR_BIT</code></td><td>写可移植的边界检查</td></tr>
+<tr><td><code>stdint.h</code></td><td><code>int32_t / uint8_t / uintptr_t</code></td><td>明确位宽，嵌入式必备</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.4</span>常见错误对照表</h3>
+<div class="table-wrap">
+<table class="cheat">
+<thead><tr><th>现象</th><th>最可能的原因</th><th>怎么改</th></tr></thead>
+<tbody>
+<tr><td>段错误 / 访问冲突</td><td>空指针、越界、释放后使用</td><td>解引用前判空；检查下标；free 后置空</td></tr>
+<tr><td>结果随机变化</td><td>未初始化变量、越界写破坏栈</td><td>定义时初始化；开 <code>-Wall</code>；用 ASan</td></tr>
+<tr><td>死循环</td><td>循环变量没更新、无符号倒序、浮点比较</td><td>检查步进；用整数计数</td></tr>
+<tr><td>字符串乱码 / 越界</td><td>缺 <code>'\0'</code>、缓冲区太小</td><td>留出终止符空间；用 <code>snprintf</code></td></tr>
+<tr><td>输出被截断</td><td><code>snprintf</code> 返回值 ≥ 缓冲区大小</td><td>检查返回值，扩大缓冲区</td></tr>
+<tr><td>链接报未定义引用</td><td>源文件没参与编译、函数名拼错</td><td>检查文件清单与拼写</td></tr>
+<tr><td>重复定义</td><td>变量/函数定义写进了头文件</td><td>头文件只放声明，定义放 .c</td></tr>
+<tr><td>结构体大小比预期大</td><td>对齐填充</td><td>调整成员顺序，或用 <code>offsetof</code> 检查</td></tr>
+<tr><td>浮点比较失败</td><td>二进制无法精确表示</td><td>用容差比较，金额用整数</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3><span class="n">A.5</span>术语表</h3>
+<div class="term-grid">
+<div class="term"><b>翻译单元</b><span>一个 .c 文件经过预处理后的结果，是编译器真正处理的单位。</span></div>
+<div class="term"><b>目标文件</b><span>汇编产出的机器码文件，含未解析的符号引用。</span></div>
+<div class="term"><b>符号</b><span>函数名、全局变量名等，链接器按名字把引用和定义接起来。</span></div>
+<div class="term"><b>栈帧</b><span>一次函数调用在栈上占用的区域，存放参数、局部变量和返回地址。</span></div>
+<div class="term"><b>未定义行为</b><span>标准不规定结果的行为，编译器可以做任何事，包括“看起来正常”。</span></div>
+<div class="term"><b>实现定义</b><span>标准允许编译器自行选择，但必须写进文档，例如 char 是否有符号。</span></div>
+<div class="term"><b>数组退化</b><span>数组名在表达式中转换为指向首元素的指针。</span></div>
+<div class="term"><b>悬空指针</b><span>指向已释放或已失效内存的指针。</span></div>
+<div class="term"><b>内存泄漏</b><span>分配的内存失去所有引用，无法再释放。</span></div>
+<div class="term"><b>包含守卫</b><span>用 #ifndef/#define/#endif 防止头文件被重复展开。</span></div>
+<div class="term"><b>内部链接</b><span>名字只在当前翻译单元可见，用文件作用域的 static 实现。</span></div>
+<div class="term"><b>序列点</b><span>表达式求值中保证副作用已完成的点，两个序列点之间不能多次修改同一对象。</span></div>
+</div>
+
+<h3><span class="n">A.6</span>20 道自测题</h3>
+<div class="practice">
+<div class="ph">闭卷自测 · 答案在每题下方</div>
+<div class="pb">
+<ol>
+<li>C 程序从源文件到可执行文件经历哪四步？</li>
+<li><code>sizeof(size_t)</code> 在 64 位平台通常是多少？</li>
+<li><code>unsigned char c = 255; c++;</code> 之后 c 是多少？</li>
+<li>有符号整数溢出在 C 标准里属于什么行为？</li>
+<li><code>-1 &lt; 1u</code> 的结果是什么？为什么？</li>
+<li><code>switch</code> 里漏写 <code>break</code> 会发生什么？</li>
+<li>C 的参数传递方式是什么？</li>
+<li>函数返回局部数组的地址会怎样？</li>
+<li><code>char s[10] = "abc";</code> 的 <code>sizeof(s)</code> 和 <code>strlen(s)</code>？</li>
+<li>数组名在什么情况下不退化为指针？</li>
+<li><code>int *p; p + 1</code> 比 <code>p</code> 大多少字节？</li>
+<li><code>const int *p</code> 和 <code>int *const p</code> 有什么区别？</li>
+<li>结构体为什么不能直接用 <code>==</code> 比较？</li>
+<li><code>union</code> 的大小由什么决定？</li>
+<li>头文件里为什么不能定义全局变量？</li>
+<li>函数宏 <code>#define SQR(x) x*x</code> 的主要问题是什么？</li>
+<li><code>malloc</code> 失败返回什么？</li>
+<li><code>realloc</code> 失败后原内存块会怎样？</li>
+<li>释放链表时为什么要先保存 <code>next</code>？</li>
+<li>递归函数必须具备哪三个要素？</li>
+</ol>
+<details class="qa"><summary>参考答案</summary><div class="ans">
+<p><b>1.</b> 预处理、编译、汇编、链接。<b>2.</b> 8 字节。<b>3.</b> 0（按 256 取模）。<b>4.</b> 未定义行为。<b>5.</b> 假，<code>-1</code> 被转成无符号最大值。<b>6.</b> 继续执行下一个 case（穿透）。<b>7.</b> 值传递。<b>8.</b> 悬空指针，访问是未定义行为。<b>9.</b> 10 和 3。</p>
+<p><b>10.</b> <code>sizeof</code>、<code>&amp;</code>、用字符串字面量初始化字符数组。<b>11.</b> <code>sizeof(int)</code>，通常 4 字节。<b>12.</b> 前者不能通过 p 改值但可换指向；后者不能换指向但可改值。<b>13.</b> 标准没有为结构体定义 <code>==</code>，需要逐成员比较。<b>14.</b> 最大成员的大小（并按对齐补齐）。<b>15.</b> 每个包含它的 .c 都会定义一份，链接时重复定义。</p>
+<p><b>16.</b> 没有括号导致优先级错误，且参数可能被多次求值。<b>17.</b> <code>NULL</code>。<b>18.</b> 保持原样，仍然有效，需要自己释放。<b>19.</b> <code>free</code> 后不能再读该节点的成员。<b>20.</b> 终止条件、规模递减、结果组合。</p>
+</div></details>
+</div>
+</div>
+
+<h3><span class="n">A.7</span>学完之后往哪走</h3>
+<p>如果你能独立完成第 13 讲的项目，并且能解释其中每一个设计取舍，那么 C 语言的基础已经够用了。接下来有两条路：</p>
+<div class="grid2">
+<div class="card"><span class="tag">路线 A</span><h4>继续深入 C 与系统</h4><p>读一读标准库的实现，研究 <code>qsort</code>、<code>printf</code> 是怎么写出来的；学习数据结构（树、哈希表）与算法；尝试用 C 写一个小工具。</p></div>
+<div class="card"><span class="tag">路线 B</span><h4>进入嵌入式方向</h4><p>从第 2 册开始：寄存器、内存映射、位操作、中断、环形缓冲区。你会发现这一册里的指针、结构体和位运算，全都在那里等着你。</p></div>
+</div>
+<div class="note good">
+<b>正确做法</b>
+<p>不要急着收集更多资料。选一个方向，把第 13 讲的项目扩展出三个新功能（例如分组、导入导出 CSV、模糊搜索），比看完三本书更能提升。</p>
+</div>
