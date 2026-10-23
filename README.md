@@ -33,6 +33,14 @@
 
 以上地址已通过 GitHub Pages 部署并验证可访问。
 
+### 离线下载
+
+五份单文件 HTML 同时发布在 GitHub Releases：
+
+https://github.com/Wang-Nainai/embedded-learning/releases/latest
+
+每份文件都内嵌 CSS、JavaScript 与 SVG，下载后双击即可阅读。
+
 ## 本地打开
 
 不需要安装任何依赖：
